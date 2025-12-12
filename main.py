@@ -1,14 +1,19 @@
 from fastapi import FastAPI, HTTPException, Request, Form
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
+
 from typing import Optional, Dict
-import requests
-import re
+from datetime import datetime
 import os
+import re
+
+import requests
 import psycopg2
 from psycopg2.extras import RealDictCursor
-from datetime import datetime
+from bs4 import BeautifulSoup
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.cron import CronTrigger
 
 # ---------- CONFIG ----------
 
@@ -38,7 +43,6 @@ if not DATABASE_URL:
 
 app = FastAPI(title="Assure FCA monitor")
 
-# Static + templates folders
 if not os.path.isdir("templates"):
     os.makedirs("templates", exist_ok=True)
 if not os.path.isdir("static"):
@@ -60,8 +64,6 @@ def extract_last_updated_date(html: str) -> Optional[str]:
     """
     Find 'was last updated on DD/MM/YYYY' and return 'YYYY-MM-DD'.
     """
-    from bs4 import BeautifulSoup
-
     soup = BeautifulSoup(html, "html.parser")
     text = soup.get_text(" ", strip=True)
     match = DATE_RE.search(text)
@@ -82,7 +84,7 @@ def fetch_fca_date(module: str) -> Optional[str]:
 
 def notify_slack(message: str):
     if not SLACK_WEBHOOK_URL:
-        return  # no Slack configured
+        return  # Slack not configured – silently skip
     try:
         requests.post(SLACK_WEBHOOK_URL, json={"text": message}, timeout=10)
     except Exception as e:
@@ -98,6 +100,7 @@ def run_check():
     - compare with latest new_date in DB
     - if different, insert row + Slack notify
     """
+    print("[FCA monitor] Running FCA COBS check...")
     conn = get_conn()
     try:
         with conn.cursor() as cur:
@@ -105,20 +108,21 @@ def run_check():
                 try:
                     fca_date_str = fetch_fca_date(module)
                 except Exception as e:
-                    print(f"Error fetching {module} from FCA: {e}")
+                    print(f"[FCA monitor] Error fetching {module} from FCA: {e}")
                     continue
 
                 if not fca_date_str:
-                    print(f"No 'last updated' date found for {module}")
+                    print(f"[FCA monitor] No 'last updated' date found for {module}")
                     continue
 
-                # Get the latest record for this module
+                # Latest record for this module
                 cur.execute(
                     """
-                    SELECT * FROM fca_cobs_updates
-                    WHERE module = %s
-                    ORDER BY new_date DESC
-                    LIMIT 1
+                    SELECT *
+                      FROM fca_cobs_updates
+                     WHERE module = %s
+                     ORDER BY new_date DESC
+                     LIMIT 1
                     """,
                     (module,),
                 )
@@ -127,7 +131,7 @@ def run_check():
                 fca_date = datetime.strptime(fca_date_str, "%Y-%m-%d").date()
 
                 if latest is None:
-                    # First time we've seen this module – insert but don't alert loudly
+                    # First record – store silently
                     cur.execute(
                         """
                         INSERT INTO fca_cobs_updates
@@ -137,7 +141,7 @@ def run_check():
                         (module, url, None, fca_date),
                     )
                     conn.commit()
-                    print(f"Initial record for {module}: {fca_date}")
+                    print(f"[FCA monitor] Initial record for {module}: {fca_date}")
                     continue
 
                 latest_date = latest["new_date"]
@@ -159,9 +163,10 @@ def run_check():
                         f"- New date: {fca_date}\n"
                         f"- URL: {url}"
                     )
-                    print(message)
+                    print("[FCA monitor]", message)
                     notify_slack(message)
 
+        print("[FCA monitor] Check complete.")
     finally:
         conn.close()
 
@@ -173,10 +178,11 @@ def health():
     return {"status": "ok"}
 
 
-@app.post("/cron/run-check")
+# Allow both GET (for you manually in browser) and POST (if ever called programmatically)
+@app.api_route("/cron/run-check", methods=["GET", "POST"])
 def cron_run_check():
     """
-    Endpoint for Render cron to trigger FCA checks.
+    Manual trigger: visit /cron/run-check to force an FCA check now.
     """
     run_check()
     return {"ok": True}
@@ -233,6 +239,26 @@ def mark_reviewed(update_id: int, reviewer: str = Form(default="Assure.ai")):
     finally:
         conn.close()
 
-    from fastapi.responses import RedirectResponse
     return RedirectResponse(url="/admin/updates", status_code=303)
 
+
+# ---------- SCHEDULER ----------
+
+scheduler = BackgroundScheduler()
+
+def start_scheduler():
+    """
+    Run FCA check every day at 06:00 UTC.
+    No Render cron / Jobs / API keys needed.
+    """
+    # Protect against double-start if uvicorn were ever run with multiple workers
+    if scheduler.get_jobs():
+        return
+
+    trigger = CronTrigger(hour=6, minute=0)  # 06:00 every day
+    scheduler.add_job(run_check, trigger)
+    scheduler.start()
+    print("[FCA monitor] Scheduler started: daily at 06:00 UTC")
+
+
+start_scheduler()
