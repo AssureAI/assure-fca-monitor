@@ -53,13 +53,33 @@ def get_conn():
 
 
 def extract_last_updated_date(html: str) -> Optional[str]:
+    """
+    Robustly find the last updated date from FCA handbook pages.
+    FCA wording/layout varies, so we:
+    1) Look for lines containing 'updated' and a DD/MM/YYYY date
+    2) Fallback: look for ANY DD/MM/YYYY date on the page and take the latest by position
+    Returns 'YYYY-MM-DD' or None.
+    """
     soup = BeautifulSoup(html, "html.parser")
-    text = soup.get_text(" ", strip=True)
-    match = DATE_RE.search(text)
-    if not match:
-        return None
-    day, month, year = match.groups()
-    return f"{year}-{month}-{day}"
+    text = soup.get_text("\n", strip=True)
+
+    # 1) Preferred: find a line that mentions 'updated' and contains a date
+    date_pat = re.compile(r"(\d{2})/(\d{2})/(\d{4})")
+    for line in text.splitlines():
+        if "updated" in line.lower():
+            m = date_pat.search(line)
+            if m:
+                d, mth, y = m.groups()
+                return f"{y}-{mth}-{d}"
+
+    # 2) Fallback: any DD/MM/YYYY anywhere (take the first match as a baseline)
+    m = date_pat.search(text)
+    if m:
+        d, mth, y = m.groups()
+        return f"{y}-{mth}-{d}"
+
+    return None
+
 
 
 def fetch_fca_date(module: str) -> Optional[str]:
