@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Request, Form
+from fastapi import FastAPI, Request, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
@@ -12,12 +12,9 @@ import requests
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from bs4 import BeautifulSoup
-from apscheduler.schedulers.background import BackgroundScheduler
-from apscheduler.triggers.cron import CronTrigger
 
 # ---------- CONFIG ----------
 
-# Map our internal module labels to FCA URLs
 COBS_URLS: Dict[str, str] = {
     "COBS 2":  "https://handbook.fca.org.uk/handbook/COBS/2/3.html",
     "COBS 3":  "https://handbook.fca.org.uk/handbook/COBS/3/5.html",
@@ -30,7 +27,6 @@ COBS_URLS: Dict[str, str] = {
     "COBS 22": "https://handbook.fca.org.uk/handbook/COBS/22/",
 }
 
-# Regex for "was last updated on 03/01/2018"
 DATE_RE = re.compile(r"last updated on (\d{2})/(\d{2})/(\d{4})", re.IGNORECASE)
 
 DATABASE_URL = os.environ.get("DATABASE_URL")
@@ -52,25 +48,18 @@ templates = Jinja2Templates(directory="templates")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
-# ---------- DB UTILS ----------
-
 def get_conn():
     return psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
 
 
-# ---------- FCA SCRAPING ----------
-
 def extract_last_updated_date(html: str) -> Optional[str]:
-    """
-    Find 'was last updated on DD/MM/YYYY' and return 'YYYY-MM-DD'.
-    """
     soup = BeautifulSoup(html, "html.parser")
     text = soup.get_text(" ", strip=True)
     match = DATE_RE.search(text)
     if not match:
         return None
     day, month, year = match.groups()
-    return f"{year}-{month}-{day}"  # ISO format
+    return f"{year}-{month}-{day}"
 
 
 def fetch_fca_date(module: str) -> Optional[str]:
@@ -80,26 +69,16 @@ def fetch_fca_date(module: str) -> Optional[str]:
     return extract_last_updated_date(resp.text)
 
 
-# ---------- NOTIFICATIONS ----------
-
 def notify_slack(message: str):
     if not SLACK_WEBHOOK_URL:
-        return  # Slack not configured – silently skip
+        return
     try:
         requests.post(SLACK_WEBHOOK_URL, json={"text": message}, timeout=10)
     except Exception as e:
         print(f"Error sending Slack notification: {e}")
 
 
-# ---------- CORE CHECK LOGIC ----------
-
 def run_check():
-    """
-    For each module:
-    - fetch FCA date
-    - compare with latest new_date in DB
-    - if different, insert row + Slack notify
-    """
     print("[FCA monitor] Running FCA COBS check...")
     conn = get_conn()
     try:
@@ -115,7 +94,6 @@ def run_check():
                     print(f"[FCA monitor] No 'last updated' date found for {module}")
                     continue
 
-                # Latest record for this module
                 cur.execute(
                     """
                     SELECT *
@@ -131,11 +109,9 @@ def run_check():
                 fca_date = datetime.strptime(fca_date_str, "%Y-%m-%d").date()
 
                 if latest is None:
-                    # First record – store silently
                     cur.execute(
                         """
-                        INSERT INTO fca_cobs_updates
-                            (module, url, old_date, new_date)
+                        INSERT INTO fca_cobs_updates (module, url, old_date, new_date)
                         VALUES (%s, %s, %s, %s)
                         """,
                         (module, url, None, fca_date),
@@ -146,11 +122,9 @@ def run_check():
 
                 latest_date = latest["new_date"]
                 if fca_date != latest_date:
-                    # New update detected
                     cur.execute(
                         """
-                        INSERT INTO fca_cobs_updates
-                            (module, url, old_date, new_date)
+                        INSERT INTO fca_cobs_updates (module, url, old_date, new_date)
                         VALUES (%s, %s, %s, %s)
                         """,
                         (module, url, latest_date, fca_date),
@@ -171,28 +145,19 @@ def run_check():
         conn.close()
 
 
-# ---------- ROUTES ----------
-
 @app.get("/health")
 def health():
     return {"status": "ok"}
 
 
-# Allow both GET (for you manually in browser) and POST (if ever called programmatically)
 @app.api_route("/cron/run-check", methods=["GET", "POST"])
 def cron_run_check():
-    """
-    Manual trigger: visit /cron/run-check to force an FCA check now.
-    """
     run_check()
     return {"ok": True}
 
 
 @app.get("/admin/updates", response_class=HTMLResponse)
 def admin_updates(request: Request):
-    """
-    Internal dashboard: list recent updates.
-    """
     conn = get_conn()
     try:
         with conn.cursor() as cur:
@@ -208,20 +173,11 @@ def admin_updates(request: Request):
     finally:
         conn.close()
 
-    return templates.TemplateResponse(
-        "admin_updates.html",
-        {
-            "request": request,
-            "updates": rows,
-        },
-    )
+    return templates.TemplateResponse("admin_updates.html", {"request": request, "updates": rows})
 
 
 @app.post("/admin/updates/{update_id}/review")
 def mark_reviewed(update_id: int, reviewer: str = Form(default="Assure.ai")):
-    """
-    Mark an update as reviewed.
-    """
     conn = get_conn()
     try:
         with conn.cursor() as cur:
@@ -240,25 +196,3 @@ def mark_reviewed(update_id: int, reviewer: str = Form(default="Assure.ai")):
         conn.close()
 
     return RedirectResponse(url="/admin/updates", status_code=303)
-
-
-# ---------- SCHEDULER ----------
-
-scheduler = BackgroundScheduler()
-
-def start_scheduler():
-    """
-    Run FCA check every day at 06:00 UTC.
-    No Render cron / Jobs / API keys needed.
-    """
-    # Protect against double-start if uvicorn were ever run with multiple workers
-    if scheduler.get_jobs():
-        return
-
-    trigger = CronTrigger(hour=6, minute=0)  # 06:00 every day
-    scheduler.add_job(run_check, trigger)
-    scheduler.start()
-    print("[FCA monitor] Scheduler started: daily at 06:00 UTC")
-
-
-start_scheduler()
