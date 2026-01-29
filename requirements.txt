@@ -1,7 +1,4 @@
 fastapi
 uvicorn
 requests
-psycopg2-binary
-jinja2
-python-multipart
 pydantic
