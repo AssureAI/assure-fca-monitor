@@ -1,12 +1,12 @@
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
-from typing import List, Dict, Literal, Optional
-from datetime import datetime
-import re
+from typing import Dict, Optional
 import os
 import hmac
 import hashlib
+
+from executor import run_rules_engine
 
 # --------------------------------------------------
 # APP SETUP
@@ -21,6 +21,10 @@ app = FastAPI(title="Assure Deterministic Compliance Engine")
 INGEST_TOKEN = os.environ.get("INGEST_TOKEN")  # shared secret with Base44
 
 def verify_hmac(request: Request, body: bytes):
+    """
+    If INGEST_TOKEN is set, require callers to provide:
+      X-Signature: hex(hmac_sha256(INGEST_TOKEN, raw_request_body))
+    """
     if not INGEST_TOKEN:
         return  # auth disabled if not set
 
@@ -38,127 +42,42 @@ def verify_hmac(request: Request, body: bytes):
         raise HTTPException(status_code=401, detail="Invalid signature")
 
 # --------------------------------------------------
-# MODELS (STRICT CONTRACT)
+# REQUEST MODEL (STRICT INPUT CONTRACT)
 # --------------------------------------------------
 
-Status = Literal["OK", "POTENTIAL_ISSUE", "NOT_ASSESSED"]
-
 class CheckRequest(BaseModel):
-    advice_type: str = Field(..., description="advised / execution_only / standard")
+    advice_type: str = Field(..., description="e.g. advised / execution_only / standard")
     filename: Optional[str] = None
     document_text: str = Field(..., min_length=1)
 
-class RuleResult(BaseModel):
-    rule_id: str
-    status: Status
-    citation: str
-    source_url: str
-    excerpt: Optional[str] = None  # keep null in v1
-
-class CheckResponse(BaseModel):
-    ruleset_version: str
-    checked_at: str
-    summary: Dict[str, int]
-    results: List[RuleResult]
-
-# --------------------------------------------------
-# RULESET
-# --------------------------------------------------
-
-RULESET_VERSION = "cobs-sr-v0.1"
-
-def normalize(text: str) -> str:
-    return re.sub(r"\s+", " ", (text or "").lower()).strip()
-
-def contains_any(text: str, phrases: List[str]) -> bool:
-    t = normalize(text)
-    return any(normalize(p) in t for p in phrases)
-
-def run_rules(advice_type: str, text: str) -> List[RuleResult]:
-    at = (advice_type or "").lower().strip()
-    results: List[RuleResult] = []
-
-    results.append(RuleResult(
-        rule_id="SR_RISK_PROFILE_PRESENT",
-        status="OK" if contains_any(text, [
-            "risk profile", "attitude to risk", "risk questionnaire"
-        ]) else "POTENTIAL_ISSUE",
-        citation="COBS 9.2.2R",
-        source_url="https://handbook.fca.org.uk/handbook/COBS/9/2.html",
-        excerpt=None
-    ))
-
-    results.append(RuleResult(
-        rule_id="SR_CAPACITY_FOR_LOSS_PRESENT",
-        status="OK" if contains_any(text, [
-            "capacity for loss", "loss capacity"
-        ]) else "POTENTIAL_ISSUE",
-        citation="COBS 9.2.2R",
-        source_url="https://handbook.fca.org.uk/handbook/COBS/9/2.html",
-        excerpt=None
-    ))
-
-    results.append(RuleResult(
-        rule_id="SR_COSTS_CHARGES_PRESENT",
-        status="OK" if contains_any(text, [
-            "cost", "charge", "fee", "ongoing charges", "ocf"
-        ]) else "POTENTIAL_ISSUE",
-        citation="COBS 6.1ZA / 6.1ZB",
-        source_url="https://handbook.fca.org.uk/handbook/COBS/6/",
-        excerpt=None
-    ))
-
-    if at in ("advised", "standard", "financial_advice"):
-        status = "OK" if contains_any(text, [
-            "we recommend", "our recommendation", "suitable", "suitability"
-        ]) else "POTENTIAL_ISSUE"
-    else:
-        status = "NOT_ASSESSED"
-
-    results.append(RuleResult(
-        rule_id="SR_SUITABILITY_RECOMMENDATION_PRESENT",
-        status=status,
-        citation="COBS 9.2.1R",
-        source_url="https://handbook.fca.org.uk/handbook/COBS/9/2.html",
-        excerpt=None
-    ))
-
-    results.append(RuleResult(
-        rule_id="SR_CLIENT_OBJECTIVES_PRESENT",
-        status="OK" if contains_any(text, [
-            "objectives", "goals", "needs", "your objective", "your objectives"
-        ]) else "POTENTIAL_ISSUE",
-        citation="COBS 9.2.2R",
-        source_url="https://handbook.fca.org.uk/handbook/COBS/9/2.html",
-        excerpt=None
-    ))
-
-    return results
+    # Optional context flags you can start using immediately (or later)
+    investment_element: Optional[bool] = True
+    ongoing_service: Optional[bool] = False
 
 # --------------------------------------------------
 # ROUTES
 # --------------------------------------------------
 
-@app.post("/check", response_model=CheckResponse)
+@app.post("/check")
 async def check(request: Request, payload: CheckRequest):
-    body = await request.body()
-    verify_hmac(request, body)
+    # Verify signature using the exact raw body that was sent
+    raw_body = await request.body()
+    verify_hmac(request, raw_body)
 
-    results = run_rules(payload.advice_type, payload.document_text)
-
-    summary = {
-        "ok": sum(1 for r in results if r.status == "OK"),
-        "potential_issue": sum(1 for r in results if r.status == "POTENTIAL_ISSUE"),
-        "not_assessed": sum(1 for r in results if r.status == "NOT_ASSESSED"),
+    # Build context for YAML rules applicability
+    context: Dict[str, object] = {
+        "advice_type": payload.advice_type,
+        "investment_element": bool(payload.investment_element),
+        "ongoing_service": bool(payload.ongoing_service),
     }
 
-    resp = CheckResponse(
-        ruleset_version=RULESET_VERSION,
-        checked_at=datetime.utcnow().replace(microsecond=0).isoformat() + "Z",
-        summary=summary,
-        results=results,
+    out = run_rules_engine(
+        document_text=payload.document_text,
+        context=context
+        # rules_path left as default inside executor.py
     )
-    return JSONResponse(resp.model_dump())
+
+    return JSONResponse(out)
 
 @app.get("/health")
 def health():
