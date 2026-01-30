@@ -1,3 +1,4 @@
+print("🔥 LOADED EXECUTOR VERSION 2026-01-30 vFINAL")
 import yaml
 import re
 from datetime import datetime
