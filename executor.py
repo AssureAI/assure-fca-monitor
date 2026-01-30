@@ -39,43 +39,59 @@ def evaluate_rule(rule: Dict[str, Any], text: str, context: Dict[str, Any]) -> s
     """
     Returns: "OK", "POTENTIAL_ISSUE", or "NOT_ASSESSED"
     """
-    applies_when = rule.get("applies_when", {}) or {}
+    applies_when = rule.get("applies_when", {})
 
-    # Applicability check (strict by design)
+    # Applicability check
     for key, expected in applies_when.items():
         if context.get(key) != expected:
             return "NOT_ASSESSED"
 
-    evidence = rule.get("evidence", {}) or {}
-    decision = rule.get("decision_logic", {}) or {}
-    ok_if = decision.get("ok_if", {}) or {}
+    evidence = rule.get("evidence", {})
+    decision = rule.get("decision_logic", {})
+    ok_if = decision.get("ok_if", [])
 
     text_norm = normalise(text)
+
     counts: Dict[str, int] = {}
 
-    # Build evidence counts
     for evidence_type, patterns in evidence.items():
-        if evidence_type.endswith("_clusters"):
-            counts[evidence_type] = count_cluster_hits(text_norm, patterns)
-        else:
-            counts[evidence_type] = count_phrase_hits(text_norm, patterns)
-
-    # Apply decision conditions
-    for key, condition in ok_if.items():
-        if key not in counts:
+        # Defensive: skip empty / malformed entries
+        if not patterns:
+            counts[evidence_type] = 0
             continue
 
-        value = counts[key]
-        condition = str(condition).strip()
+        # Clustered phrases: list[list[str]]
+        if evidence_type.endswith("_clusters"):
+            counts[evidence_type] = count_cluster_hits(text_norm, patterns)
 
-        if condition.startswith(">="):
-            if value < int(condition[2:]):
+        # Everything else: flat list[str]
+        else:
+            flat_phrases: List[str] = []
+            for p in patterns:
+                if isinstance(p, str):
+                    flat_phrases.append(p)
+                elif isinstance(p, list):
+                    flat_phrases.extend([x for x in p if isinstance(x, str)])
+
+            counts[evidence_type] = count_phrase_hits(text_norm, flat_phrases)
+
+    # Apply decision logic
+    for clause in ok_if:
+        clause = clause.strip()
+
+        if clause.startswith(">="):
+            num, key = clause[2:].split(" ", 1)
+            if counts.get(key.strip(), 0) < int(num):
                 return "POTENTIAL_ISSUE"
-        elif condition.startswith("=="):
-            if value != int(condition[2:]):
+
+        elif clause.startswith("=="):
+            num, key = clause[2:].split(" ", 1)
+            if counts.get(key.strip(), 0) != int(num):
                 return "POTENTIAL_ISSUE"
-        elif condition.startswith("<="):
-            if value > int(condition[2:]):
+
+        elif clause.startswith("<="):
+            num, key = clause[2:].split(" ", 1)
+            if counts.get(key.strip(), 0) > int(num):
                 return "POTENTIAL_ISSUE"
 
     return "OK"
