@@ -72,10 +72,10 @@ async def check(request: Request, payload: CheckRequest):
     }
 
     out = run_rules_engine(
-        document_text=payload.document_text,
-        context=context
-        # rules_path left as default inside executor.py
-    )
+    document_text=payload.document_text,
+    context=context,
+    rules_path="rules/cobs-suitability-v1.yaml"
+)
 
     return JSONResponse(out)
 
