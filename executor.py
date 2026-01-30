@@ -1,123 +1,171 @@
-print("🔥 LOADED EXECUTOR VERSION 2026-01-30 vFINAL")
 import yaml
 import re
 from datetime import datetime
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any
 
 
-# -----------------------------
-# UTILITIES
-# -----------------------------
+# --------------------------------------------------
+# TEXT UTILITIES
+# --------------------------------------------------
+
+SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+")
+
 
 def normalise(text: str) -> str:
     return re.sub(r"\s+", " ", (text or "").lower()).strip()
 
 
-def extract_snippet(text: str, phrase: str, window: int = 80) -> Optional[str]:
-    idx = text.lower().find(phrase.lower())
-    if idx == -1:
-        return None
-    start = max(0, idx - window)
-    end = min(len(text), idx + len(phrase) + window)
-    return text[start:end].strip()
+def split_sentences(text: str) -> List[str]:
+    return [s.strip() for s in SENTENCE_SPLIT.split(text) if s.strip()]
 
 
-def evaluate_clusters(text: str, clusters: List[List[str]]) -> Dict[str, Any]:
+# --------------------------------------------------
+# MATCHING UTILITIES
+# --------------------------------------------------
+
+def cluster_hits(text_norm: str, sentences: List[str], clusters: List[List[str]]):
+    """
+    Returns:
+      hits_count,
+      matched_phrases,
+      matched_sentences
+    """
+    matched_phrases = set()
+    matched_sentences = set()
     hits = 0
-    matched_phrases = []
-    snippets = []
 
     for cluster in clusters:
-        if not isinstance(cluster, list):
-            continue
-
+        cluster_matched = False
         for phrase in cluster:
-            if not isinstance(phrase, str):
-                continue
+            p = phrase.lower()
+            if p in text_norm:
+                matched_phrases.add(phrase)
+                cluster_matched = True
 
-            if phrase.lower() in text:
-                hits += 1
-                matched_phrases.append(phrase)
-                snippet = extract_snippet(text, phrase)
-                if snippet:
-                    snippets.append(snippet)
-                break
+                for s in sentences:
+                    if p in s.lower():
+                        matched_sentences.add(s)
 
-    return {
-        "hits": hits,
-        "matched_phrases": matched_phrases,
-        "snippets": snippets,
-    }
+        if cluster_matched:
+            hits += 1
+
+    return hits, list(matched_phrases), list(matched_sentences)
 
 
-def evaluate_flat_phrases(text: str, phrases: List[str]) -> int:
-    count = 0
+def negative_hits(text_norm: str, sentences: List[str], phrases: List[str]):
+    matched_phrases = set()
+    matched_sentences = set()
+
     for phrase in phrases:
-        if isinstance(phrase, str) and phrase.lower() in text:
-            count += 1
-    return count
+        p = phrase.lower()
+        if p in text_norm:
+            matched_phrases.add(phrase)
+            for s in sentences:
+                if p in s.lower():
+                    matched_sentences.add(s)
+
+    return len(matched_phrases), list(matched_phrases), list(matched_sentences)
 
 
-# -----------------------------
+# --------------------------------------------------
 # RULE EVALUATION
-# -----------------------------
+# --------------------------------------------------
 
 def evaluate_rule(rule: Dict[str, Any], text: str, context: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Returns full rule evaluation payload including evidence
+    """
     applies_when = rule.get("applies_when", {})
 
-    # Applicability gate
+    # Applicability
     for key, expected in applies_when.items():
         if context.get(key) != expected:
             return {
                 "status": "NOT_ASSESSED",
-                "evidence": {},
+                "evidence": None
             }
 
     text_norm = normalise(text)
+    sentences = split_sentences(text)
+
     evidence = rule.get("evidence", {})
-    decision_logic = rule.get("decision_logic", {}).get("ok_if", [])
+    decision = rule.get("decision_logic", {}).get("ok_if", [])
 
-    counts: Dict[str, int] = {}
-    evidence_out: Dict[str, Any] = {}
+    cluster_counts = {}
+    phrase_hits = {}
+    sentence_hits = {}
 
-    for ev_key, ev_value in evidence.items():
-        if isinstance(ev_value, list) and ev_value and isinstance(ev_value[0], list):
-            result = evaluate_clusters(text_norm, ev_value)
-            counts[ev_key] = result["hits"]
-            evidence_out[ev_key] = result
-        elif isinstance(ev_value, list):
-            counts[ev_key] = evaluate_flat_phrases(text_norm, ev_value)
-        else:
-            counts[ev_key] = 0
+    # Positive clusters
+    if "positive_clusters" in evidence:
+        hits, phrases, sents = cluster_hits(
+            text_norm,
+            sentences,
+            evidence["positive_clusters"]
+        )
+        cluster_counts["positive_clusters"] = hits
+        phrase_hits["positive_clusters"] = phrases
+        sentence_hits["positive_clusters"] = sents
 
-    for rule_condition in decision_logic:
-        rule_condition = rule_condition.strip()
+    # Linkage / causal / contextual clusters
+    for key in ["linkage_indicators", "causal_language", "contextual_indicators"]:
+        if key in evidence:
+            hits, phrases, sents = cluster_hits(
+                text_norm,
+                sentences,
+                [[p] for p in evidence[key]]
+            )
+            cluster_counts[key] = hits
+            phrase_hits[key] = phrases
+            sentence_hits[key] = sents
 
-        if rule_condition.startswith(">="):
-            parts = rule_condition.replace(">=", "").split()
-            needed = int(parts[0])
-            key = parts[1]
+    # Negative indicators
+    if "negative_indicators" in evidence:
+        hits, phrases, sents = negative_hits(
+            text_norm,
+            sentences,
+            evidence["negative_indicators"]
+        )
+        cluster_counts["negative_indicators"] = hits
+        phrase_hits["negative_indicators"] = phrases
+        sentence_hits["negative_indicators"] = sents
 
-            if counts.get(key, 0) < needed:
-                return {
-                    "status": "POTENTIAL_ISSUE",
-                    "evidence": evidence_out,
-                }
+    # Decision logic evaluation
+    status = "OK"
+    required_clusters = 0
+
+    for condition in decision:
+        condition = condition.strip()
+
+        if condition.startswith(">="):
+            n, key = condition[2:].split(" ", 1)
+            required_clusters += int(n)
+            if cluster_counts.get(key.strip(), 0) < int(n):
+                status = "POTENTIAL_ISSUE"
+
+        elif condition.startswith("=="):
+            n, key = condition[2:].split(" ", 1)
+            if cluster_counts.get(key.strip(), 0) != int(n):
+                status = "POTENTIAL_ISSUE"
 
     return {
-        "status": "OK",
-        "evidence": evidence_out,
+        "status": status,
+        "evidence": {
+            "matched_phrases": sorted(set(sum(phrase_hits.values(), []))),
+            "matched_sentences": sorted(set(sum(sentence_hits.values(), []))),
+            "clusters_hit": sum(cluster_counts.values()),
+            "required_clusters": required_clusters or None
+        }
     }
 
 
-# -----------------------------
+# --------------------------------------------------
 # EXECUTOR ENTRY POINT
-# -----------------------------
+# --------------------------------------------------
 
 def run_rules_engine(
     document_text: str,
     context: Dict[str, Any],
-    rules_path: str,
+    rules_path: str
 ) -> Dict[str, Any]:
 
     with open(rules_path, "r") as f:
@@ -130,23 +178,22 @@ def run_rules_engine(
 
         results.append({
             "rule_id": rule["id"],
-            "section": rule.get("section"),
             "status": evaluation["status"],
             "citation": rule["citation"],
             "source_url": rule.get("source_url"),
-            "evidence": evaluation.get("evidence", {}),
+            "evidence": evaluation["evidence"]
         })
 
     summary = {
         "ok": sum(1 for r in results if r["status"] == "OK"),
         "potential_issue": sum(1 for r in results if r["status"] == "POTENTIAL_ISSUE"),
-        "not_assessed": sum(1 for r in results if r["status"] == "NOT_ASSESSED"),
+        "not_assessed": sum(1 for r in results if r["status"] == "NOT_ASSESSED")
     }
 
     return {
-        "ruleset_id": ruleset["ruleset_id"],
-        "ruleset_version": ruleset["version"],
-        "checked_at": datetime.utcnow().isoformat() + "Z",
+        "ruleset_id": ruleset["ruleset"]["id"],
+        "ruleset_version": ruleset["ruleset"]["version"],
+        "checked_at": datetime.utcnow().replace(microsecond=0).isoformat() + "Z",
         "summary": summary,
-        "results": results,
+        "results": results
     }
