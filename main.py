@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from typing import List, Dict, Literal, Optional
 from datetime import datetime
@@ -28,7 +29,7 @@ def verify_hmac(request: Request, body: bytes):
         raise HTTPException(status_code=401, detail="Missing signature")
 
     expected = hmac.new(
-        INGEST_TOKEN.encode(),
+        INGEST_TOKEN.encode("utf-8"),
         body,
         hashlib.sha256
     ).hexdigest()
@@ -52,7 +53,7 @@ class RuleResult(BaseModel):
     status: Status
     citation: str
     source_url: str
-    excerpt: Optional[str] = None  # always null in v1
+    excerpt: Optional[str] = None  # keep null in v1
 
 class CheckResponse(BaseModel):
     ruleset_version: str
@@ -67,17 +68,16 @@ class CheckResponse(BaseModel):
 RULESET_VERSION = "cobs-sr-v0.1"
 
 def normalize(text: str) -> str:
-    return re.sub(r"\s+", " ", text.lower())
+    return re.sub(r"\s+", " ", (text or "").lower()).strip()
 
 def contains_any(text: str, phrases: List[str]) -> bool:
     t = normalize(text)
-    return any(p in t for p in phrases)
+    return any(normalize(p) in t for p in phrases)
 
 def run_rules(advice_type: str, text: str) -> List[RuleResult]:
-    at = advice_type.lower().strip()
+    at = (advice_type or "").lower().strip()
     results: List[RuleResult] = []
 
-    # Risk profile
     results.append(RuleResult(
         rule_id="SR_RISK_PROFILE_PRESENT",
         status="OK" if contains_any(text, [
@@ -85,9 +85,9 @@ def run_rules(advice_type: str, text: str) -> List[RuleResult]:
         ]) else "POTENTIAL_ISSUE",
         citation="COBS 9.2.2R",
         source_url="https://handbook.fca.org.uk/handbook/COBS/9/2.html",
+        excerpt=None
     ))
 
-    # Capacity for loss
     results.append(RuleResult(
         rule_id="SR_CAPACITY_FOR_LOSS_PRESENT",
         status="OK" if contains_any(text, [
@@ -95,9 +95,9 @@ def run_rules(advice_type: str, text: str) -> List[RuleResult]:
         ]) else "POTENTIAL_ISSUE",
         citation="COBS 9.2.2R",
         source_url="https://handbook.fca.org.uk/handbook/COBS/9/2.html",
+        excerpt=None
     ))
 
-    # Costs / charges
     results.append(RuleResult(
         rule_id="SR_COSTS_CHARGES_PRESENT",
         status="OK" if contains_any(text, [
@@ -105,12 +105,12 @@ def run_rules(advice_type: str, text: str) -> List[RuleResult]:
         ]) else "POTENTIAL_ISSUE",
         citation="COBS 6.1ZA / 6.1ZB",
         source_url="https://handbook.fca.org.uk/handbook/COBS/6/",
+        excerpt=None
     ))
 
-    # Suitability recommendation (only if advised)
     if at in ("advised", "standard", "financial_advice"):
         status = "OK" if contains_any(text, [
-            "we recommend", "recommendation", "suitable", "suitability"
+            "we recommend", "our recommendation", "suitable", "suitability"
         ]) else "POTENTIAL_ISSUE"
     else:
         status = "NOT_ASSESSED"
@@ -120,16 +120,17 @@ def run_rules(advice_type: str, text: str) -> List[RuleResult]:
         status=status,
         citation="COBS 9.2.1R",
         source_url="https://handbook.fca.org.uk/handbook/COBS/9/2.html",
+        excerpt=None
     ))
 
-    # Client objectives
     results.append(RuleResult(
         rule_id="SR_CLIENT_OBJECTIVES_PRESENT",
         status="OK" if contains_any(text, [
-            "objectives", "goals", "needs", "your objective"
+            "objectives", "goals", "needs", "your objective", "your objectives"
         ]) else "POTENTIAL_ISSUE",
         citation="COBS 9.2.2R",
         source_url="https://handbook.fca.org.uk/handbook/COBS/9/2.html",
+        excerpt=None
     ))
 
     return results
@@ -151,12 +152,13 @@ async def check(request: Request, payload: CheckRequest):
         "not_assessed": sum(1 for r in results if r.status == "NOT_ASSESSED"),
     }
 
-    return CheckResponse(
+    resp = CheckResponse(
         ruleset_version=RULESET_VERSION,
         checked_at=datetime.utcnow().replace(microsecond=0).isoformat() + "Z",
         summary=summary,
         results=results,
     )
+    return JSONResponse(resp.model_dump())
 
 @app.get("/health")
 def health():
