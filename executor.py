@@ -52,19 +52,29 @@ def cluster_hits(text_norm: str, sentences: List[str], clusters: List[List[str]]
     return hits, list(matched_phrases), list(matched_sentences)
 
 
-def negative_hits(text_norm: str, sentences: List[str], phrases: List[str]):
+def negative_hits(text_norm: str, sentences: List[str], clusters: List[List[str]]):
+    """
+    Negative indicators behave like clusters:
+    - Any phrase in a cluster triggers the cluster
+    """
+    hits = 0
     matched_phrases = set()
     matched_sentences = set()
 
-    for phrase in phrases:
-        p = phrase.lower()
-        if p in text_norm:
-            matched_phrases.add(phrase)
-            for s in sentences:
-                if p in s.lower():
-                    matched_sentences.add(s)
+    for cluster in clusters:
+        cluster_hit = False
+        for phrase in cluster:
+            p = phrase.lower()
+            if p in text_norm:
+                cluster_hit = True
+                matched_phrases.add(phrase)
+                for s in sentences:
+                    if p in s.lower():
+                        matched_sentences.add(s)
+        if cluster_hit:
+            hits += 1
 
-    return len(matched_phrases), list(matched_phrases), list(matched_sentences)
+    return hits, list(matched_phrases), list(matched_sentences)
 
 
 # --------------------------------------------------
