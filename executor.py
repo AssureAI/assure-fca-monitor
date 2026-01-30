@@ -1,100 +1,102 @@
 import yaml
 import re
 from datetime import datetime
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any
 
 
 # -----------------------------
-# UTILITIES
+# TEXT UTILITIES
 # -----------------------------
 
 def normalise(text: str) -> str:
     return re.sub(r"\s+", " ", (text or "").lower()).strip()
 
 
-def count_cluster_hits(text: str, clusters: List[List[str]]) -> int:
-    """
-    Counts how many clusters are satisfied.
-    A cluster is satisfied if ANY phrase in that cluster appears in the text.
-    """
-    hits = 0
-    for cluster in clusters or []:
-        for phrase in cluster or []:
-            if phrase and phrase.lower() in text:
-                hits += 1
+def split_sentences(text: str) -> List[str]:
+    return re.split(r"(?<=[.!?])\s+", text)
+
+
+def find_snippets(text: str, phrases: List[str]) -> List[str]:
+    sentences = split_sentences(text)
+    hits = []
+    for s in sentences:
+        s_norm = s.lower()
+        for p in phrases:
+            if p.lower() in s_norm:
+                hits.append(s.strip())
                 break
     return hits
 
 
-def count_phrase_hits(text: str, phrases: List[str]) -> int:
-    phrases = phrases or []
-    return sum(1 for p in phrases if p and p.lower() in text)
+def cluster_hit_count(text: str, clusters: List[List[str]]) -> (int, List[str]):
+    hit_phrases = []
+    count = 0
+    for cluster in clusters:
+        for phrase in cluster:
+            if phrase.lower() in text:
+                count += 1
+                hit_phrases.extend(cluster)
+                break
+    return count, list(set(hit_phrases))
 
 
 # -----------------------------
 # RULE EVALUATION
 # -----------------------------
 
-def evaluate_rule(rule: Dict[str, Any], text: str, context: Dict[str, Any]) -> str:
-    """
-    Returns: "OK", "POTENTIAL_ISSUE", or "NOT_ASSESSED"
-    """
+def evaluate_rule(rule: Dict[str, Any], text: str, context: Dict[str, Any]) -> Dict[str, Any]:
     applies_when = rule.get("applies_when", {})
-
-    # Applicability check
-    for key, expected in applies_when.items():
-        if context.get(key) != expected:
-            return "NOT_ASSESSED"
+    for k, v in applies_when.items():
+        if context.get(k) != v:
+            return {
+                "status": "NOT_ASSESSED",
+                "evidence": {}
+            }
 
     evidence = rule.get("evidence", {})
-    decision = rule.get("decision_logic", {})
-    ok_if = decision.get("ok_if", [])
+    decision = rule.get("decision_logic", {}).get("ok_if", [])
 
     text_norm = normalise(text)
+    evidence_hits = {}
+    matched_phrases = set()
 
-    counts: Dict[str, int] = {}
-
-    for evidence_type, patterns in evidence.items():
-        # Defensive: skip empty / malformed entries
-        if not patterns:
-            counts[evidence_type] = 0
-            continue
-
-        # Clustered phrases: list[list[str]]
-        if evidence_type.endswith("_clusters"):
-            counts[evidence_type] = count_cluster_hits(text_norm, patterns)
-
-        # Everything else: flat list[str]
+    for key, value in evidence.items():
+        if key.endswith("_clusters"):
+            count, phrases = cluster_hit_count(text_norm, value)
+            evidence_hits[key] = count
+            matched_phrases.update(phrases)
         else:
-            flat_phrases: List[str] = []
-            for p in patterns:
-                if isinstance(p, str):
-                    flat_phrases.append(p)
-                elif isinstance(p, list):
-                    flat_phrases.extend([x for x in p if isinstance(x, str)])
+            hits = [p for p in value if p.lower() in text_norm]
+            evidence_hits[key] = len(hits)
+            matched_phrases.update(hits)
 
-            counts[evidence_type] = count_phrase_hits(text_norm, flat_phrases)
+    for rule_expr in decision:
+        if rule_expr.startswith(">="):
+            needed, field = rule_expr[2:].split(" ")
+            if evidence_hits.get(field, 0) < int(needed):
+                break
+        elif rule_expr.startswith("=="):
+            needed, field = rule_expr[2:].split(" ")
+            if evidence_hits.get(field, 0) != int(needed):
+                break
+    else:
+        snippets = find_snippets(text, list(matched_phrases))
+        return {
+            "status": "OK",
+            "evidence": {
+                "matched_phrases": sorted(matched_phrases),
+                "snippets": snippets
+            }
+        }
 
-    # Apply decision logic
-    for clause in ok_if:
-        clause = clause.strip()
-
-        if clause.startswith(">="):
-            num, key = clause[2:].split(" ", 1)
-            if counts.get(key.strip(), 0) < int(num):
-                return "POTENTIAL_ISSUE"
-
-        elif clause.startswith("=="):
-            num, key = clause[2:].split(" ", 1)
-            if counts.get(key.strip(), 0) != int(num):
-                return "POTENTIAL_ISSUE"
-
-        elif clause.startswith("<="):
-            num, key = clause[2:].split(" ", 1)
-            if counts.get(key.strip(), 0) > int(num):
-                return "POTENTIAL_ISSUE"
-
-    return "OK"
+    snippets = find_snippets(text, list(matched_phrases))
+    return {
+        "status": "POTENTIAL_ISSUE",
+        "evidence": {
+            "matched_phrases": sorted(matched_phrases),
+            "snippets": snippets
+        }
+    }
 
 
 # -----------------------------
@@ -104,36 +106,45 @@ def evaluate_rule(rule: Dict[str, Any], text: str, context: Dict[str, Any]) -> s
 def run_rules_engine(
     document_text: str,
     context: Dict[str, Any],
-    rules_path: str = "rules/cobs-suitability-v1.yaml"
+    rules_path: str
 ) -> Dict[str, Any]:
 
-    with open(rules_path, "r", encoding="utf-8") as f:
+    with open(rules_path, "r") as f:
         ruleset = yaml.safe_load(f)
 
-    # Expect: top-level keys: ruleset, rules
-    meta = ruleset.get("ruleset", {})
-    rules = ruleset.get("rules", []) or []
+    sections: Dict[str, Dict[str, Any]] = {}
 
-    results = []
-    for rule in rules:
-        status = evaluate_rule(rule, document_text, context)
-        results.append({
-            "rule_id": rule.get("id", ""),
-            "status": status,
-            "citation": rule.get("citation", ""),
-            "source_url": rule.get("source_url", "")  # ✅ add this
+    for rule in ruleset["rules"]:
+        section_id = rule["id"].split("_")[0]  # e.g. COBS9
+        section = sections.setdefault(section_id, {
+            "id": section_id,
+            "title": section_id.replace("COBS", "COBS "),
+            "rules": []
         })
 
+        evaluation = evaluate_rule(rule, document_text, context)
+
+        section["rules"].append({
+            "rule_id": rule["id"],
+            "obligation": rule["obligation"],
+            "status": evaluation["status"],
+            "citation": rule["citation"],
+            "source_url": rule.get("source_url"),
+            "evidence": evaluation.get("evidence", {})
+        })
+
+    all_rules = [r for s in sections.values() for r in s["rules"]]
+
     summary = {
-        "ok": sum(1 for r in results if r["status"] == "OK"),
-        "potential_issue": sum(1 for r in results if r["status"] == "POTENTIAL_ISSUE"),
-        "not_assessed": sum(1 for r in results if r["status"] == "NOT_ASSESSED")
+        "ok": sum(1 for r in all_rules if r["status"] == "OK"),
+        "potential_issue": sum(1 for r in all_rules if r["status"] == "POTENTIAL_ISSUE"),
+        "not_assessed": sum(1 for r in all_rules if r["status"] == "NOT_ASSESSED"),
     }
 
     return {
-        "ruleset_id": meta.get("id", ""),
-        "ruleset_version": meta.get("version", ""),
-        "checked_at": datetime.utcnow().replace(microsecond=0).isoformat() + "Z",
+        "ruleset_id": ruleset["ruleset_id"],
+        "ruleset_version": ruleset["version"],
+        "checked_at": datetime.utcnow().isoformat() + "Z",
         "summary": summary,
-        "results": results
+        "sections": list(sections.values())
     }
