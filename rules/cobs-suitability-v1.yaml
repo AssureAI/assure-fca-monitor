@@ -1,108 +1,73 @@
-ruleset:
-  id: assure-cobs-investment-suitability
-  version: "1.0"
-  status: active
-  scope:
-    - advised investment suitability
-    - pensions
-    - investment-led estate planning
-  excludes:
-    - protection (ICOBS)
-    - mortgages (MCOB)
-    - db transfers (COBS 19)
-  reviewed_by: Assure
-  reviewed_at: "2026-01-30"
-
-global:
-  interpretation:
-    - Absence of evidence never implies compliance
-    - OK requires multiple independent signals
-    - Stylistic variation is expected and tolerated
-    - Inference is not permitted
-  language:
-    - No advice language
-    - No pass/fail terminology
-    - No compliance assertions
+ruleset_id: assure-cobs-investment-suitability
+version: "1.0"
 
 rules:
+
   - id: COBS9_OBJ
     obligation: Client investment objectives must be obtained and considered.
     citation: COBS 9.2.2R
-    source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
+    source_url: https://handbook.fca.org.uk/handbook/COBS/9/2.html
     applies_when:
       advice_type: advised
     evidence:
       positive_clusters:
         - ["objectives", "goals", "aims", "investment objective"]
-        - ["income", "growth", "capital growth", "capital preservation"]
-        - ["tax efficiency", "isa", "gia", "pension"]
-        - ["time horizon", "investment term", "short term", "long term"]
-      linkage_indicators:
-        - ["based on", "in line with", "aligned with"]
+        - ["growth", "income", "capital growth", "capital preservation"]
+        - ["time horizon", "investment term", "long term", "short term"]
     decision_logic:
       ok_if:
-        positive_clusters: ">=2"
-        linkage_indicators: ">=1"
+        - ">=2 positive_clusters"
 
   - id: COBS9_CIRC
     obligation: Client personal and financial circumstances must be considered.
     citation: COBS 9.2.2R
-    source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
+    source_url: https://handbook.fca.org.uk/handbook/COBS/9/2.html
     applies_when:
       advice_type: advised
     evidence:
       positive_clusters:
         - ["income", "expenditure", "assets", "liabilities"]
-        - ["employment", "retired", "self-employed"]
+        - ["employment", "retired", "self employed"]
         - ["dependants", "family", "spouse"]
-        - ["tax position", "tax rate"]
     decision_logic:
       ok_if:
-        positive_clusters: ">=2"
+        - ">=2 positive_clusters"
 
   - id: COBS9_RISK
     obligation: Client attitude to risk must be assessed.
     citation: COBS 9.2.2R
-    source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
+    source_url: https://handbook.fca.org.uk/handbook/COBS/9/2.html
     applies_when:
       advice_type: advised
     evidence:
       positive_clusters:
         - ["attitude to risk", "risk profile", "risk tolerance"]
         - ["cautious", "balanced", "moderate", "adventurous"]
-        - ["risk questionnaire", "risk assessment"]
-      linkage_indicators:
-        - ["consistent with", "aligned with"]
       negative_indicators:
         - ["guaranteed", "no risk", "cannot lose"]
     decision_logic:
       ok_if:
-        positive_clusters: ">=2"
-        linkage_indicators: ">=1"
-        negative_indicators: "==0"
+        - ">=1 positive_clusters"
+        - "==0 negative_indicators"
 
   - id: COBS9_CFL
     obligation: Client capacity for loss must be considered.
     citation: COBS 9.2.2R
-    source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
+    source_url: https://handbook.fca.org.uk/handbook/COBS/9/2.html
     applies_when:
       advice_type: advised
     evidence:
       positive_clusters:
         - ["capacity for loss", "loss capacity"]
         - ["afford to lose", "financially resilient"]
-        - ["would not impact lifestyle", "no material impact"]
-      contextual_indicators:
-        - ["worst case", "if markets fall"]
     decision_logic:
       ok_if:
-        positive_clusters: ">=1"
-        contextual_indicators: ">=1"
+        - ">=1 positive_clusters"
 
   - id: COBS9_RECO
     obligation: A clear personal recommendation must be made.
     citation: COBS 9.2.1R
-    source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
+    source_url: https://handbook.fca.org.uk/handbook/COBS/9/2.html
     applies_when:
       advice_type: advised
     evidence:
@@ -111,87 +76,81 @@ rules:
         - ["invest", "allocate", "switch", "contribute"]
     decision_logic:
       ok_if:
-        positive_clusters: ">=1"
+        - ">=1 positive_clusters"
 
   - id: COBS9_RATIONALE
     obligation: The suitability of the recommendation must be explained.
     citation: COBS 9.2.1R
-    source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
+    source_url: https://handbook.fca.org.uk/handbook/COBS/9/2.html
     applies_when:
       advice_type: advised
     evidence:
       positive_clusters:
-        - ["this is suitable because", "this meets your objectives"]
-        - ["given your objectives", "in light of your circumstances"]
-      causal_language:
-        - ["because", "therefore", "as a result"]
+        - ["this is suitable", "meets your objectives"]
+        - ["given your circumstances", "based on your needs"]
     decision_logic:
       ok_if:
-        positive_clusters: ">=1"
-        causal_language: ">=1"
+        - ">=1 positive_clusters"
 
   - id: COBS9_RISKS
     obligation: Material risks of the recommendation must be explained.
     citation: COBS 9.2.1R
-    source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
+    source_url: https://handbook.fca.org.uk/handbook/COBS/9/2.html
     applies_when:
       advice_type: advised
     evidence:
       positive_clusters:
         - ["risk", "volatility", "market movements"]
         - ["capital at risk", "value can fall"]
-        - ["no guarantee", "not guaranteed"]
     decision_logic:
       ok_if:
-        positive_clusters: ">=2"
+        - ">=2 positive_clusters"
 
   - id: COBS6_COSTS
     obligation: Costs and charges must be disclosed.
-    citation: COBS 6.1ZA / 6.1ZB
-    source_url: "https://handbook.fca.org.uk/handbook/COBS/6/"
+    citation: COBS 6.1ZA / COBS 6.1ZB
+    source_url: https://handbook.fca.org.uk/handbook/COBS/6/
     applies_when:
       investment_element: true
     evidence:
       positive_clusters:
         - ["cost", "charge", "fee"]
-        - ["ongoing charges figure", "ocf"]
         - ["percentage", "%", "monetary"]
     decision_logic:
       ok_if:
-        positive_clusters: ">=2"
+        - ">=2 positive_clusters"
 
   - id: COBS9_ALTS
     obligation: Reasonable alternatives must be considered.
     citation: COBS 9.2.1R
-    source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
+    source_url: https://handbook.fca.org.uk/handbook/COBS/9/2.html
     applies_when:
       advice_type: advised
     evidence:
       positive_clusters:
-        - ["alternative", "other options", "considered alternatives"]
-        - ["decided against", "discounted"]
+        - ["alternative", "other options"]
+        - ["considered alternatives", "decided against"]
     decision_logic:
       ok_if:
-        positive_clusters: ">=1"
+        - ">=1 positive_clusters"
 
   - id: COBS9_DRAWBACKS
     obligation: Disadvantages of the recommendation must be explained.
     citation: COBS 9.2.1R
-    source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
+    source_url: https://handbook.fca.org.uk/handbook/COBS/9/2.html
     applies_when:
       advice_type: advised
     evidence:
       positive_clusters:
         - ["drawbacks", "disadvantages", "downsides"]
-        - ["risk of loss", "limitations"]
     decision_logic:
       ok_if:
-        positive_clusters: ">=1"
+        - ">=1 positive_clusters"
 
   - id: COBS4_GUAR
     obligation: Communications must not imply certainty or guarantees.
     citation: COBS 4.2.1R
-    source_url: "https://handbook.fca.org.uk/handbook/COBS/4/2.html"
+    source_url: https://handbook.fca.org.uk/handbook/COBS/4/2.html
     applies_when:
       investment_element: true
     evidence:
@@ -199,60 +158,57 @@ rules:
         - ["guaranteed", "no risk", "cannot lose", "certain return"]
     decision_logic:
       ok_if:
-        negative_indicators: "==0"
+        - "==0 negative_indicators"
 
   - id: COBS4_BALANCE
     obligation: Benefits and risks must be presented in a balanced manner.
     citation: COBS 4.2.1R
-    source_url: "https://handbook.fca.org.uk/handbook/COBS/4/2.html"
-    applies_when:
-      investment_element: true
-    evidence:
-      benefit_clusters:
-        - ["benefits", "advantages"]
-      risk_clusters:
-        - ["risks", "drawbacks"]
-    decision_logic:
-      ok_if:
-        benefit_clusters: ">=1"
-        risk_clusters: ">=1"
-
-  - id: STRUCT_TIME
-    obligation: Investment time horizon should be referenced.
-    citation: COBS 9.2.2R
-    source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
+    source_url: https://handbook.fca.org.uk/handbook/COBS/4/2.html
     applies_when:
       investment_element: true
     evidence:
       positive_clusters:
-        - ["time horizon", "investment term", "short term", "long term"]
+        - ["benefits", "advantages"]
+        - ["risks", "drawbacks"]
     decision_logic:
       ok_if:
-        positive_clusters: ">=1"
+        - ">=2 positive_clusters"
+
+  - id: STRUCT_TIME
+    obligation: Investment time horizon should be referenced.
+    citation: COBS 9.2.2R
+    source_url: https://handbook.fca.org.uk/handbook/COBS/9/2.html
+    applies_when:
+      investment_element: true
+    evidence:
+      positive_clusters:
+        - ["time horizon", "investment term", "long term", "short term"]
+    decision_logic:
+      ok_if:
+        - ">=1 positive_clusters"
 
   - id: STRUCT_ONGOING
     obligation: Ongoing service must be explained where provided.
     citation: COBS 9.2.1R
-    source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
+    source_url: https://handbook.fca.org.uk/handbook/COBS/9/2.html
     applies_when:
       ongoing_service: true
     evidence:
       positive_clusters:
         - ["ongoing service", "ongoing advice"]
-        - ["review", "annual review", "regular review"]
     decision_logic:
       ok_if:
-        positive_clusters: ">=1"
+        - ">=1 positive_clusters"
 
   - id: STRUCT_REVIEW
     obligation: Review frequency should be stated where ongoing service applies.
     citation: COBS 9.2.1R
-    source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
+    source_url: https://handbook.fca.org.uk/handbook/COBS/9/2.html
     applies_when:
       ongoing_service: true
     evidence:
       positive_clusters:
-        - ["annual", "six monthly", "quarterly", "regular basis"]
+        - ["annual review", "regular review", "six monthly"]
     decision_logic:
       ok_if:
-        positive_clusters: ">=1"
+        - ">=1 positive_clusters"
