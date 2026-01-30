@@ -3,12 +3,14 @@ import re
 from datetime import datetime
 from typing import Dict, List, Any, Optional
 
+
 # -----------------------------
 # UTILITIES
 # -----------------------------
 
 def normalise(text: str) -> str:
     return re.sub(r"\s+", " ", (text or "").lower()).strip()
+
 
 def extract_snippet(text: str, phrase: str, window: int = 80) -> Optional[str]:
     idx = text.lower().find(phrase.lower())
@@ -18,24 +20,23 @@ def extract_snippet(text: str, phrase: str, window: int = 80) -> Optional[str]:
     end = min(len(text), idx + len(phrase) + window)
     return text[start:end].strip()
 
-def count_cluster_hits(text: str, clusters: List[List[str]]) -> Dict[str, Any]:
-    """
-    Returns:
-      {
-        hits: int,
-        matched_phrases: [str],
-        snippets: [str]
-      }
-    """
+
+def evaluate_clusters(text: str, clusters: List[List[str]]) -> Dict[str, Any]:
     hits = 0
-    matched = []
+    matched_phrases = []
     snippets = []
 
     for cluster in clusters:
+        if not isinstance(cluster, list):
+            continue
+
         for phrase in cluster:
+            if not isinstance(phrase, str):
+                continue
+
             if phrase.lower() in text:
                 hits += 1
-                matched.append(phrase)
+                matched_phrases.append(phrase)
                 snippet = extract_snippet(text, phrase)
                 if snippet:
                     snippets.append(snippet)
@@ -43,12 +44,18 @@ def count_cluster_hits(text: str, clusters: List[List[str]]) -> Dict[str, Any]:
 
     return {
         "hits": hits,
-        "matched_phrases": matched,
-        "snippets": snippets
+        "matched_phrases": matched_phrases,
+        "snippets": snippets,
     }
 
-def count_phrase_hits(text: str, phrases: List[str]) -> int:
-    return sum(1 for p in phrases if isinstance(p, str) and p.lower() in text)
+
+def evaluate_flat_phrases(text: str, phrases: List[str]) -> int:
+    count = 0
+    for phrase in phrases:
+        if isinstance(phrase, str) and phrase.lower() in text:
+            count += 1
+    return count
+
 
 # -----------------------------
 # RULE EVALUATION
@@ -57,41 +64,50 @@ def count_phrase_hits(text: str, phrases: List[str]) -> int:
 def evaluate_rule(rule: Dict[str, Any], text: str, context: Dict[str, Any]) -> Dict[str, Any]:
     applies_when = rule.get("applies_when", {})
 
+    # Applicability gate
     for key, expected in applies_when.items():
         if context.get(key) != expected:
             return {
                 "status": "NOT_ASSESSED",
-                "evidence": {}
+                "evidence": {},
             }
 
     text_norm = normalise(text)
     evidence = rule.get("evidence", {})
-    decision = rule.get("decision_logic", {}).get("ok_if", [])
+    decision_logic = rule.get("decision_logic", {}).get("ok_if", [])
 
-    counts = {}
-    evidence_out = {}
+    counts: Dict[str, int] = {}
+    evidence_out: Dict[str, Any] = {}
 
-    for ev_type, clusters in evidence.items():
-        if ev_type.endswith("_clusters"):
-            result = count_cluster_hits(text_norm, clusters)
-            counts[ev_type] = result["hits"]
-            evidence_out[ev_type] = result
+    for ev_key, ev_value in evidence.items():
+        if isinstance(ev_value, list) and ev_value and isinstance(ev_value[0], list):
+            result = evaluate_clusters(text_norm, ev_value)
+            counts[ev_key] = result["hits"]
+            evidence_out[ev_key] = result
+        elif isinstance(ev_value, list):
+            counts[ev_key] = evaluate_flat_phrases(text_norm, ev_value)
         else:
-            counts[ev_type] = count_phrase_hits(text_norm, clusters)
+            counts[ev_key] = 0
 
-    for condition in decision:
-        if condition.startswith(">="):
-            needed, key = condition[2:].split(" ", 1)
-            if counts.get(key.strip(), 0) < int(needed):
+    for rule_condition in decision_logic:
+        rule_condition = rule_condition.strip()
+
+        if rule_condition.startswith(">="):
+            parts = rule_condition.replace(">=", "").split()
+            needed = int(parts[0])
+            key = parts[1]
+
+            if counts.get(key, 0) < needed:
                 return {
                     "status": "POTENTIAL_ISSUE",
-                    "evidence": evidence_out
+                    "evidence": evidence_out,
                 }
 
     return {
         "status": "OK",
-        "evidence": evidence_out
+        "evidence": evidence_out,
     }
+
 
 # -----------------------------
 # EXECUTOR ENTRY POINT
@@ -100,7 +116,7 @@ def evaluate_rule(rule: Dict[str, Any], text: str, context: Dict[str, Any]) -> D
 def run_rules_engine(
     document_text: str,
     context: Dict[str, Any],
-    rules_path: str
+    rules_path: str,
 ) -> Dict[str, Any]:
 
     with open(rules_path, "r") as f:
@@ -109,15 +125,15 @@ def run_rules_engine(
     results = []
 
     for rule in ruleset["rules"]:
-        outcome = evaluate_rule(rule, document_text, context)
+        evaluation = evaluate_rule(rule, document_text, context)
 
         results.append({
             "rule_id": rule["id"],
             "section": rule.get("section"),
-            "status": outcome["status"],
+            "status": evaluation["status"],
             "citation": rule["citation"],
             "source_url": rule.get("source_url"),
-            "evidence": outcome.get("evidence", {})
+            "evidence": evaluation.get("evidence", {}),
         })
 
     summary = {
@@ -131,5 +147,5 @@ def run_rules_engine(
         "ruleset_version": ruleset["version"],
         "checked_at": datetime.utcnow().isoformat() + "Z",
         "summary": summary,
-        "results": results
+        "results": results,
     }
