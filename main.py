@@ -4,11 +4,8 @@ from pydantic import BaseModel
 from typing import Dict, Optional
 from executor import run_rules_engine
 
-# --------------------------------------------------
-# APP SETUP
-# --------------------------------------------------
-
 app = FastAPI(title="Assure Deterministic Compliance Engine")
+
 
 # --------------------------------------------------
 # REQUEST MODEL
@@ -20,13 +17,13 @@ class CheckRequest(BaseModel):
     investment_element: Optional[bool] = True
     ongoing_service: Optional[bool] = False
 
+
 # --------------------------------------------------
 # CORE API
 # --------------------------------------------------
 
 @app.post("/check")
 async def check(payload: CheckRequest):
-
     context: Dict[str, object] = {
         "advice_type": payload.advice_type,
         "investment_element": bool(payload.investment_element),
@@ -36,34 +33,21 @@ async def check(payload: CheckRequest):
     result = run_rules_engine(
         document_text=payload.document_text,
         context=context,
-        rules_path="rules/cobs-suitability-v1.yaml"
+        rules_path="rules/cobs-suitability-v1.yaml",
     )
 
     return JSONResponse(result)
 
+
 # --------------------------------------------------
-# ADMIN UI (REAL USER FLOW)
+# ADMIN UI
 # --------------------------------------------------
 
 @app.get("/admin/test", response_class=HTMLResponse)
 def admin_test():
     return """
     <html>
-    <head>
-      <style>
-        body { font-family: Arial; max-width: 1100px; margin: 24px; }
-        textarea { width: 100%; }
-        details { margin-bottom: 16px; border: 1px solid #ddd; padding: 12px; border-radius: 6px; }
-        summary { cursor: pointer; font-weight: bold; }
-        table { width: 100%; border-collapse: collapse; margin-top: 8px; }
-        th, td { border: 1px solid #ccc; padding: 6px; text-align: left; }
-        th { background: #f4f4f4; }
-        .OK { color: green; font-weight: bold; }
-        .POTENTIAL_ISSUE { color: #b26a00; font-weight: bold; }
-        .NOT_ASSESSED { color: #666; font-weight: bold; }
-      </style>
-    </head>
-    <body>
+    <body style="font-family:Arial;max-width:1100px;margin:24px">
       <h1>Assure – Admin Test</h1>
 
       <form method="post">
@@ -74,7 +58,7 @@ def admin_test():
         </select><br/><br/>
 
         <label>Suitability report</label><br/>
-        <textarea name="document_text" rows="18"></textarea><br/><br/>
+        <textarea name="document_text" rows="18" style="width:100%"></textarea><br/><br/>
 
         <button type="submit">Run check</button>
       </form>
@@ -82,10 +66,11 @@ def admin_test():
     </html>
     """
 
+
 @app.post("/admin/test", response_class=HTMLResponse)
 async def admin_test_run(
     advice_type: str = Form(...),
-    document_text: str = Form(...)
+    document_text: str = Form(...),
 ):
     context = {
         "advice_type": advice_type,
@@ -96,34 +81,50 @@ async def admin_test_run(
     result = run_rules_engine(
         document_text=document_text,
         context=context,
-        rules_path="rules/cobs-suitability-v1.yaml"
+        rules_path="rules/cobs-suitability-v1.yaml",
     )
 
+    # -----------------------------
+    # GROUP BY SECTION
+    # -----------------------------
+    grouped = {}
+    for r in result["results"]:
+        section = r["rule_id"].split("_")[0]
+        grouped.setdefault(section, []).append(r)
+
+    # -----------------------------
+    # RENDER
+    # -----------------------------
     sections_html = ""
 
-    for section_id, rules in result.get("sections", {}).items():
+    for section, rules in grouped.items():
         rows = ""
         for r in rules:
+            evidence_html = ""
+            if "evidence" in r:
+                ev = r["evidence"]
+                evidence_html = "<br/><small>" + "<br/>".join(ev.get("sentences", [])) + "</small>"
+
             rows += f"""
             <tr>
-              <td>{r["rule_id"]}</td>
-              <td class="{r["status"]}">{r["status"]}</td>
-              <td>{r["citation"]}</td>
+              <td>{r['rule_id']}</td>
+              <td>{r['status']}</td>
+              <td>{r['citation']}</td>
+            </tr>
+            <tr>
+              <td colspan="3">{evidence_html}</td>
             </tr>
             """
 
         sections_html += f"""
         <details>
-          <summary>{section_id}</summary>
-          <table>
-            <tr>
-              <th>Rule</th>
-              <th>Status</th>
-              <th>Citation</th>
-            </tr>
+          <summary><strong>{section}</strong></summary>
+          <table border="1" cellpadding="6" style="margin-top:8px">
+            <tr><th>Rule</th><th>Status</th><th>Citation</th></tr>
             {rows}
           </table>
         </details>
+        <br/>
         """
 
     return f"""
@@ -131,12 +132,10 @@ async def admin_test_run(
     <body style="font-family:Arial;max-width:1100px;margin:24px">
       <h1>Results</h1>
 
-      <p>
-        <strong>Ruleset:</strong> {result.get("ruleset_id")} v{result.get("ruleset_version")}<br/>
-        <strong>Checked at:</strong> {result.get("checked_at")}
-      </p>
+      <p><strong>Ruleset:</strong> {result['ruleset_id']} v{result['ruleset_version']}<br/>
+      <strong>Checked at:</strong> {result['checked_at']}</p>
 
-      <pre>{result.get("summary")}</pre>
+      <pre>{result['summary']}</pre>
 
       {sections_html}
 
@@ -145,11 +144,7 @@ async def admin_test_run(
     </html>
     """
 
-# --------------------------------------------------
-# HEALTH
-# --------------------------------------------------
 
 @app.get("/health")
 def health():
     return {"status": "ok"}
-    
