@@ -6,9 +6,8 @@ from executor import run_rules_engine
 
 app = FastAPI(title="Assure Deterministic Compliance Engine")
 
-
 # --------------------------------------------------
-# REQUEST MODEL
+# REQUEST MODEL (API)
 # --------------------------------------------------
 
 class CheckRequest(BaseModel):
@@ -33,10 +32,31 @@ async def check(payload: CheckRequest):
     result = run_rules_engine(
         document_text=payload.document_text,
         context=context,
-        rules_path="rules/cobs-suitability-v1.yaml",
+        rules_path="rules/cobs-suitability-v1.yaml"
     )
 
     return JSONResponse(result)
+
+
+# --------------------------------------------------
+# TEXT HIGHLIGHTING (EVIDENCE)
+# --------------------------------------------------
+
+def highlight_text(text: str, sentences):
+    highlighted = text
+
+    for s in sentences:
+        safe = (
+            s.replace("&", "&amp;")
+             .replace("<", "&lt;")
+             .replace(">", "&gt;")
+        )
+        highlighted = highlighted.replace(
+            s,
+            f"<mark style='background:#fff3cd'>{safe}</mark>"
+        )
+
+    return highlighted
 
 
 # --------------------------------------------------
@@ -47,7 +67,7 @@ async def check(payload: CheckRequest):
 def admin_test():
     return """
     <html>
-    <body style="font-family:Arial;max-width:1100px;margin:24px">
+    <body style="font-family:Arial;max-width:1200px;margin:24px">
       <h1>Assure – Admin Test</h1>
 
       <form method="post">
@@ -58,7 +78,7 @@ def admin_test():
         </select><br/><br/>
 
         <label>Suitability report</label><br/>
-        <textarea name="document_text" rows="18" style="width:100%"></textarea><br/><br/>
+        <textarea name="document_text" rows="20" style="width:100%"></textarea><br/><br/>
 
         <button type="submit">Run check</button>
       </form>
@@ -70,7 +90,7 @@ def admin_test():
 @app.post("/admin/test", response_class=HTMLResponse)
 async def admin_test_run(
     advice_type: str = Form(...),
-    document_text: str = Form(...),
+    document_text: str = Form(...)
 ):
     context = {
         "advice_type": advice_type,
@@ -81,69 +101,80 @@ async def admin_test_run(
     result = run_rules_engine(
         document_text=document_text,
         context=context,
-        rules_path="rules/cobs-suitability-v1.yaml",
+        rules_path="rules/cobs-suitability-v1.yaml"
     )
 
     # -----------------------------
-    # GROUP BY SECTION
+    # GROUP RULES (COBS SECTIONS)
     # -----------------------------
+
     grouped = {}
     for r in result["results"]:
         section = r["rule_id"].split("_")[0]
         grouped.setdefault(section, []).append(r)
 
     # -----------------------------
-    # RENDER
+    # RENDER HTML
     # -----------------------------
-    sections_html = ""
+
+    html = f"""
+    <html>
+    <body style="font-family:Arial;max-width:1200px;margin:24px">
+      <h1>Results</h1>
+      <p><strong>Ruleset:</strong> {result['ruleset_id']} v{result['ruleset_version']}</p>
+      <p><strong>Checked at:</strong> {result['checked_at']}</p>
+      <pre>{result['summary']}</pre>
+    """
 
     for section, rules in grouped.items():
-        rows = ""
-        for r in rules:
-            evidence_html = ""
-            if "evidence" in r:
-                ev = r["evidence"]
-                evidence_html = "<br/><small>" + "<br/>".join(ev.get("sentences", [])) + "</small>"
+        html += f"<details><summary><strong>{section}</strong></summary>"
 
-            rows += f"""
+        html += """
+        <table border="1" cellpadding="6" style="margin-top:10px;width:100%">
+          <tr><th>Rule</th><th>Status</th><th>Citation</th></tr>
+        """
+
+        for r in rules:
+            html += f"""
             <tr>
               <td>{r['rule_id']}</td>
               <td>{r['status']}</td>
               <td>{r['citation']}</td>
             </tr>
-            <tr>
-              <td colspan="3">{evidence_html}</td>
-            </tr>
             """
 
-        sections_html += f"""
-        <details>
-          <summary><strong>{section}</strong></summary>
-          <table border="1" cellpadding="6" style="margin-top:8px">
-            <tr><th>Rule</th><th>Status</th><th>Citation</th></tr>
-            {rows}
-          </table>
-        </details>
-        <br/>
-        """
+            if "evidence" in r and r["evidence"].get("sentences"):
+                highlighted = highlight_text(
+                    document_text,
+                    r["evidence"]["sentences"]
+                )
+                html += f"""
+                <tr>
+                  <td colspan="3">
+                    <details>
+                      <summary>Show evidence</summary>
+                      <div style="white-space:pre-wrap;font-family:monospace;margin-top:8px">
+                        {highlighted}
+                      </div>
+                    </details>
+                  </td>
+                </tr>
+                """
 
-    return f"""
-    <html>
-    <body style="font-family:Arial;max-width:1100px;margin:24px">
-      <h1>Results</h1>
+        html += "</table></details><br/>"
 
-      <p><strong>Ruleset:</strong> {result['ruleset_id']} v{result['ruleset_version']}<br/>
-      <strong>Checked at:</strong> {result['checked_at']}</p>
-
-      <pre>{result['summary']}</pre>
-
-      {sections_html}
-
+    html += """
       <p><a href="/admin/test">Run again</a></p>
     </body>
     </html>
     """
 
+    return html
+
+
+# --------------------------------------------------
+# HEALTH
+# --------------------------------------------------
 
 @app.get("/health")
 def health():
