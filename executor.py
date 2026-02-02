@@ -13,17 +13,15 @@ def normalise(text: str) -> str:
 
 
 def split_sentences(text: str) -> List[str]:
-    # Simple, deterministic sentence splitter
-    parts = re.split(r'(?<=[.!?])\s+', text.strip())
-    return [p.strip() for p in parts if p.strip()]
+    return [s.strip() for s in re.split(r'(?<=[.!?])\s+', text or "") if s.strip()]
 
 
-def find_phrase_hits(sentences: List[str], phrases: List[str]):
+def phrase_hits(sentences: List[str], phrases: List[str]):
     hits = []
     for sent in sentences:
-        sent_norm = sent.lower()
+        sent_l = sent.lower()
         for phrase in phrases:
-            if phrase.lower() in sent_norm:
+            if isinstance(phrase, str) and phrase.lower() in sent_l:
                 hits.append((phrase, sent))
     return hits
 
@@ -33,62 +31,74 @@ def find_phrase_hits(sentences: List[str], phrases: List[str]):
 # -----------------------------
 
 def evaluate_rule(rule: Dict[str, Any], text: str, context: Dict[str, Any]) -> Dict[str, Any]:
-    applies_when = rule.get("applies_when", {})
-
-    for k, v in applies_when.items():
+    # Applicability
+    for k, v in rule.get("applies_when", {}).items():
         if context.get(k) != v:
             return {"status": "NOT_ASSESSED"}
 
     sentences = split_sentences(text)
     evidence = rule.get("evidence", {})
-    decision = rule.get("decision_logic", {})
+    decision = rule.get("decision_logic", {}).get("ok_if", [])
 
-    matched_phrases = []
-    matched_sentences = []
+    counts: Dict[str, int] = {}
+    matched_phrases: List[str] = []
+    matched_sentences: List[str] = []
 
-    counts = {}
+    # --- Evidence scanning ---
+    for key, value in evidence.items():
 
-    for key, clusters in evidence.items():
-        if not isinstance(clusters, list):
-            continue
-
+        # CLUSTERS (list of lists)
         if key.endswith("_clusters"):
-            hit_count = 0
-            for cluster in clusters:
-                hits = find_phrase_hits(sentences, cluster)
+            hit_clusters = 0
+            for cluster in value:
+                if not isinstance(cluster, list):
+                    continue
+                hits = phrase_hits(sentences, cluster)
                 if hits:
-                    hit_count += 1
+                    hit_clusters += 1
                     for p, s in hits:
                         matched_phrases.append(p)
                         matched_sentences.append(s)
-            counts[key] = hit_count
+            counts[key] = hit_clusters
 
-        else:
-            hits = find_phrase_hits(sentences, clusters)
+        # FLAT phrase lists
+        elif isinstance(value, list):
+            hits = phrase_hits(sentences, value)
             counts[key] = len(hits)
             for p, s in hits:
                 matched_phrases.append(p)
                 matched_sentences.append(s)
 
-    # Decision logic
-    for condition in decision.get("ok_if", []):
-        if isinstance(condition, str):
-            parts = condition.split()
-            if len(parts) != 2:
-                return {"status": "POTENTIAL_ISSUE"}
-            op, key = parts
-            val = counts.get(key, 0)
+    # --- Decision logic ---
+    for cond in decision:
+        if not isinstance(cond, str):
+            continue
 
-            if op.startswith(">=") and val < int(op[2:]):
-                return {"status": "POTENTIAL_ISSUE"}
-            if op.startswith("==") and val != int(op[2:]):
-                return {"status": "POTENTIAL_ISSUE"}
+        if cond.startswith(">="):
+            num, key = cond[2:].split(maxsplit=1)
+            if counts.get(key, 0) < int(num):
+                return _fail(matched_phrases, matched_sentences)
+
+        elif cond.startswith("=="):
+            num, key = cond[2:].split(maxsplit=1)
+            if counts.get(key, 0) != int(num):
+                return _fail(matched_phrases, matched_sentences)
 
     return {
         "status": "OK",
         "evidence": {
             "matched_phrases": sorted(set(matched_phrases)),
             "sentences": sorted(set(matched_sentences)),
+        }
+    }
+
+
+def _fail(phrases, sentences):
+    return {
+        "status": "POTENTIAL_ISSUE",
+        "evidence": {
+            "matched_phrases": sorted(set(phrases)),
+            "sentences": sorted(set(sentences)),
         }
     }
 
