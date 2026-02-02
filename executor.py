@@ -1,118 +1,153 @@
 import yaml
 import re
 from datetime import datetime
-from typing import Dict, List, Any
+from typing import Dict, Any, List
 
 
-# -----------------------------
-# TEXT UTILITIES
-# -----------------------------
+# --------------------------------------------------
+# NORMALISATION
+# --------------------------------------------------
 
 def normalise(text: str) -> str:
     return re.sub(r"\s+", " ", (text or "").lower()).strip()
 
 
 def split_sentences(text: str) -> List[str]:
-    return re.split(r'(?<=[.!?])\s+', text)
+    return re.split(r"(?<=[.!?])\s+", text or "")
 
 
-# -----------------------------
-# EVIDENCE HELPERS
-# -----------------------------
+# --------------------------------------------------
+# EVIDENCE EVALUATION
+# --------------------------------------------------
 
-def phrase_hits(text_norm: str, phrases: List[str]) -> List[str]:
-    hits = []
-    for p in phrases:
-        if isinstance(p, str) and p.lower() in text_norm:
-            hits.append(p)
-    return hits
-
-
-def cluster_hits(text_norm: str, clusters: List[List[str]]) -> List[str]:
-    matched = []
+def cluster_hits(text: str, clusters: List[List[str]]) -> int:
+    """
+    A cluster counts as hit if ANY phrase in that cluster appears.
+    """
+    hits = 0
     for cluster in clusters:
         if not isinstance(cluster, list):
             continue
         for phrase in cluster:
-            if isinstance(phrase, str) and phrase.lower() in text_norm:
-                matched.append(phrase)
+            if isinstance(phrase, str) and phrase.lower() in text:
+                hits += 1
                 break
+    return hits
+
+
+def phrase_hits(text: str, phrases: List[str]) -> int:
+    hits = 0
+    for phrase in phrases:
+        if isinstance(phrase, str) and phrase.lower() in text:
+            hits += 1
+    return hits
+
+
+def negative_hits(text: str, sentences: List[str], indicators: List[Any]):
+    matched = []
+    for item in indicators:
+        if isinstance(item, list):
+            for p in item:
+                if isinstance(p, str) and p.lower() in text:
+                    matched.append(p)
+        elif isinstance(item, str):
+            if item.lower() in text:
+                matched.append(item)
     return matched
 
 
-# -----------------------------
-# RULE EVALUATION (NEVER THROWS)
-# -----------------------------
+# --------------------------------------------------
+# RULE EVALUATION
+# --------------------------------------------------
 
-def evaluate_rule(rule: Dict[str, Any], text: str, context: Dict[str, Any]) -> Dict[str, Any]:
+def evaluate_rule(rule: Dict[str, Any], document_text: str, context: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Deterministic, crash-proof evaluation.
-    Returns:
-      { status: OK | POTENTIAL_ISSUE | NOT_ASSESSED, evidence: [...] }
+    Returns dict with:
+      status, evidence_hits, negative_hits
+    Never raises.
     """
 
-    text_norm = normalise(text)
+    text_norm = normalise(document_text)
+    sentences = split_sentences(document_text)
 
-    # Applicability
+    # ---------- Applicability ----------
     applies_when = rule.get("applies_when", {})
     for key, expected in applies_when.items():
         if context.get(key) != expected:
-            return {
-                "status": "NOT_ASSESSED",
-                "evidence": []
-            }
+            return {"status": "NOT_ASSESSED", "evidence": [], "negatives": []}
 
-    evidence_cfg = rule.get("evidence", {})
-    decision_cfg = rule.get("decision_logic", {}).get("ok_if", {})
+    evidence = rule.get("evidence", {})
+    decision = rule.get("decision_logic", {})
 
     counts: Dict[str, int] = {}
-    evidence_found: List[str] = []
+    evidence_hits: Dict[str, int] = {}
+    negatives_found: List[str] = []
 
-    # Evaluate evidence blocks
-    for ev_key, ev_val in evidence_cfg.items():
-
-        # Cluster-based evidence
+    # ---------- Evidence ----------
+    for ev_key, ev_val in evidence.items():
         if ev_key.endswith("_clusters") and isinstance(ev_val, list):
-            matches = cluster_hits(text_norm, ev_val)
-            counts[ev_key] = len(matches)
-            evidence_found.extend(matches)
+            hits = cluster_hits(text_norm, ev_val)
+            counts[ev_key] = hits
+            evidence_hits[ev_key] = hits
 
-        # Phrase list evidence
-        elif isinstance(ev_val, list):
-            matches = phrase_hits(text_norm, ev_val)
-            counts[ev_key] = len(matches)
-            evidence_found.extend(matches)
+        elif ev_key.endswith("_indicators") and isinstance(ev_val, list):
+            hits = phrase_hits(text_norm, ev_val)
+            counts[ev_key] = hits
+            evidence_hits[ev_key] = hits
 
-        else:
-            counts[ev_key] = 0
+        elif ev_key == "negative_indicators" and isinstance(ev_val, list):
+            negatives_found = negative_hits(text_norm, sentences, ev_val)
 
-    # Decision logic
-    for metric, condition in decision_cfg.items():
-        val = counts.get(metric, 0)
+    # ---------- Decision Logic ----------
+    ok_conditions = decision.get("ok_if", [])
 
-        if condition.startswith(">="):
-            if val < int(condition[2:]):
-                return {
-                    "status": "POTENTIAL_ISSUE",
-                    "evidence": evidence_found
-                }
+    status = "OK"
 
-        elif condition.startswith("=="):
-            if val != int(condition[2:]):
-                return {
-                    "status": "POTENTIAL_ISSUE",
-                    "evidence": evidence_found
-                }
+    if isinstance(ok_conditions, list):
+        for cond in ok_conditions:
+            if not isinstance(cond, str):
+                continue
+
+            cond = cond.strip()
+
+            # >=N key
+            if cond.startswith(">="):
+                parts = cond[2:].split()
+                if len(parts) != 2:
+                    status = "POTENTIAL_ISSUE"
+                    continue
+                needed = int(parts[0])
+                key = parts[1]
+                if counts.get(key, 0) < needed:
+                    status = "POTENTIAL_ISSUE"
+
+            # ==N key
+            elif cond.startswith("=="):
+                parts = cond[2:].split()
+                if len(parts) != 2:
+                    status = "POTENTIAL_ISSUE"
+                    continue
+                needed = int(parts[0])
+                key = parts[1]
+                if counts.get(key, 0) != needed:
+                    status = "POTENTIAL_ISSUE"
+
+            # AND / OR are implicit via sequential evaluation
+
+    # Negative indicators override OK
+    if negatives_found:
+        status = "POTENTIAL_ISSUE"
 
     return {
-        "status": "OK",
-        "evidence": evidence_found
+        "status": status,
+        "evidence": evidence_hits,
+        "negatives": negatives_found
     }
 
 
-# -----------------------------
-# EXECUTOR ENTRY POINT
-# -----------------------------
+# --------------------------------------------------
+# ENGINE ENTRY POINT
+# --------------------------------------------------
 
 def run_rules_engine(
     document_text: str,
@@ -126,22 +161,30 @@ def run_rules_engine(
     rules = ruleset.get("rules", [])
 
     results = []
+    section_map: Dict[str, List[Dict[str, Any]]] = {}
 
     for rule in rules:
         evaluation = evaluate_rule(rule, document_text, context)
 
-        results.append({
+        result = {
             "rule_id": rule.get("id"),
             "status": evaluation["status"],
             "citation": rule.get("citation"),
             "source_url": rule.get("source_url"),
-            "evidence": evaluation["evidence"]
-        })
+            "evidence_hits": evaluation["evidence"],
+            "negative_hits": evaluation["negatives"],
+        }
+
+        results.append(result)
+
+        # Group by COBS section prefix (e.g. COBS9)
+        prefix = rule.get("id", "").split("_")[0]
+        section_map.setdefault(prefix, []).append(result)
 
     summary = {
         "ok": sum(1 for r in results if r["status"] == "OK"),
         "potential_issue": sum(1 for r in results if r["status"] == "POTENTIAL_ISSUE"),
-        "not_assessed": sum(1 for r in results if r["status"] == "NOT_ASSESSED")
+        "not_assessed": sum(1 for r in results if r["status"] == "NOT_ASSESSED"),
     }
 
     return {
@@ -149,5 +192,6 @@ def run_rules_engine(
         "ruleset_version": ruleset.get("version"),
         "checked_at": datetime.utcnow().isoformat() + "Z",
         "summary": summary,
-        "results": results
+        "sections": section_map,
+        "results": results,
     }
