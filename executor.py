@@ -3,131 +3,185 @@ import re
 from datetime import datetime
 from typing import Dict, List, Any, Tuple
 
-# --------------------------------------------------
-# TEXT HELPERS
-# --------------------------------------------------
 
 def normalise(text: str) -> str:
     return re.sub(r"\s+", " ", (text or "").lower()).strip()
 
 
 def split_sentences(text: str) -> List[str]:
-    return re.split(r"(?<=[.!?])\s+", text)
+    # simple sentence split (good enough for v1, deterministic)
+    parts = re.split(r"(?<=[.!?])\s+", (text or "").strip())
+    return [p.strip() for p in parts if p.strip()]
 
 
-# --------------------------------------------------
-# EVIDENCE MATCHING
-# --------------------------------------------------
-
-def cluster_hits(text: str, clusters: List[List[str]]) -> Tuple[int, List[str]]:
+def cluster_hits(text_norm: str, clusters: List[List[str]], sentences: List[str]) -> Tuple[int, List[str]]:
     """
-    A cluster is satisfied if ANY phrase in the cluster appears.
-    Returns number of satisfied clusters + matched phrases.
+    returns: (clusters_satisfied_count, evidence_sentences)
+    A cluster is satisfied if ANY phrase appears in text.
+    Evidence: first matching sentence for each satisfied cluster.
     """
-    hits = 0
-    matched = []
+    hit_count = 0
+    evidence = []
 
-    for cluster in clusters:
-        for phrase in cluster:
-            if phrase.lower() in text:
-                hits += 1
-                matched.append(phrase)
-                break
-
-    return hits, matched
-
-
-def phrase_hits(text: str, phrases: List[str]) -> Tuple[int, List[str]]:
-    matched = [p for p in phrases if p.lower() in text]
-    return len(matched), matched
-
-
-# --------------------------------------------------
-# RULE EVALUATION
-# --------------------------------------------------
-
-def evaluate_rule(
-    rule: Dict[str, Any],
-    document_text: str,
-    context: Dict[str, Any]
-) -> Tuple[str, Dict[str, Any]]:
-
-    # Applicability
-    for k, v in rule.get("applies_when", {}).items():
-        if context.get(k) != v:
-            return "NOT_ASSESSED", {}
-
-    text_norm = normalise(document_text)
-    sentences = split_sentences(document_text)
-
-    evidence = rule.get("evidence", {})
-    decision = rule.get("decision_logic", {}).get("ok_if", [])
-
-    counts = {}
-    matches = {}
-
-    for key, value in evidence.items():
-        if not value:
+    for cluster in clusters or []:
+        if not isinstance(cluster, list):
             continue
 
-        # clusters = list[list[str]]
-        if isinstance(value, list) and value and isinstance(value[0], list):
-            c, m = cluster_hits(text_norm, value)
-            counts[key] = c
-            matches[key] = m
+        found = False
+        for phrase in cluster:
+            if not isinstance(phrase, str) or not phrase:
+                continue
+            p = phrase.lower()
+            if p in text_norm:
+                found = True
+                # capture a sentence containing it
+                for s in sentences:
+                    if p in normalise(s):
+                        evidence.append(s)
+                        break
+                break
 
-        # phrases = list[str]
-        elif isinstance(value, list):
-            c, m = phrase_hits(text_norm, value)
-            counts[key] = c
-            matches[key] = m
+        if found:
+            hit_count += 1
 
-    # Apply decision logic
-    for clause in decision:
-        clause = clause.strip()
-
-        if clause.startswith(">="):
-            num, key = clause[2:].split(" ", 1)
-            if counts.get(key.strip(), 0) < int(num):
-                return "POTENTIAL_ISSUE", matches
-
-    return "OK", matches
+    return hit_count, evidence
 
 
-# --------------------------------------------------
-# ENGINE ENTRY POINT
-# --------------------------------------------------
+def phrase_hits(text_norm: str, phrases: List[str], sentences: List[str]) -> Tuple[int, List[str]]:
+    """
+    returns: (hit_count, evidence_sentences)
+    Evidence: sentences that contain any matched phrase (first 3 max).
+    """
+    hits = 0
+    evidence = []
+
+    for phrase in phrases or []:
+        if not isinstance(phrase, str) or not phrase:
+            continue
+        p = phrase.lower()
+        if p in text_norm:
+            hits += 1
+            for s in sentences:
+                if p in normalise(s):
+                    evidence.append(s)
+                    break
+
+    # keep it short/deterministic
+    uniq = []
+    for s in evidence:
+        if s not in uniq:
+            uniq.append(s)
+    return hits, uniq[:3]
+
+
+def check_condition(value: int, cond: str) -> bool:
+    cond = (cond or "").strip()
+    if cond.startswith(">="):
+        return value >= int(cond[2:])
+    if cond.startswith("<="):
+        return value <= int(cond[2:])
+    if cond.startswith("=="):
+        return value == int(cond[2:])
+    raise ValueError(f"Unsupported condition: {cond}")
+
+
+def evaluate_rule(rule: Dict[str, Any], text: str, context: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    returns: dict with status + evidence sentences
+    """
+    applies_when = rule.get("applies_when") or {}
+
+    # applicability: all keys must match
+    for k, expected in applies_when.items():
+        if context.get(k) != expected:
+            return {"status": "NOT_ASSESSED", "evidence": []}
+
+    evidence_cfg = rule.get("evidence") or {}
+    decision = (rule.get("decision_logic") or {}).get("ok_if") or {}
+
+    text_norm = normalise(text)
+    sentences = split_sentences(text)
+
+    counts: Dict[str, int] = {}
+    evidence_out: List[Dict[str, str]] = []
+
+    # positive_clusters: list[list[str]]
+    if "positive_clusters" in evidence_cfg:
+        c, ev = cluster_hits(text_norm, evidence_cfg.get("positive_clusters") or [], sentences)
+        counts["positive_clusters"] = c
+        for s in ev[:3]:
+            evidence_out.append({"type": "positive", "sentence": s})
+
+    # linkage_indicators: list[str]
+    if "linkage_indicators" in evidence_cfg:
+        c, ev = phrase_hits(text_norm, evidence_cfg.get("linkage_indicators") or [], sentences)
+        counts["linkage_indicators"] = c
+        for s in ev[:3]:
+            evidence_out.append({"type": "linkage", "sentence": s})
+
+    # contextual_indicators: list[str]
+    if "contextual_indicators" in evidence_cfg:
+        c, ev = phrase_hits(text_norm, evidence_cfg.get("contextual_indicators") or [], sentences)
+        counts["contextual_indicators"] = c
+        for s in ev[:3]:
+            evidence_out.append({"type": "context", "sentence": s})
+
+    # negative_indicators: list[str]
+    if "negative_indicators" in evidence_cfg:
+        c, ev = phrase_hits(text_norm, evidence_cfg.get("negative_indicators") or [], sentences)
+        counts["negative_indicators"] = c
+        for s in ev[:3]:
+            evidence_out.append({"type": "negative", "sentence": s})
+
+    # decision logic: every condition must pass
+    for key, cond in decision.items():
+        val = int(counts.get(key, 0))
+        if not check_condition(val, cond):
+            return {"status": "POTENTIAL_ISSUE", "evidence": evidence_out}
+
+    return {"status": "OK", "evidence": evidence_out}
+
 
 def run_rules_engine(
     document_text: str,
     context: Dict[str, Any],
-    rules_path: str
+    rules_path: str = "rules/cobs-suitability-v1.yaml",
 ) -> Dict[str, Any]:
 
-    with open(rules_path, "r") as f:
-        raw = yaml.safe_load(f)
+    with open(rules_path, "r", encoding="utf-8") as f:
+        ruleset = yaml.safe_load(f) or {}
 
-    ruleset_id = raw.get("ruleset_id", "unknown")
-    ruleset_version = raw.get("version", "unknown")
-
-    # Extract rule blocks (flat YAML authoring format)
-    rules = [
-        v for v in raw.values()
-        if isinstance(v, dict) and "id" in v and "citation" in v
-    ]
+    ruleset_meta = ruleset.get("ruleset") or {}
+    rules = ruleset.get("rules") or []
+    sections_map = ruleset.get("sections") or {}
 
     results = []
-
     for rule in rules:
-        status, evidence = evaluate_rule(rule, document_text, context)
+        evaluation = evaluate_rule(rule, document_text, context)
 
         results.append({
-            "rule_id": rule["id"],
-            "status": status,
+            "rule_id": rule.get("id"),
+            "section": rule.get("section"),
+            "title": rule.get("title"),
+            "status": evaluation["status"],
             "citation": rule.get("citation"),
             "source_url": rule.get("source_url"),
-            "evidence": evidence,
+            "evidence": evaluation.get("evidence", []),
         })
+
+    # group into sections for accordion rendering
+    grouped: Dict[str, Dict[str, Any]] = {}
+    for r in results:
+        sec = r.get("section") or "OTHER"
+        if sec not in grouped:
+            grouped[sec] = {
+                "section_id": sec,
+                "title": sections_map.get(sec, sec),
+                "rules": []
+            }
+        grouped[sec]["rules"].append(r)
+
+    sections = list(grouped.values())
 
     summary = {
         "ok": sum(1 for r in results if r["status"] == "OK"),
@@ -136,9 +190,9 @@ def run_rules_engine(
     }
 
     return {
-        "ruleset_id": ruleset_id,
-        "ruleset_version": ruleset_version,
-        "checked_at": datetime.utcnow().isoformat() + "Z",
+        "ruleset_id": ruleset_meta.get("id"),
+        "ruleset_version": ruleset_meta.get("version"),
+        "checked_at": datetime.utcnow().replace(microsecond=0).isoformat() + "Z",
         "summary": summary,
-        "results": results,
+        "sections": sections,
     }
