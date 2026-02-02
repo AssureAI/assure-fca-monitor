@@ -1,0 +1,51 @@
+ruleset:
+  id: assure-cobs-investment-suitability
+  version: "1.0"
+  status: active
+  reviewed_by: Assure
+  reviewed_at: 2026-01-30
+
+sections:
+  COBS_9: "Suitability (COBS 9)"
+  COBS_6: "Costs & Charges (COBS 6)"
+  COBS_4: "Communications (COBS 4)"
+  STRUCT: "Structure"
+
+rules:
+  - id: COBS9_OBJ
+    section: COBS_9
+    title: Client objectives
+    obligation: Client investment objectives must be obtained and considered.
+    citation: COBS 9.2.2R
+    source_url: https://handbook.fca.org.uk/handbook/COBS/9/2.html
+    applies_when:
+      advice_type: advised
+    evidence:
+      positive_clusters:
+        - ["objectives", "goals", "aims", "investment objective"]
+        - ["income", "growth", "capital growth", "capital preservation"]
+        - ["time horizon", "investment term", "short term", "long term"]
+      linkage_indicators:
+        - ["based on", "aligned with", "in line with"]
+    decision_logic:
+      ok_if:
+        positive_clusters: ">=2"
+        linkage_indicators: ">=1"
+
+  - id: COBS4_GUAR
+    section: COBS_4
+    title: No implied guarantees
+    obligation: Communications must not imply certainty or guarantees.
+    citation: COBS 4.2.1R
+    source_url: https://handbook.fca.org.uk/handbook/COBS/4/2.html
+    applies_when:
+      investment_element: true
+    evidence:
+      negative_indicators:
+        - "guaranteed"
+        - "no risk"
+        - "cannot lose"
+        - "certain return"
+    decision_logic:
+      ok_if:
+        negative_indicators: "==0"
