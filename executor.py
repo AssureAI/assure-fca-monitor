@@ -4,31 +4,32 @@ from datetime import datetime
 from typing import Dict, List, Any
 
 
-# -----------------------------
-# TEXT HELPERS
-# -----------------------------
+# --------------------------------------------------
+# TEXT UTILITIES
+# --------------------------------------------------
 
 def normalise(text: str) -> str:
     return re.sub(r"\s+", " ", (text or "").lower()).strip()
 
 
 def split_sentences(text: str) -> List[str]:
-    return [s.strip() for s in re.split(r'(?<=[.!?])\s+', text or "") if s.strip()]
+    parts = re.split(r"(?<=[.!?])\s+", text.strip())
+    return [p.strip() for p in parts if p.strip()]
 
 
 def phrase_hits(sentences: List[str], phrases: List[str]):
     hits = []
-    for sent in sentences:
-        sent_l = sent.lower()
-        for phrase in phrases:
-            if isinstance(phrase, str) and phrase.lower() in sent_l:
-                hits.append((phrase, sent))
+    for s in sentences:
+        s_norm = s.lower()
+        for p in phrases:
+            if p.lower() in s_norm:
+                hits.append((p, s))
     return hits
 
 
-# -----------------------------
+# --------------------------------------------------
 # RULE EVALUATION
-# -----------------------------
+# --------------------------------------------------
 
 def evaluate_rule(rule: Dict[str, Any], text: str, context: Dict[str, Any]) -> Dict[str, Any]:
     # Applicability
@@ -40,77 +41,59 @@ def evaluate_rule(rule: Dict[str, Any], text: str, context: Dict[str, Any]) -> D
     evidence = rule.get("evidence", {})
     decision = rule.get("decision_logic", {}).get("ok_if", [])
 
-    counts: Dict[str, int] = {}
-    matched_phrases: List[str] = []
-    matched_sentences: List[str] = []
+    counts = {}
+    matched_phrases = set()
+    matched_sentences = set()
 
-    # --- Evidence scanning ---
-    for key, value in evidence.items():
-
-        # CLUSTERS (list of lists)
-        if key.endswith("_clusters"):
-            hit_clusters = 0
-            for cluster in value:
-                if not isinstance(cluster, list):
-                    continue
-                hits = phrase_hits(sentences, cluster)
-                if hits:
-                    hit_clusters += 1
-                    for p, s in hits:
-                        matched_phrases.append(p)
-                        matched_sentences.append(s)
-            counts[key] = hit_clusters
-
-        # FLAT phrase lists
-        elif isinstance(value, list):
-            hits = phrase_hits(sentences, value)
-            counts[key] = len(hits)
-            for p, s in hits:
-                matched_phrases.append(p)
-                matched_sentences.append(s)
-
-    # --- Decision logic ---
-    for cond in decision:
-        if not isinstance(cond, str):
+    for key, clusters in evidence.items():
+        if not isinstance(clusters, list):
             continue
 
-        if cond.startswith(">="):
-            num, key = cond[2:].split(maxsplit=1)
-            if counts.get(key, 0) < int(num):
-                return _fail(matched_phrases, matched_sentences)
+        # cluster logic
+        if key.endswith("_clusters"):
+            cluster_hits = 0
+            for cluster in clusters:
+                hits = phrase_hits(sentences, cluster)
+                if hits:
+                    cluster_hits += 1
+                    for p, s in hits:
+                        matched_phrases.add(p)
+                        matched_sentences.add(s)
+            counts[key] = cluster_hits
+        else:
+            hits = phrase_hits(sentences, clusters)
+            counts[key] = len(hits)
+            for p, s in hits:
+                matched_phrases.add(p)
+                matched_sentences.add(s)
 
-        elif cond.startswith("=="):
-            num, key = cond[2:].split(maxsplit=1)
-            if counts.get(key, 0) != int(num):
-                return _fail(matched_phrases, matched_sentences)
+    # Decision logic
+    for cond in decision:
+        op, key = cond.split()
+        val = counts.get(key, 0)
+
+        if op.startswith(">=") and val < int(op[2:]):
+            return {"status": "POTENTIAL_ISSUE"}
+        if op.startswith("==") and val != int(op[2:]):
+            return {"status": "POTENTIAL_ISSUE"}
 
     return {
         "status": "OK",
         "evidence": {
-            "matched_phrases": sorted(set(matched_phrases)),
-            "sentences": sorted(set(matched_sentences)),
+            "matched_phrases": sorted(matched_phrases),
+            "sentences": sorted(matched_sentences),
         }
     }
 
 
-def _fail(phrases, sentences):
-    return {
-        "status": "POTENTIAL_ISSUE",
-        "evidence": {
-            "matched_phrases": sorted(set(phrases)),
-            "sentences": sorted(set(sentences)),
-        }
-    }
-
-
-# -----------------------------
+# --------------------------------------------------
 # EXECUTOR ENTRY
-# -----------------------------
+# --------------------------------------------------
 
 def run_rules_engine(
     document_text: str,
     context: Dict[str, Any],
-    rules_path: str
+    rules_path: str,
 ) -> Dict[str, Any]:
 
     with open(rules_path, "r") as f:
@@ -121,17 +104,17 @@ def run_rules_engine(
     for rule in ruleset["rules"]:
         outcome = evaluate_rule(rule, document_text, context)
 
-        res = {
+        result = {
             "rule_id": rule["id"],
             "status": outcome["status"],
             "citation": rule["citation"],
-            "source_url": rule.get("source_url"),
+            "section": rule["id"].split("_")[0],
         }
 
         if "evidence" in outcome:
-            res["evidence"] = outcome["evidence"]
+            result["evidence"] = outcome["evidence"]
 
-        results.append(res)
+        results.append(result)
 
     summary = {
         "ok": sum(1 for r in results if r["status"] == "OK"),
