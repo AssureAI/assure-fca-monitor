@@ -127,9 +127,9 @@ def run_rules_engine(
     }
 
     return {
-        "ruleset_id": ruleset["ruleset"]["id"],
-        "ruleset_version": ruleset["ruleset"]["version"],
-        "checked_at": datetime.utcnow().isoformat() + "Z",
-        "summary": summary,
-        "results": results,
-    }
+    "ruleset_id": ruleset.get("ruleset_id"),
+    "ruleset_version": ruleset.get("version"),
+    "checked_at": datetime.utcnow().isoformat() + "Z",
+    "summary": summary,
+    "results": results,
+}
