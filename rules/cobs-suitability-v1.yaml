@@ -1,59 +1,42 @@
-ruleset_id: assure-cobs-investment-suitability
+ruleset_id: assure-cobs-suitability
 version: "1.0"
 
-rules:
+sections:
+  COBS_9:
+    title: "Suitability (COBS 9)"
+    rules:
+      - id: COBS9_OBJ
+        obligation: Client objectives must be obtained.
+        citation: COBS 9.2.2R
+        applies_when:
+          advice_type: advised
+        evidence:
+          phrases:
+            - objectives
+            - goals
+            - investment objective
 
-  - section_id: COBS9
-    section_title: Suitability
-    id: COBS9_OBJ
-    citation: COBS 9.2.2R
-    applies_when:
-      advice_type: advised
-    evidence:
-      positive_clusters:
-        - ["objective", "objectives", "goals"]
-        - ["growth", "income", "capital"]
-    decision_logic:
-      ok_if:
-        - ">=2 positive_clusters"
+      - id: COBS9_RISK
+        obligation: Attitude to risk must be assessed.
+        citation: COBS 9.2.2R
+        applies_when:
+          advice_type: advised
+        evidence:
+          phrases:
+            - risk profile
+            - attitude to risk
+            - risk tolerance
 
-  - section_id: COBS9
-    section_title: Suitability
-    id: COBS9_RISK
-    citation: COBS 9.2.2R
-    applies_when:
-      advice_type: advised
-    evidence:
-      positive_clusters:
-        - ["risk profile", "attitude to risk"]
-        - ["cautious", "balanced", "adventurous"]
-    decision_logic:
-      ok_if:
-        - ">=2 positive_clusters"
-
-  - section_id: COBS9
-    section_title: Suitability
-    id: COBS9_CFL
-    citation: COBS 9.2.2R
-    applies_when:
-      advice_type: advised
-    evidence:
-      positive_clusters:
-        - ["capacity for loss"]
-    decision_logic:
-      ok_if:
-        - ">=1 positive_clusters"
-
-  - section_id: COBS6
-    section_title: Costs & Charges
-    id: COBS6_COSTS
-    citation: COBS 6.1ZA
-    applies_when:
-      investment_element: true
-    evidence:
-      positive_clusters:
-        - ["cost", "charge", "fee"]
-        - ["%", "percentage"]
-    decision_logic:
-      ok_if:
-        - ">=2 positive_clusters"
+  COBS_6:
+    title: "Costs and Charges (COBS 6)"
+    rules:
+      - id: COBS6_COSTS
+        obligation: Costs and charges must be disclosed.
+        citation: COBS 6.1ZA
+        applies_when:
+          investment_element: true
+        evidence:
+          phrases:
+            - cost
+            - charge
+            - fee
