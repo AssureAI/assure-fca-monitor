@@ -1,15 +1,13 @@
 from fastapi import FastAPI, Form
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import JSONResponse, HTMLResponse
 from pydantic import BaseModel
-from typing import Dict, Optional
+from typing import Dict, Optional, List
 from executor import run_rules_engine
-import json
 
 app = FastAPI(title="Assure Deterministic Compliance Engine")
 
-
 # --------------------------------------------------
-# API MODEL
+# REQUEST MODEL
 # --------------------------------------------------
 
 class CheckRequest(BaseModel):
@@ -25,7 +23,8 @@ class CheckRequest(BaseModel):
 
 @app.post("/check")
 async def check(payload: CheckRequest):
-    context = {
+
+    context: Dict[str, object] = {
         "advice_type": payload.advice_type,
         "investment_element": bool(payload.investment_element),
         "ongoing_service": bool(payload.ongoing_service),
@@ -44,12 +43,25 @@ async def check(payload: CheckRequest):
 # ADMIN UI
 # --------------------------------------------------
 
+def group_results(results: List[Dict]) -> Dict[str, List[Dict]]:
+    grouped: Dict[str, List[Dict]] = {}
+
+    for r in results:
+        rule_id = r.get("rule_id", "")
+        section = rule_id.split("_")[0]  # COBS9, COBS6, COBS4, STRUCT
+
+        grouped.setdefault(section, []).append(r)
+
+    return grouped
+
+
 @app.get("/admin/test", response_class=HTMLResponse)
 def admin_test():
     return """
     <html>
     <body style="font-family:Arial;max-width:1100px;margin:24px">
       <h1>Assure – Admin Test</h1>
+
       <form method="post">
         <label>Advice type</label><br/>
         <select name="advice_type">
@@ -58,7 +70,7 @@ def admin_test():
         </select><br/><br/>
 
         <label>Suitability report</label><br/>
-        <textarea name="document_text" rows="20" style="width:100%"></textarea><br/><br/>
+        <textarea name="document_text" rows="18" style="width:100%"></textarea><br/><br/>
 
         <button type="submit">Run check</button>
       </form>
@@ -84,46 +96,72 @@ async def admin_test_run(
         rules_path="rules/cobs-suitability-v1.yaml",
     )
 
-    grouped = {}
-    for r in result["results"]:
-        grouped.setdefault(r["section"], []).append(r)
+    grouped = group_results(result["results"])
 
-    html = f"""
+    sections_html = ""
+
+    for section, rules in grouped.items():
+        rows = ""
+
+        for r in rules:
+            evidence_html = ""
+            evidence = r.get("evidence", {}).get("sentences", [])
+
+            if evidence:
+                evidence_html = "<details><summary>Show evidence</summary><ul>"
+                for s in evidence:
+                    evidence_html += f"<li>{s}</li>"
+                evidence_html += "</ul></details>"
+
+            rows += f"""
+            <tr>
+              <td>{r["rule_id"]}</td>
+              <td>{r["status"]}</td>
+              <td>{r["citation"]}</td>
+            </tr>
+            <tr>
+              <td colspan="3">{evidence_html}</td>
+            </tr>
+            """
+
+        sections_html += f"""
+        <details open>
+          <summary><strong>{section}</strong></summary>
+          <table border="1" cellpadding="6" cellspacing="0" width="100%">
+            <tr>
+              <th>Rule</th>
+              <th>Status</th>
+              <th>Citation</th>
+            </tr>
+            {rows}
+          </table>
+        </details>
+        <br/>
+        """
+
+    return f"""
     <html>
     <body style="font-family:Arial;max-width:1100px;margin:24px">
       <h1>Results</h1>
-      <p><strong>Ruleset:</strong> {result["ruleset_id"]} v{result["ruleset_version"]}</p>
-      <p><strong>Checked at:</strong> {result["checked_at"]}</p>
+
+      <p>
+        <strong>Ruleset:</strong> {result["ruleset_id"]} v{result["ruleset_version"]}<br/>
+        <strong>Checked at:</strong> {result["checked_at"]}
+      </p>
+
       <pre>{result["summary"]}</pre>
-    """
 
-    for section, rules in grouped.items():
-        html += f"<details open><summary><strong>{section}</strong></summary>"
-        html += "<table border='1' cellpadding='6' width='100%'>"
-        html += "<tr><th>Rule</th><th>Status</th><th>Citation</th></tr>"
+      {sections_html}
 
-        for r in rules:
-            html += f"<tr><td>{r['rule_id']}</td><td>{r['status']}</td><td>{r['citation']}</td></tr>"
-
-            if "evidence" in r:
-                html += "<tr><td colspan='3'>"
-                for s in r["evidence"]["sentences"]:
-                    highlighted = s
-                    for p in r["evidence"]["matched_phrases"]:
-                        highlighted = highlighted.replace(p, f"<mark>{p}</mark>")
-                    html += f"<p>{highlighted}</p>"
-                html += "</td></tr>"
-
-        html += "</table></details><br/>"
-
-    html += """
       <p><a href="/admin/test">Run again</a></p>
     </body>
     </html>
     """
 
-    return html
 
+# --------------------------------------------------
+# HEALTH
+# --------------------------------------------------
 
 @app.get("/health")
 def health():
