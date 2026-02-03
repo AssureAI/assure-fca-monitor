@@ -3,104 +3,56 @@ import re
 from datetime import datetime
 from typing import Dict, List, Any
 
-
-# -----------------------------
-# TEXT HELPERS
-# -----------------------------
-
-def normalise(text: str) -> str:
-    return re.sub(r"\s+", " ", (text or "").lower()).strip()
+MAX_EVIDENCE = 3  # hard cap per rule
 
 
 def split_sentences(text: str) -> List[str]:
-    parts = re.split(r'(?<=[.!?])\s+', text.strip())
-    return [p.strip() for p in parts if p.strip()]
+    return re.split(r'(?<=[.!?])\s+', text.strip())
 
 
-def phrase_hits(sentences: List[str], phrases: List[str]) -> List[str]:
+def phrase_hits(sentences: List[str], phrases: List[str]):
     hits = []
     for s in sentences:
         s_norm = s.lower()
         for p in phrases:
             if isinstance(p, str) and p.lower() in s_norm:
-                hits.append(s)
-                break
+                hits.append({
+                    "phrase": p,
+                    "sentence": s.strip()
+                })
+                if len(hits) >= MAX_EVIDENCE:
+                    return hits
     return hits
 
 
-# -----------------------------
-# RULE EVALUATION
-# -----------------------------
-
 def evaluate_rule(rule: Dict[str, Any], text: str, context: Dict[str, Any]) -> Dict[str, Any]:
-    applies_when = rule.get("applies_when", {})
-    for k, v in applies_when.items():
+    # applicability
+    for k, v in rule.get("applies_when", {}).items():
         if context.get(k) != v:
             return {"status": "NOT_ASSESSED"}
 
     sentences = split_sentences(text)
-    evidence = rule.get("evidence", {})
-    decision = rule.get("decision_logic", {})
+    evidence_hits = []
 
-    counts: Dict[str, int] = {}
-    matched_sentences: Dict[str, List[str]] = {}
+    for block in rule.get("evidence", {}).values():
+        if not isinstance(block, list):
+            continue
+        evidence_hits.extend(phrase_hits(sentences, block))
+        if len(evidence_hits) >= MAX_EVIDENCE:
+            break
 
-    for key, value in evidence.items():
-        matched_sentences[key] = []
-
-        # Cluster logic (list of lists)
-        if key.endswith("_clusters"):
-            hit_clusters = 0
-            for cluster in value:
-                hits = phrase_hits(sentences, cluster)
-                if hits:
-                    hit_clusters += 1
-                    matched_sentences[key].extend(hits)
-            counts[key] = hit_clusters
-
-        # Flat phrase list
-        else:
-            hits = phrase_hits(sentences, value)
-            counts[key] = len(hits)
-            matched_sentences[key].extend(hits)
-
-    # -----------------------------
-    # DECISION
-    # -----------------------------
-
-    for cond in decision.get("ok_if", []):
-        op, key = cond.split()
-        val = counts.get(key, 0)
-
-        if op.startswith(">=") and val < int(op[2:]):
-            return {"status": "POTENTIAL_ISSUE"}
-        if op.startswith("==") and val != int(op[2:]):
-            return {"status": "POTENTIAL_ISSUE"}
-
-    # Only return evidence that actually mattered
-    final_sentences = []
-    for key in decision.get("ok_if", []):
-        _, k = key.split()
-        final_sentences.extend(matched_sentences.get(k, []))
+    if not evidence_hits:
+        return {"status": "POTENTIAL_ISSUE"}
 
     return {
         "status": "OK",
         "evidence": {
-            "sentences": sorted(set(final_sentences))
+            "hits": evidence_hits[:MAX_EVIDENCE]
         }
     }
 
 
-# -----------------------------
-# EXECUTOR ENTRY
-# -----------------------------
-
-def run_rules_engine(
-    document_text: str,
-    context: Dict[str, Any],
-    rules_path: str,
-) -> Dict[str, Any]:
-
+def run_rules_engine(document_text: str, context: Dict[str, Any], rules_path: str) -> Dict[str, Any]:
     with open(rules_path, "r") as f:
         ruleset = yaml.safe_load(f)
 
@@ -127,9 +79,9 @@ def run_rules_engine(
     }
 
     return {
-    "ruleset_id": ruleset.get("ruleset_id"),
-    "ruleset_version": ruleset.get("version"),
-    "checked_at": datetime.utcnow().isoformat() + "Z",
-    "summary": summary,
-    "results": results,
-}
+        "ruleset_id": ruleset["ruleset_id"],
+        "ruleset_version": ruleset["version"],
+        "checked_at": datetime.utcnow().isoformat() + "Z",
+        "summary": summary,
+        "results": results,
+    }
