@@ -1,89 +1,43 @@
-ruleset_id: assure-cobs-investment-suitability
+ruleset_id: assure-cobs-suitability
 version: "1.0"
 
 rules:
   - id: COBS9_OBJ
-    section:
-      id: COBS9
-      title: Suitability (COBS 9)
+    section: "COBS 9 – Objectives"
+    title: "Client investment objectives identified"
     citation: "COBS 9.2.2R"
     source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
     applies_when:
       advice_type: advised
-      investment_element: true
-    evidence:
-      positive_clusters:
-        - ["objective", "objectives", "aim", "aims", "need", "needs"]
-        - ["recommend", "recommendation", "we recommend", "i recommend"]
-      linkage_indicators:
-        - "because"
-        - "therefore"
-        - "in line with"
-      negative_indicators:
-        - "no objectives"
-        - "not discussed objectives"
-    decision_logic:
-      caps:
-        max_sentences: 6
-        max_hits_total: 10
-        max_clusters: 3
-        max_hits_per_cluster: 2
-      ok_if:
-        - { type: clusters_at_least, key: positive_clusters, n: 1 }
-      fail_on_negative: false
+    phrases:
+      - "investment objective"
+      - "your objectives"
+      - "your goals"
+    min_hits: 1
 
   - id: COBS9_RISK
-    section:
-      id: COBS9
-      title: Suitability (COBS 9)
+    section: "COBS 9 – Risk"
+    title: "Client attitude to risk assessed"
     citation: "COBS 9.2.2R"
     source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
     applies_when:
       advice_type: advised
-      investment_element: true
-    evidence:
-      positive_clusters:
-        - ["risk", "attitude to risk", "risk profile", "capacity for loss", "cfl"]
-      linkage_indicators:
-        - "because"
-        - "therefore"
-      negative_indicators:
-        - "risk not discussed"
-        - "no risk"
-    decision_logic:
-      caps:
-        max_sentences: 6
-        max_hits_total: 10
-        max_clusters: 3
-        max_hits_per_cluster: 2
-      ok_if:
-        - { type: clusters_at_least, key: positive_clusters, n: 1 }
-      fail_on_negative: false
+    phrases:
+      - "attitude to risk"
+      - "risk profile"
+      - "risk tolerance"
+    min_hits: 1
 
   - id: COBS6_COSTS
-    section:
-      id: COBS6
-      title: Costs and Charges (COBS 6)
-    citation: "COBS 6.1ZA / COBS 6.1ZB"
+    section: "COBS 6 – Costs"
+    title: "Costs and charges disclosed"
+    citation: "COBS 6.1ZA"
     source_url: "https://handbook.fca.org.uk/handbook/COBS/6/"
     applies_when:
-      advice_type: advised
       investment_element: true
-    evidence:
-      positive_clusters:
-        - ["charge", "charges", "cost", "costs", "fee", "fees", "ongoing charge", "ocf"]
-      linkage_indicators:
-        - "including"
-        - "this includes"
-      negative_indicators:
-        - "charges not provided"
-        - "unknown charges"
-    decision_logic:
-      caps:
-        max_sentences: 6
-        max_hits_total: 10
-        max_clusters: 3
-        max_hits_per_cluster: 2
-      ok_if:
-        - { type: clusters_at_least, key: positive_clusters, n: 1 }
-      fail_on_negative: false
+    phrases:
+      - "fees"
+      - "charges"
+      - "costs"
+      - "ongoing charge"
+    min_hits: 1
