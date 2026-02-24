@@ -1,13 +1,14 @@
 ruleset_id: assure-cobs-suitability
-version: "1.1-cobs9-phase2"
+version: "1.2-cobs9-hardened"
 
 rules:
-  # =========================
-  # COBS 9 — SUITABILITY
-  # =========================
+
+  # -----------------------------
+  # COBS 9 — Suitability (core)
+  # -----------------------------
 
   - id: COBS9_OBJ
-    section: "COBS 9 – Suitability"
+    section: "COBS 9 — Suitability"
     title: "Client objectives identified"
     citation: "COBS 9.2.2R"
     source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
@@ -16,35 +17,36 @@ rules:
     phrases:
       - "investment objective"
       - "your objectives"
-      - "your goal"
       - "your goals"
-      - "aim is to"
-      - "you want to"
-      - "your priority is"
-      - "targeting"
+      - "objective is to"
+      - "primary objective"
     min_hits: 1
+    evidence_cap: 5
 
   - id: COBS9_OBJ_LINK
-    section: "COBS 9 – Suitability"
+    section: "COBS 9 — Suitability"
     title: "Recommendation explicitly linked to objectives"
     citation: "COBS 9.2.2R"
     source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
     applies_when:
       advice_type: advised
-    phrases:
-      - "based on your objectives"
-      - "in line with your objectives"
-      - "to meet your objectives"
-      - "to achieve your objectives"
-      - "because you want to"
-      - "given your goals"
-      - "in order to meet your goals"
-      - "this meets your objectives because"
-    min_hits: 1
+    require_sets:
+      - any:
+          - "based on your objectives"
+          - "in line with your objectives"
+          - "aligns with your objectives"
+          - "to meet your objectives"
+        min_hits: 1
+      - any:
+          - "we recommend"
+          - "recommend"
+          - "our recommendation"
+        min_hits: 1
+    evidence_cap: 5
 
   - id: COBS9_RISK
-    section: "COBS 9 – Suitability"
-    title: "Attitude to risk stated"
+    section: "COBS 9 — Suitability"
+    title: "Attitude to risk assessed"
     citation: "COBS 9.2.2R"
     source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
     applies_when:
@@ -53,32 +55,36 @@ rules:
       - "attitude to risk"
       - "risk profile"
       - "risk tolerance"
+      - "risk category"
       - "risk questionnaire"
-      - "balanced risk"
-      - "medium risk"
-      - "high medium"
-      - "adventurous"
-      - "cautious"
+      - "risk profiling"
     min_hits: 1
+    evidence_cap: 5
 
   - id: COBS9_RISK_LINK
-    section: "COBS 9 – Suitability"
+    section: "COBS 9 — Suitability"
     title: "Recommendation explicitly linked to risk profile"
     citation: "COBS 9.2.2R"
     source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
     applies_when:
       advice_type: advised
-    phrases:
-      - "in line with your attitude to risk"
-      - "consistent with your risk profile"
-      - "aligned with your risk profile"
-      - "suitable given your risk profile"
-      - "reflects your attitude to risk"
-      - "given your risk tolerance"
-    min_hits: 1
+    require_sets:
+      - any:
+          - "based on your attitude to risk"
+          - "in line with your risk profile"
+          - "matches your risk profile"
+          - "aligned to your risk profile"
+          - "consistent with your risk profile"
+        min_hits: 1
+      - any:
+          - "we recommend"
+          - "recommend"
+          - "our recommendation"
+        min_hits: 1
+    evidence_cap: 5
 
   - id: COBS9_CFL
-    section: "COBS 9 – Suitability"
+    section: "COBS 9 — Suitability"
     title: "Capacity for loss addressed"
     citation: "COBS 9.2.2R"
     source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
@@ -86,70 +92,80 @@ rules:
       advice_type: advised
     phrases:
       - "capacity for loss"
-      - "ability to withstand losses"
       - "afford to lose"
-      - "financially able to bear"
-      - "impact of a loss"
+      - "impact of losses"
     min_hits: 1
+    evidence_cap: 5
 
   - id: COBS9_CFL_STRENGTH
-    section: "COBS 9 – Suitability"
+    section: "COBS 9 — Suitability"
     title: "Capacity for loss described with impact/meaning (not just named)"
     citation: "COBS 9.2.2R"
     source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
     applies_when:
       advice_type: advised
-    phrases:
-      - "would not materially impact"
-      - "would not affect your lifestyle"
-      - "would affect your lifestyle"
-      - "you could tolerate a fall"
-      - "you could withstand"
-      - "you could not afford"
-      - "this would impact"
-      - "this would affect"
-      - "in the event of a loss"
-      - "if markets fall"
-    min_hits: 1
+    require_sets:
+      - any:
+          - "capacity for loss"
+          - "afford to lose"
+        min_hits: 1
+      - any_regex:
+          - "\\b(\\d{1,2})\\s*%\\b"
+          - "\\bmaterially affect\\b"
+          - "\\bwithout materially\\b"
+          - "\\bstandard of living\\b"
+          - "\\btemporary fall\\b"
+          - "\\b(could|can) afford\\b"
+        min_hits: 1
+    evidence_cap: 5
 
   - id: COBS9_TIME
-    section: "COBS 9 – Suitability"
+    section: "COBS 9 — Suitability"
     title: "Investment time horizon stated"
     citation: "COBS 9.2.2R"
     source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
     applies_when:
       advice_type: advised
-    phrases:
-      - "time horizon"
-      - "investment horizon"
-      - "over the next"
-      - "in the next"
-      - "short term"
-      - "medium term"
-      - "long term"
-      - "until retirement"
-      - "to retirement"
+    regex_phrases:
+      - "\\btime horizon\\b"
+      - "\\bnext\\s+\\d+\\s+years\\b"
+      - "\\bover\\s+the\\s+next\\s+\\d+\\s+years\\b"
+      - "\\bretire\\b.*\\bage\\s*\\d{2}\\b"
     min_hits: 1
+    evidence_cap: 5
 
   - id: COBS9_RATIONALE
-    section: "COBS 9 – Suitability"
-    title: "Suitability rationale given (why this solution fits the client)"
+    section: "COBS 9 — Suitability"
+    title: "Suitability rationale given with client-linked logic (not generic)"
     citation: "COBS 9.2.1R / 9.2.2R"
     source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
     applies_when:
       advice_type: advised
-    phrases:
-      - "we recommend"
-      - "i recommend"
-      - "our recommendation"
-      - "this is suitable because"
-      - "this is appropriate because"
-      - "the reason for this recommendation"
-      - "therefore we recommend"
-    min_hits: 1
+    require_sets:
+      # Linker / logic language
+      - any:
+          - "because it aligns"
+          - "because this aligns"
+          - "as this reflects"
+          - "given your stated"
+          - "taking into account"
+          - "in light of your"
+          - "this is suitable because"
+          - "this recommendation is suitable because"
+        min_hits: 1
+      # Must reference at least one client factor
+      - any:
+          - "objectives"
+          - "risk profile"
+          - "attitude to risk"
+          - "capacity for loss"
+          - "time horizon"
+          - "retirement"
+        min_hits: 1
+    evidence_cap: 6
 
   - id: COBS9_ALTS
-    section: "COBS 9 – Suitability"
+    section: "COBS 9 — Suitability"
     title: "Alternatives / options considered"
     citation: "COBS 9.2.2R"
     source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
@@ -158,40 +174,60 @@ rules:
     phrases:
       - "alternative"
       - "alternatives"
-      - "other option"
       - "other options"
       - "we considered"
       - "we have considered"
-      - "another approach"
-      - "instead"
+      - "option"
     min_hits: 1
+    evidence_cap: 5
 
   - id: COBS9_DRAWBACKS
-    section: "COBS 9 – Suitability"
+    section: "COBS 9 — Suitability"
     title: "Drawbacks / disadvantages disclosed"
     citation: "COBS 9.2.2R"
     source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
     applies_when:
       advice_type: advised
     phrases:
-      - "disadvantage"
-      - "disadvantages"
       - "drawback"
       - "drawbacks"
+      - "disadvantage"
+      - "disadvantages"
+      - "risks include"
+      - "key risks"
       - "risk"
-      - "risks"
-      - "however"
-      - "on the other hand"
-      - "this could"
-      - "you should be aware"
     min_hits: 1
+    evidence_cap: 5
 
-  # =========================
-  # COBS 6 — COSTS & CHARGES
-  # =========================
+  # Retirement/high equity mismatch (deterministic custom rule)
+  - id: COBS9_RETIREMENT_EQUITY_MISMATCH
+    section: "COBS 9 — Suitability"
+    title: "High equity allocation near retirement without balancing risk language"
+    citation: "COBS 9.2.2R"
+    source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
+    applies_when:
+      advice_type: advised
+    type: custom
+    custom: equity_near_retirement
+    custom_config:
+      min_age: 55
+      min_equity_pct: 75
+      balancers:
+        - "can fall as well as rise"
+        - "may get back less"
+        - "not guaranteed"
+        - "no guaranteed returns"
+        - "volatility"
+        - "capacity for loss"
+        - "risk of loss"
+    evidence_cap: 5
+
+  # -----------------------------
+  # COBS 6 — Costs & Charges
+  # -----------------------------
 
   - id: COBS6_COSTS
-    section: "COBS 6 – Costs & Charges"
+    section: "COBS 6 — Costs & Charges"
     title: "Costs and charges disclosed"
     citation: "COBS 6.1ZA / 6.1ZB"
     source_url: "https://handbook.fca.org.uk/handbook/COBS/6/"
@@ -205,24 +241,37 @@ rules:
       - "platform charge"
       - "initial charge"
       - "adviser charge"
-      - "fund charge"
     min_hits: 1
+    evidence_cap: 5
 
-  # =========================
-  # COBS 4 — COMMUNICATIONS
-  # =========================
+  # -----------------------------
+  # COBS 4 — Communications (certainty language)
+  # -----------------------------
 
   - id: COBS4_NO_GUARANTEE
-    section: "COBS 4 – Communications"
-    title: "No inappropriate guarantee / certainty language"
+    section: "COBS 4 — Communications"
+    title: "No inappropriate guarantees / certainty language"
     citation: "COBS 4.2.1R"
     source_url: "https://handbook.fca.org.uk/handbook/COBS/4/2.html"
     applies_when:
       investment_element: true
-    phrases:
+    forbid_phrases:
       - "guaranteed return"
       - "risk-free"
       - "cannot lose"
       - "guaranteed growth"
-      - "no risk"
-    min_hits: 1
+      - "will deliver"
+      - "will achieve"
+      - "will provide strong"
+      - "will maximise"
+      - "should provide attractive returns"
+      - "expected to deliver strong"
+    # allow ONLY if risk-balancing language appears near the same sentence
+    allow_if_near:
+      - "can fall as well as rise"
+      - "may get back less"
+      - "not guaranteed"
+      - "no guaranteed returns"
+      - "investments can fall"
+    near_window: 1
+    evidence_cap: 5
