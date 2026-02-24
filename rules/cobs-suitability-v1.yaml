@@ -1,55 +1,38 @@
 ruleset_id: assure-cobs-suitability
 version: "1.0"
 
-# Used purely to keep UI accordion stable
-sections_order:
-  - "COBS 9 – Suitability"
-  - "COBS 6 – Costs & Charges"
-  - "COBS 4 – Communications"
-  - "Unsorted"
-
 rules:
-
-  # -----------------------------
-  # COBS 9 – Suitability
-  # -----------------------------
   - id: COBS9_OBJ
     section: "COBS 9 – Suitability"
     title: "Client objectives identified"
     citation: "COBS 9.2.2R"
     source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
     applies_when:
-      advice_type: ["advised", "standard", "execution_only", "nonadvised"]
-    evidence_policy:
-      max_snippets: 3
-      max_phrases: 8
-    checks:
-      - op: clusters_min
-        min_clusters: 2
-        clusters:
-          - ["objectives", "goals", "aims", "investment objective"]
-          - ["income", "growth", "capital growth", "capital preservation"]
-          - ["time horizon", "investment term", "short term", "long term"]
+      advice_type: advised
+    mode: presence
+    phrases:
+      - "investment objective"
+      - "your objectives"
+      - "your goals"
+      - "financial goals"
+    min_hits: 1
+    evidence_cap: 5
 
   - id: COBS9_RISK
     section: "COBS 9 – Suitability"
-    title: "Attitude to risk stated"
+    title: "Attitude to risk assessed"
     citation: "COBS 9.2.2R"
     source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
     applies_when:
-      advice_type: ["advised", "standard", "execution_only", "nonadvised"]
-    evidence_policy:
-      max_snippets: 3
-      max_phrases: 8
-    checks:
-      - op: contains_any
-        min_hits: 1
-        phrases:
-          - "attitude to risk"
-          - "risk profile"
-          - "risk tolerance"
-          - "risk questionnaire"
-          - "risk assessment"
+      advice_type: advised
+    mode: presence
+    phrases:
+      - "attitude to risk"
+      - "risk profile"
+      - "risk tolerance"
+      - "capacity for loss"
+    min_hits: 1
+    evidence_cap: 5
 
   - id: COBS9_CFL
     section: "COBS 9 – Suitability"
@@ -57,69 +40,47 @@ rules:
     citation: "COBS 9.2.2R"
     source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
     applies_when:
-      advice_type: ["advised", "standard", "execution_only", "nonadvised"]
-    evidence_policy:
-      max_snippets: 3
-      max_phrases: 8
-    checks:
-      - op: contains_any
-        min_hits: 1
-        phrases:
-          - "capacity for loss"
-          - "loss capacity"
-          - "afford to lose"
-          - "impact on your lifestyle"
-          - "financially resilient"
+      advice_type: advised
+    mode: presence
+    phrases:
+      - "capacity for loss"
+      - "afford to lose"
+      - "impact of losses"
+    min_hits: 1
+    evidence_cap: 5
 
-  # -----------------------------
-  # COBS 6 – Costs & Charges
-  # -----------------------------
   - id: COBS6_COSTS
     section: "COBS 6 – Costs & Charges"
-    title: "Costs/charges referenced"
+    title: "Costs and charges disclosed"
     citation: "COBS 6.1ZA / 6.1ZB"
     source_url: "https://handbook.fca.org.uk/handbook/COBS/6/"
     applies_when:
       investment_element: true
-    evidence_policy:
-      max_snippets: 3
-      max_phrases: 10
-    checks:
-      - op: contains_any
-        min_hits: 2
-        phrases:
-          - "fee"
-          - "fees"
-          - "charge"
-          - "charges"
-          - "cost"
-          - "costs"
-          - "ongoing charge"
-          - "ongoing charges"
-          - "ocf"
-          - "platform fee"
-          - "adviser fee"
-          - "initial fee"
+    mode: presence
+    phrases:
+      - "fees"
+      - "charges"
+      - "costs"
+      - "ongoing charge"
+      - "initial charge"
+      - "platform charge"
+    min_hits: 1
+    evidence_cap: 5
 
-  # -----------------------------
-  # COBS 4 – Communications
-  # -----------------------------
   - id: COBS4_NO_GUARANTEE
     section: "COBS 4 – Communications"
-    title: "No inappropriate guarantees / certainty language"
+    title: "No inappropriate guarantee / certainty language"
     citation: "COBS 4.2.1R"
     source_url: "https://handbook.fca.org.uk/handbook/COBS/4/2.html"
     applies_when:
-      advice_type: ["advised", "standard", "execution_only", "nonadvised"]
-    evidence_policy:
-      max_snippets: 2
-      max_phrases: 8
-    checks:
-      - op: contains_none
-        phrases:
-          - "guaranteed return"
-          - "risk-free"
-          - "no risk"
-          - "cannot lose"
-          - "certain return"
-          - "guaranteed growth"
+      investment_element: true
+    mode: prohibited
+    prohibited_phrases:
+      - "guaranteed return"
+      - "guaranteed returns"
+      - "risk-free"
+      - "cannot lose"
+      - "no risk"
+      - "guaranteed growth"
+    prohibited_negation_aware: true
+    evidence_cap: 5
