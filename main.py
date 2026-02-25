@@ -1,234 +1,224 @@
-from fastapi import FastAPI, Request, Form, HTTPException
-from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
-from starlette.templating import Jinja2Templates
+from __future__ import annotations
 
-from pydantic import BaseModel
-from typing import Dict, Optional, Any
-from datetime import datetime, timezone
 import os
 import json
-import sqlite3
-import uuid
+import base64
+import hashlib
+import hmac
+import secrets
+from datetime import datetime, timezone, timedelta
+from typing import Any, Dict, Optional
 
-from executor import run_rules_engine
+from sqlalchemy import (
+    create_engine,
+    String,
+    DateTime,
+    Text,
+    Integer,
+    ForeignKey,
+    Index,
+)
+from sqlalchemy.orm import (
+    declarative_base,
+    sessionmaker,
+    Mapped,
+    mapped_column,
+    relationship,
+)
 
-# -----------------------------
-# APP
-# -----------------------------
+# -------------------------------------------------------------------
+# DATABASE CONFIG
+# -------------------------------------------------------------------
 
-app = FastAPI(title="Assure Deterministic Compliance Engine")
-templates = Jinja2Templates(directory="templates")
+# Prefer a full SQLAlchemy URL if provided, else fall back to file path.
+# Examples:
+#   ASSURE_DB_URL="sqlite:///./assure.db"
+#   ASSURE_DB_PATH="/var/data/assure.db"
+DB_URL = os.environ.get("ASSURE_DB_URL")
+DB_PATH = os.environ.get("ASSURE_DB_PATH", "./assure.db")
 
-RULES_PATH = os.environ.get("RULES_PATH", "rules/cobs-suitability-v1.yaml")
-DB_PATH = os.environ.get("ASSURE_DB_PATH", "assure.db")
+if not DB_URL:
+    # Ensure sqlite URL format
+    DB_URL = f"sqlite:///{DB_PATH.lstrip('./')}" if DB_PATH.startswith("./") else f"sqlite:///{DB_PATH}"
 
-# -----------------------------
-# DB
-# -----------------------------
+engine = create_engine(
+    DB_URL,
+    connect_args={"check_same_thread": False} if DB_URL.startswith("sqlite") else {},
+    future=True,
+)
 
-def db() -> sqlite3.Connection:
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
+SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
+Base = declarative_base()
 
-def init_db():
-    with db() as conn:
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS runs (
-              id TEXT PRIMARY KEY,
-              created_at TEXT NOT NULL,
-              context_json TEXT NOT NULL,
-              summary_json TEXT NOT NULL,
-              sections_json TEXT NOT NULL,
-              ruleset_id TEXT,
-              ruleset_version TEXT,
-              checked_at TEXT
-            )
-            """
-        )
-        conn.commit()
 
-@app.on_event("startup")
-def _startup():
-    init_db()
+def utc_now() -> datetime:
+    return datetime.now(timezone.utc).replace(microsecond=0)
 
-def utc_now_iso() -> str:
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
-def save_run(result: Dict[str, Any], context: Dict[str, Any]) -> str:
-    run_id = str(uuid.uuid4())
-    with db() as conn:
-        conn.execute(
-            """
-            INSERT INTO runs
-              (id, created_at, context_json, summary_json, sections_json, ruleset_id, ruleset_version, checked_at)
-            VALUES
-              (?,  ?,          ?,           ?,            ?,            ?,         ?,              ?)
-            """,
-            (
-                run_id,
-                utc_now_iso(),
-                json.dumps(context),
-                json.dumps(result.get("summary", {})),
-                json.dumps(result.get("sections", {})),
-                result.get("ruleset_id"),
-                result.get("ruleset_version"),
-                result.get("checked_at"),
-            ),
-        )
-        conn.commit()
-    return run_id
+# -------------------------------------------------------------------
+# SECURITY HELPERS (NO EXTRA DEPENDENCIES)
+# -------------------------------------------------------------------
+# Password hashing using PBKDF2-HMAC-SHA256:
+# Stored format: "pbkdf2_sha256$<iterations>$<salt_b64>$<hash_b64>"
 
-def list_runs(limit: int = 50):
-    with db() as conn:
-        rows = conn.execute(
-            "SELECT id, created_at, ruleset_id, ruleset_version, checked_at, summary_json FROM runs ORDER BY created_at DESC LIMIT ?",
-            (limit,),
-        ).fetchall()
-    out = []
-    for r in rows:
-        out.append(
-            {
-                "id": r["id"],
-                "created_at": r["created_at"],
-                "ruleset_id": r["ruleset_id"],
-                "ruleset_version": r["ruleset_version"],
-                "checked_at": r["checked_at"],
-                "summary": json.loads(r["summary_json"] or "{}"),
-            }
-        )
-    return out
+_PBKDF2_ITERATIONS = int(os.environ.get("ASSURE_PBKDF2_ITERATIONS", "210000"))
 
-def get_run(run_id: str):
-    with db() as conn:
-        row = conn.execute("SELECT * FROM runs WHERE id = ?", (run_id,)).fetchone()
-    if not row:
+
+def _b64e(b: bytes) -> str:
+    return base64.urlsafe_b64encode(b).decode("utf-8").rstrip("=")
+
+
+def _b64d(s: str) -> bytes:
+    pad = "=" * (-len(s) % 4)
+    return base64.urlsafe_b64decode((s + pad).encode("utf-8"))
+
+
+def hash_password(password: str, *, iterations: int = _PBKDF2_ITERATIONS) -> str:
+    if not isinstance(password, str) or len(password) < 8:
+        raise ValueError("Password must be a string of at least 8 characters.")
+    salt = secrets.token_bytes(16)
+    dk = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, iterations, dklen=32)
+    return f"pbkdf2_sha256${iterations}${_b64e(salt)}${_b64e(dk)}"
+
+
+def verify_password(password: str, password_hash: str) -> bool:
+    try:
+        scheme, iters_s, salt_b64, hash_b64 = (password_hash or "").split("$", 3)
+        if scheme != "pbkdf2_sha256":
+            return False
+        iterations = int(iters_s)
+        salt = _b64d(salt_b64)
+        expected = _b64d(hash_b64)
+        dk = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, iterations, dklen=len(expected))
+        return hmac.compare_digest(dk, expected)
+    except Exception:
+        return False
+
+
+def new_token(nbytes: int = 32) -> str:
+    return secrets.token_urlsafe(nbytes)
+
+
+# -------------------------------------------------------------------
+# MODELS
+# -------------------------------------------------------------------
+
+class Firm(Base):
+    __tablename__ = "firms"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(200), nullable=False, unique=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)
+
+    users: Mapped[list["User"]] = relationship("User", back_populates="firm", cascade="all, delete-orphan")
+    runs: Mapped[list["Run"]] = relationship("Run", back_populates="firm", cascade="all, delete-orphan")
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    firm_id: Mapped[int] = mapped_column(Integer, ForeignKey("firms.id", ondelete="CASCADE"), nullable=False, index=True)
+    email: Mapped[str] = mapped_column(String(320), nullable=False, unique=True, index=True)
+    password_hash: Mapped[str] = mapped_column(Text, nullable=False)
+
+    # simple roles: admin | member
+    role: Mapped[str] = mapped_column(String(32), nullable=False, default="member")
+
+    is_active: Mapped[int] = mapped_column(Integer, nullable=False, default=1)  # 1/0 for sqlite friendliness
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)
+    last_login_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    firm: Mapped["Firm"] = relationship("Firm", back_populates="users")
+    sessions: Mapped[list["Session"]] = relationship("Session", back_populates="user", cascade="all, delete-orphan")
+    runs: Mapped[list["Run"]] = relationship("Run", back_populates="user", cascade="all, delete-orphan")
+
+
+class Session(Base):
+    __tablename__ = "sessions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    token: Mapped[str] = mapped_column(String(128), nullable=False, unique=True, index=True)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    user: Mapped["User"] = relationship("User", back_populates="sessions")
+
+
+class Run(Base):
+    __tablename__ = "runs"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)  # UUID string from app layer
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now, index=True)
+
+    firm_id: Mapped[int] = mapped_column(Integer, ForeignKey("firms.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+
+    ruleset_id: Mapped[str] = mapped_column(String(200), nullable=False)
+    ruleset_version: Mapped[str] = mapped_column(String(50), nullable=False)
+    checked_at: Mapped[str] = mapped_column(String(64), nullable=False)  # keep as ISO string from engine output
+
+    advice_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    investment_element: Mapped[str] = mapped_column(String(10), nullable=False)  # "true"/"false"
+    ongoing_service: Mapped[str] = mapped_column(String(10), nullable=False)     # "true"/"false"
+
+    sr_hash: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    sr_len: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    summary_json: Mapped[str] = mapped_column(Text, nullable=False)
+    sections_json: Mapped[str] = mapped_column(Text, nullable=False)
+
+    firm: Mapped["Firm"] = relationship("Firm", back_populates="runs")
+    user: Mapped[Optional["User"]] = relationship("User", back_populates="runs")
+
+    @staticmethod
+    def dumps(obj: Dict[str, Any]) -> str:
+        return json.dumps(obj, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
+
+
+Index("ix_runs_firm_created", Run.firm_id, Run.created_at)
+
+
+# -------------------------------------------------------------------
+# SESSION CREATION / VALIDATION HELPERS
+# -------------------------------------------------------------------
+
+_DEFAULT_SESSION_DAYS = int(os.environ.get("ASSURE_SESSION_DAYS", "14"))
+
+
+def create_session(db, user_id: int, *, days: int = _DEFAULT_SESSION_DAYS) -> str:
+    token = new_token(32)
+    expires = utc_now() + timedelta(days=days)
+    s = Session(user_id=user_id, token=token, expires_at=expires)
+    db.add(s)
+    db.commit()
+    return token
+
+
+def get_user_by_session_token(db, token: str) -> Optional[User]:
+    if not token:
         return None
-    return {
-        "id": row["id"],
-        "created_at": row["created_at"],
-        "ruleset_id": row["ruleset_id"],
-        "ruleset_version": row["ruleset_version"],
-        "checked_at": row["checked_at"],
-        "context": json.loads(row["context_json"] or "{}"),
-        "summary": json.loads(row["summary_json"] or "{}"),
-        "sections": json.loads(row["sections_json"] or "{}"),
-    }
+    s = db.query(Session).filter(Session.token == token).first()
+    if not s:
+        return None
+    if s.expires_at <= utc_now():
+        # expire it
+        db.delete(s)
+        db.commit()
+        return None
+    u = db.query(User).filter(User.id == s.user_id).first()
+    if not u or not u.is_active:
+        return None
+    return u
 
-# -----------------------------
-# API MODEL
-# -----------------------------
 
-class CheckRequest(BaseModel):
-    advice_type: str
-    document_text: str
-    investment_element: Optional[bool] = True
-    ongoing_service: Optional[bool] = False
+# -------------------------------------------------------------------
+# INIT
+# -------------------------------------------------------------------
 
-# -----------------------------
-# CORE API
-# -----------------------------
-
-@app.post("/check")
-async def check(payload: CheckRequest):
-    context: Dict[str, object] = {
-        "advice_type": payload.advice_type,
-        "investment_element": bool(payload.investment_element),
-        "ongoing_service": bool(payload.ongoing_service),
-    }
-
-    result = run_rules_engine(
-        document_text=payload.document_text,
-        context=context,
-        rules_path=RULES_PATH,
-    )
-
-    return JSONResponse(result)
-
-# -----------------------------
-# ADMIN UI
-# -----------------------------
-
-@app.get("/admin/test", response_class=HTMLResponse)
-def admin_test_get(request: Request):
-    return templates.TemplateResponse(
-        "admin_test.html",
-        {
-            "request": request,
-            "result": None,
-            "advice_type": "advised",
-            "investment_element": "true",
-            "ongoing_service": "false",
-            "sr_text": "",
-            "result_json": None,
-            "run_id": None,
-        },
-    )
-
-@app.post("/admin/test", response_class=HTMLResponse)
-async def admin_test_post(
-    request: Request,
-    advice_type: str = Form(...),
-    investment_element: str = Form("true"),
-    ongoing_service: str = Form("false"),
-    sr_text: str = Form(""),
-):
-    ctx = {
-        "advice_type": advice_type,
-        "investment_element": (investment_element or "").lower() == "true",
-        "ongoing_service": (ongoing_service or "").lower() == "true",
-    }
-
-    result = run_rules_engine(
-        document_text=sr_text or "",
-        context=ctx,
-        rules_path=RULES_PATH,
-    )
-
-    # persist run
-    run_id = save_run(result, ctx)
-
-    return templates.TemplateResponse(
-        "admin_test.html",
-        {
-            "request": request,
-            "result": result,
-            "result_json": json.dumps(result, ensure_ascii=False, indent=2),
-            "run_id": run_id,
-            "advice_type": advice_type,
-            "investment_element": investment_element,
-            "ongoing_service": ongoing_service,
-            "sr_text": sr_text,
-        },
-    )
-
-# -----------------------------
-# RUN HISTORY (THIS FIXES YOUR 404)
-# -----------------------------
-
-@app.get("/admin/runs", response_class=HTMLResponse)
-def admin_runs(request: Request):
-    runs = list_runs(limit=100)
-    return templates.TemplateResponse(
-        "runs.html",
-        {"request": request, "runs": runs},
-    )
-
-@app.get("/admin/runs/{run_id}", response_class=HTMLResponse)
-def admin_run_detail(request: Request, run_id: str):
-    run = get_run(run_id)
-    if not run:
-        raise HTTPException(status_code=404, detail="Run not found")
-    return templates.TemplateResponse(
-        "run_detail.html",
-        {"request": request, "run": run},
-    )
-
-# -----------------------------
-# HEALTH
-# -----------------------------
-
-@app.get("/health")
-def health():
-    return {"status": "ok", "rules_path": RULES_PATH}
+def init_db() -> None:
+    Base.metadata.create_all(bind=engine)
