@@ -37,7 +37,7 @@ rules:
         positive_clusters: ">=2"
         linkage_indicators: ">=1"
 
-   - id: COBS9_CIRC
+  - id: COBS9_CIRC
     section: "COBS 9 — Circumstances"
     title: "Personal and financial circumstances considered"
     citation: "COBS 9.2.2R"
