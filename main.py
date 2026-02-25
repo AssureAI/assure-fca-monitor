@@ -1,30 +1,124 @@
-from __future__ import annotations
-
-import hashlib
-import json
-import uuid
-from typing import Dict, Any, Optional
-
-from fastapi import FastAPI, Request, Form
-from fastapi.responses import JSONResponse, HTMLResponse
-from pydantic import BaseModel
+from fastapi import FastAPI, Request, Form, HTTPException
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from starlette.templating import Jinja2Templates
 
+from pydantic import BaseModel
+from typing import Dict, Optional, Any
+from datetime import datetime, timezone
+import os
+import json
+import sqlite3
+import uuid
+
 from executor import run_rules_engine
-from database import SessionLocal, init_db, Run
+
+# -----------------------------
+# APP
+# -----------------------------
 
 app = FastAPI(title="Assure Deterministic Compliance Engine")
 templates = Jinja2Templates(directory="templates")
 
+RULES_PATH = os.environ.get("RULES_PATH", "rules/cobs-suitability-v1.yaml")
+DB_PATH = os.environ.get("ASSURE_DB_PATH", "assure.db")
+
+# -----------------------------
+# DB
+# -----------------------------
+
+def db() -> sqlite3.Connection:
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+def init_db():
+    with db() as conn:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS runs (
+              id TEXT PRIMARY KEY,
+              created_at TEXT NOT NULL,
+              context_json TEXT NOT NULL,
+              summary_json TEXT NOT NULL,
+              sections_json TEXT NOT NULL,
+              ruleset_id TEXT,
+              ruleset_version TEXT,
+              checked_at TEXT
+            )
+            """
+        )
+        conn.commit()
 
 @app.on_event("startup")
 def _startup():
     init_db()
 
+def utc_now_iso() -> str:
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
-# -------------------------
+def save_run(result: Dict[str, Any], context: Dict[str, Any]) -> str:
+    run_id = str(uuid.uuid4())
+    with db() as conn:
+        conn.execute(
+            """
+            INSERT INTO runs
+              (id, created_at, context_json, summary_json, sections_json, ruleset_id, ruleset_version, checked_at)
+            VALUES
+              (?,  ?,          ?,           ?,            ?,            ?,         ?,              ?)
+            """,
+            (
+                run_id,
+                utc_now_iso(),
+                json.dumps(context),
+                json.dumps(result.get("summary", {})),
+                json.dumps(result.get("sections", {})),
+                result.get("ruleset_id"),
+                result.get("ruleset_version"),
+                result.get("checked_at"),
+            ),
+        )
+        conn.commit()
+    return run_id
+
+def list_runs(limit: int = 50):
+    with db() as conn:
+        rows = conn.execute(
+            "SELECT id, created_at, ruleset_id, ruleset_version, checked_at, summary_json FROM runs ORDER BY created_at DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
+    out = []
+    for r in rows:
+        out.append(
+            {
+                "id": r["id"],
+                "created_at": r["created_at"],
+                "ruleset_id": r["ruleset_id"],
+                "ruleset_version": r["ruleset_version"],
+                "checked_at": r["checked_at"],
+                "summary": json.loads(r["summary_json"] or "{}"),
+            }
+        )
+    return out
+
+def get_run(run_id: str):
+    with db() as conn:
+        row = conn.execute("SELECT * FROM runs WHERE id = ?", (run_id,)).fetchone()
+    if not row:
+        return None
+    return {
+        "id": row["id"],
+        "created_at": row["created_at"],
+        "ruleset_id": row["ruleset_id"],
+        "ruleset_version": row["ruleset_version"],
+        "checked_at": row["checked_at"],
+        "context": json.loads(row["context_json"] or "{}"),
+        "summary": json.loads(row["summary_json"] or "{}"),
+        "sections": json.loads(row["sections_json"] or "{}"),
+    }
+
+# -----------------------------
 # API MODEL
-# -------------------------
+# -----------------------------
 
 class CheckRequest(BaseModel):
     advice_type: str
@@ -32,55 +126,13 @@ class CheckRequest(BaseModel):
     investment_element: Optional[bool] = True
     ongoing_service: Optional[bool] = False
 
-
-def _hash_sr(text: str) -> str:
-    # deterministic hash of the submitted text (we do NOT store full SR in DB)
-    t = (text or "").strip().encode("utf-8")
-    return hashlib.sha256(t).hexdigest()
-
-
-def _save_run(context: Dict[str, Any], sr_text: str, result: Dict[str, Any]) -> None:
-    run_id = str(uuid.uuid4())
-    sr_hash = _hash_sr(sr_text)
-    sr_len = len((sr_text or "").strip())
-
-    summary = result.get("summary", {})
-    ruleset_id = result.get("ruleset_id", "unknown-ruleset")
-    ruleset_version = result.get("ruleset_version", result.get("ruleset_version", "0.0"))
-
-    db = SessionLocal()
-    try:
-        row = Run(
-            id=run_id,
-            created_at=result.get("checked_at") and None or None,  # ignored; we set below
-            ruleset_id=str(ruleset_id),
-            ruleset_version=str(ruleset_version),
-            advice_type=str(context.get("advice_type", "")),
-            investment_element="true" if bool(context.get("investment_element")) else "false",
-            ongoing_service="true" if bool(context.get("ongoing_service")) else "false",
-            sr_hash=sr_hash,
-            sr_len=sr_len,
-            summary_json=Run.dumps(summary if isinstance(summary, dict) else {}),
-            result_json=Run.dumps(result if isinstance(result, dict) else {}),
-        )
-
-        # set created_at safely (checked_at is string in your executor)
-        from datetime import datetime, timezone
-        row.created_at = datetime.now(timezone.utc).replace(tzinfo=None)
-
-        db.add(row)
-        db.commit()
-    finally:
-        db.close()
-
-
-# -------------------------
+# -----------------------------
 # CORE API
-# -------------------------
+# -----------------------------
 
 @app.post("/check")
 async def check(payload: CheckRequest):
-    context: Dict[str, Any] = {
+    context: Dict[str, object] = {
         "advice_type": payload.advice_type,
         "investment_element": bool(payload.investment_element),
         "ongoing_service": bool(payload.ongoing_service),
@@ -89,25 +141,17 @@ async def check(payload: CheckRequest):
     result = run_rules_engine(
         document_text=payload.document_text,
         context=context,
-        rules_path="rules/cobs-suitability-v1.yaml",
+        rules_path=RULES_PATH,
     )
-
-    # persist run
-    try:
-        _save_run(context=context, sr_text=payload.document_text, result=result)
-    except Exception:
-        # don’t fail the check endpoint if storage fails
-        pass
 
     return JSONResponse(result)
 
-
-# -------------------------
+# -----------------------------
 # ADMIN UI
-# -------------------------
+# -----------------------------
 
 @app.get("/admin/test", response_class=HTMLResponse)
-async def admin_test_get(request: Request):
+def admin_test_get(request: Request):
     return templates.TemplateResponse(
         "admin_test.html",
         {
@@ -120,7 +164,6 @@ async def admin_test_get(request: Request):
         },
     )
 
-
 @app.post("/admin/test", response_class=HTMLResponse)
 async def admin_test_post(
     request: Request,
@@ -129,40 +172,60 @@ async def admin_test_post(
     ongoing_service: str = Form("false"),
     sr_text: str = Form(""),
 ):
-    inv = (investment_element or "").lower() == "true"
-    ong = (ongoing_service or "").lower() == "true"
-
-    ctx: Dict[str, Any] = {
+    ctx = {
         "advice_type": advice_type,
-        "investment_element": inv,
-        "ongoing_service": ong,
+        "investment_element": (investment_element or "").lower() == "true",
+        "ongoing_service": (ongoing_service or "").lower() == "true",
     }
 
     result = run_rules_engine(
         document_text=sr_text or "",
         context=ctx,
-        rules_path="rules/cobs-suitability-v1.yaml",
+        rules_path=RULES_PATH,
     )
 
     # persist run
-    try:
-        _save_run(context=ctx, sr_text=sr_text or "", result=result)
-    except Exception:
-        pass
+    run_id = save_run(result, ctx)
 
     return templates.TemplateResponse(
         "admin_test.html",
         {
             "request": request,
             "result": result,
+            "run_id": run_id,
             "advice_type": advice_type,
-            "investment_element": "true" if inv else "false",
-            "ongoing_service": "true" if ong else "false",
-            "sr_text": sr_text or "",
+            "investment_element": investment_element,
+            "ongoing_service": ongoing_service,
+            "sr_text": sr_text,
         },
     )
 
+# -----------------------------
+# RUN HISTORY (THIS FIXES YOUR 404)
+# -----------------------------
+
+@app.get("/admin/runs", response_class=HTMLResponse)
+def admin_runs(request: Request):
+    runs = list_runs(limit=100)
+    return templates.TemplateResponse(
+        "runs.html",
+        {"request": request, "runs": runs},
+    )
+
+@app.get("/admin/runs/{run_id}", response_class=HTMLResponse)
+def admin_run_detail(request: Request, run_id: str):
+    run = get_run(run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found")
+    return templates.TemplateResponse(
+        "run_detail.html",
+        {"request": request, "run": run},
+    )
+
+# -----------------------------
+# HEALTH
+# -----------------------------
 
 @app.get("/health")
 def health():
-    return {"status": "ok"}
+    return {"status": "ok", "rules_path": RULES_PATH}
