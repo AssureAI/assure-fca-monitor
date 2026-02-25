@@ -37,7 +37,7 @@ rules:
         positive_clusters: ">=2"
         linkage_indicators: ">=1"
 
-  - id: COBS9_CIRC
+   - id: COBS9_CIRC
     section: "COBS 9 — Circumstances"
     title: "Personal and financial circumstances considered"
     citation: "COBS 9.2.2R"
@@ -45,16 +45,22 @@ rules:
     applies_when:
       advice_type: [advised]
     evidence:
-      positive_clusters:
-        - ["income", "salary", "earn", "expenditure", "outgoings", "monthly"]
-        - ["assets", "liabilities", "mortgage", "debt", "cash", "savings"]
-        - ["employment", "self-employed", "retired", "retirement", "employed"]
-        - ["dependants", "family", "spouse", "partner", "children"]
-        - ["tax position", "tax rate", "higher rate", "additional rate", "basic rate"]
+      hard_circumstances:
+        - ["income", "salary", "net income", "gross income", "take home pay", "payslip"]
+        - ["expenditure", "outgoings", "monthly spending", "budget", "disposable income"]
+        - ["mortgage", "loan", "credit card", "debt", "repayment", "liability", "borrowings"]
+        - ["dependant", "dependants", "children", "childcare", "spouse", "partner", "family"]
+        # employment / status words
+        - ["employed", "self-employed", "contractor", "unemployed", "retired"]
+        - ["basic rate", "higher rate", "additional rate", "tax band", "tax rate"]
+      supporting_circumstances:
+        - ["assets", "savings", "isa", "gia", "pension", "pensions", "sipp", "property", "investments"]
+        - ["emergency fund", "cash reserve", "cash buffer", "liquid assets"]
     decision_logic:
       require_all:
-        positive_clusters: ">=2"
-
+        hard_circumstances: ">=1"
+        supporting_circumstances: ">=1"
+  
   - id: COBS9_KNOWEXP
     section: "COBS 9 — Knowledge & Experience"
     title: "Knowledge and experience referenced where relevant"
@@ -266,10 +272,13 @@ rules:
         - ["ongoing charge", "ocf", "platform charge", "product charge", "fund charge"]
         - ["initial charge", "adviser charge", "ongoing advice fee", "service fee"]
       numeric_indicators:
-        - ["%", "per annum", "pa", "p.a.", "£"]
+        - ["%", "per annum", "p.a.", "pa"]
+      cost_specific:
+        - ["fee", "fees", "charge", "charges", "ocf", "platform charge", "adviser charge", "service fee"]
     decision_logic:
       require_all:
         cost_clusters: ">=2"
+        cost_specific: ">=1"
         numeric_indicators: ">=1"
 
   - id: COBS6_COSTS_TOTAL
