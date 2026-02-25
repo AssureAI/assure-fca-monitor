@@ -1,3 +1,4 @@
+<!-- templates/admin_test.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -9,43 +10,41 @@
     h1 { font-size: 28px; margin: 0 0 6px 0; }
     .sub { color: #555; margin-bottom: 18px; }
     .card { background: white; border: 1px solid #ddd; border-radius: 10px; padding: 16px; margin-bottom: 16px; }
-    label { display:block; font-weight: 600; margin-top: 10px; }
+
+    label { display:block; font-weight: 700; margin-top: 10px; }
     select, textarea { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 8px; font-size: 14px; }
     textarea { min-height: 220px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
-    button { background: #111827; color: white; border: 0; padding: 10px 14px; border-radius: 10px; font-weight: 700; cursor: pointer; margin-top: 12px; }
+
+    button { background: #111827; color: white; border: 0; padding: 10px 14px; border-radius: 10px; font-weight: 800; cursor: pointer; margin-top: 12px; }
     button:hover { opacity: 0.92; }
+
     hr { border: 0; border-top: 1px solid #ddd; margin: 18px 0; }
 
     .pill { display:inline-block; padding: 3px 10px; border-radius: 999px; background: #eee; font-size: 12px; margin-left: 6px; }
-    .ok { color: #0a7a2f; font-weight: 800; }
-    .pi { color: #b45309; font-weight: 800; }
-    .na { color: #6b7280; font-weight: 800; }
+    .ok { color: #0a7a2f; font-weight: 900; }
+    .pi { color: #b45309; font-weight: 900; }
+    .na { color: #6b7280; font-weight: 900; }
 
     table { width: 100%; border-collapse: collapse; background: white; }
     th, td { border: 1px solid #ddd; padding: 8px; vertical-align: top; font-size: 13px; }
     th { background: #fafafa; text-align: left; }
 
-    details summary { cursor: pointer; font-weight: 700; }
+    details summary { cursor: pointer; font-weight: 800; }
     ul { margin: 8px 0 0 18px; }
     .muted { color: #6b7280; font-size: 12px; }
     .why { color: #374151; font-size: 12px; margin-top: 6px; white-space: pre-wrap; }
+    .kv { display:flex; gap:10px; flex-wrap:wrap; margin-top:6px; }
+    .kv code { background:#f3f4f6; border:1px solid #e5e7eb; padding:2px 6px; border-radius:8px; font-size:12px; }
+
     a { color: #2563eb; text-decoration: none; }
     a:hover { text-decoration: underline; }
 
-    pre.debug {
-      white-space: pre-wrap;
-      font-size: 12px;
-      background: #0b1020;
-      color: #e5e7eb;
-      padding: 12px;
-      border-radius: 10px;
-      overflow: auto;
-    }
+    pre { background:#0b1020; color:#e5e7eb; padding:12px; border-radius:10px; overflow:auto; font-size:12px; }
   </style>
 </head>
 <body>
   <h1>Assure – Admin Test</h1>
-  <div class="sub">Deterministic check. Results grouped by section. Evidence is capped snippets (no full SR echo).</div>
+  <div class="sub">Deterministic check. Evidence is capped snippets (no full SR echo). This view is built for debugging.</div>
 
   <div class="card" id="input">
     <details {% if not result %}open{% endif %}>
@@ -84,17 +83,11 @@
       <h2 style="margin:0 0 10px 0;">Results</h2>
 
       <div class="muted">
-        <div><b>Ruleset:</b> {{ result.get("ruleset_id", "") }} {{ result.get("ruleset_version", "") }}</div>
+        <div><b>Ruleset:</b> {{ result.get("ruleset_id", "") }} v{{ result.get("ruleset_version", "") }}</div>
         <div><b>Checked at:</b> {{ result.get("checked_at", "") }}</div>
-        {% if result.get("rules_path_used") %}
-          <div><b>Rules path used:</b> {{ result.get("rules_path_used") }}</div>
-        {% endif %}
+        <div><b>Rules file used:</b> <code>{{ result.get("rules_path_used", "") }}</code></div>
         {% if run_id %}
-          <div style="margin-top:6px;">
-            <b>Run:</b> <a href="/admin/runs/{{ run_id }}">Open run detail</a> · <a href="/admin/runs">Run history</a>
-          </div>
-        {% else %}
-          <div style="margin-top:6px;"><a href="/admin/runs">Run history</a></div>
+          <div><b>Saved run:</b> <a href="/admin/runs/{{ run_id }}">Open run</a></div>
         {% endif %}
       </div>
 
@@ -105,6 +98,13 @@
         <span class="pill">potential_issue: {{ summary.get("potential_issue", 0) }}</span>
         <span class="pill">not_assessed: {{ summary.get("not_assessed", 0) }}</span>
       </div>
+
+      <hr/>
+
+      <details>
+        <summary>Raw JSON (debug)</summary>
+        <pre>{{ result | tojson(indent=2) }}</pre>
+      </details>
 
       <hr/>
 
@@ -126,10 +126,10 @@
             <table>
               <thead>
                 <tr>
-                  <th style="width: 26%;">Rule</th>
+                  <th style="width: 24%;">Rule</th>
                   <th style="width: 12%;">Status</th>
-                  <th style="width: 32%;">Citation</th>
-                  <th>Evidence</th>
+                  <th style="width: 22%;">Citation</th>
+                  <th>Evidence & Debug</th>
                 </tr>
               </thead>
               <tbody>
@@ -162,10 +162,42 @@
                       {% set why = r.get("why", "") %}
                       {% set missing = r.get("missing", []) %}
                       {% set details_list = r.get("details", []) %}
+                      {% set counts = r.get("counts", {}) %}
+                      {% set eby = r.get("evidence_by_key", {}) %}
 
                       <details>
-                        <summary>Show evidence</summary>
+                        <summary>Open</summary>
 
+                        <div class="why"><b>Why:</b> {{ why if why else "No reason provided." }}</div>
+
+                        {% if counts and counts|length > 0 %}
+                          <div class="why" style="margin-top:8px;"><b>Counts:</b></div>
+                          <div class="kv">
+                            {% for k, v in counts.items() %}
+                              <code>{{ k }}={{ v }}</code>
+                            {% endfor %}
+                          </div>
+                        {% endif %}
+
+                        {% if missing and missing|length > 0 %}
+                          <div class="why" style="margin-top:10px;"><b>Missing:</b></div>
+                          <ul>
+                            {% for m in missing %}
+                              <li>{{ m }}</li>
+                            {% endfor %}
+                          </ul>
+                        {% endif %}
+
+                        {% if details_list and details_list|length > 0 %}
+                          <div class="why" style="margin-top:10px;"><b>Details:</b></div>
+                          <ul>
+                            {% for d in details_list %}
+                              <li>{{ d }}</li>
+                            {% endfor %}
+                          </ul>
+                        {% endif %}
+
+                        <div class="why" style="margin-top:10px;"><b>Evidence (top-level):</b></div>
                         {% if ev and (ev | length) > 0 %}
                           <ul>
                             {% for e in ev %}
@@ -176,21 +208,24 @@
                           <div class="muted">No matching snippets found.</div>
                         {% endif %}
 
-                        {% if details_list and (details_list | length) > 0 %}
-                          <div class="why"><b>Details:</b></div>
-                          <ul>
-                            {% for d in details_list %}
-                              <li>{{ d }}</li>
-                            {% endfor %}
-                          </ul>
+                        {% if eby and eby|length > 0 %}
+                          <div class="why" style="margin-top:10px;"><b>Evidence by signal bucket:</b></div>
+                          {% for k, lst in eby.items() %}
+                            <details style="margin-top:6px;">
+                              <summary>{{ k }} ({{ lst|length }})</summary>
+                              {% if lst and lst|length > 0 %}
+                                <ul>
+                                  {% for x in lst %}
+                                    <li>{{ x }}</li>
+                                  {% endfor %}
+                                </ul>
+                              {% else %}
+                                <div class="muted">No snippets for this bucket.</div>
+                              {% endif %}
+                            </details>
+                          {% endfor %}
                         {% endif %}
 
-                        {% if missing and (missing | length) > 0 %}
-                          <div class="why"><b>Missing signals:</b></div>
-                          <div class="muted">{{ missing | join(", ") }}</div>
-                        {% endif %}
-
-                        <div class="why"><b>Why:</b> {{ why if why else "No reason provided." }}</div>
                       </details>
                     </td>
                   </tr>
@@ -201,19 +236,14 @@
         </details>
       {% endfor %}
 
-      <hr/>
-
-      <details>
-        <summary>Raw JSON (debug)</summary>
-        {% if result_json %}
-          <pre class="debug">{{ result_json }}</pre>
-        {% else %}
-          <div class="muted">No result_json provided by backend. (Add it in main.py template context.)</div>
-        {% endif %}
-      </details>
-
       <div style="margin-top:10px;">
         <a href="/admin/test">Run again</a>
+        {% if run_id %}
+          &nbsp;·&nbsp;<a href="/admin/runs/{{ run_id }}">Open saved run</a>
+          &nbsp;·&nbsp;<a href="/admin/runs">Run history</a>
+        {% else %}
+          &nbsp;·&nbsp;<a href="/admin/runs">Run history</a>
+        {% endif %}
       </div>
     </div>
 
