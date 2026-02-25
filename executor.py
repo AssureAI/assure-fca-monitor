@@ -1,12 +1,14 @@
+# executor.py
+import os
 import yaml
 import re
 from datetime import datetime
-from typing import Dict, List, Any, Tuple, Optional
+from typing import Dict, List, Any, Tuple
 
 
-# ---------------------------------
-# NORMALISATION + SENTENCE SPLIT
-# ---------------------------------
+# =================================
+# TEXT NORMALISATION + SENTENCES
+# =================================
 
 _WS_RE = re.compile(r"\s+")
 _SENT_RE = re.compile(r'(?<=[.!?])\s+')
@@ -25,22 +27,24 @@ def split_sentences(text: str) -> List[str]:
     return [p.strip() for p in parts if p and p.strip()]
 
 
-# ---------------------------------
+# =================================
 # MATCHING HELPERS (DETERMINISTIC)
-# ---------------------------------
+# =================================
 
-_NEGATION_TOKENS = {"not", "no", "never", "without", "none", "cannot", "can't", "isn't", "aren't", "won't", "don't"}
+_NEGATION_TOKENS = {
+    "not", "no", "never", "without", "none", "cannot", "can't",
+    "isn't", "aren't", "won't", "don't"
+}
 
 def _tokenise(s: str) -> List[str]:
-    # keep it simple & deterministic
     return re.findall(r"[a-zA-Z']+", (s or "").lower())
 
 def _is_negated(sentence: str, phrase: str, window_tokens: int = 4) -> bool:
     """
-    True if the phrase appears, and a negation token is within N tokens immediately before it.
-    This prevents false flags like: "there are no guaranteed returns".
+    True if phrase appears AND a negation token is within N tokens immediately before it.
+    Prevents false flags like: "there are no guaranteed returns".
     """
-    s_low = sentence.lower()
+    s_low = (sentence or "").lower()
     p_low = (phrase or "").lower().strip()
     if not p_low or p_low not in s_low:
         return False
@@ -50,112 +54,136 @@ def _is_negated(sentence: str, phrase: str, window_tokens: int = 4) -> bool:
     if not phrase_tokens:
         return False
 
-    # find occurrences of phrase_tokens in tokens
     for i in range(len(tokens) - len(phrase_tokens) + 1):
-        if tokens[i:i+len(phrase_tokens)] == phrase_tokens:
+        if tokens[i:i + len(phrase_tokens)] == phrase_tokens:
             start = max(0, i - window_tokens)
             prior = tokens[start:i]
             if any(t in _NEGATION_TOKENS for t in prior):
                 return True
     return False
 
+
+def _flatten_phrases(phrases: Any) -> List[str]:
+    """
+    YAML mistakes happen: sometimes phrase lists get nested.
+    We accept:
+      - ["a", "b"]
+      - [["a","b"], ["c"]]  (flatten 1 level)
+      - mixed junk -> ignored safely
+    """
+    out: List[str] = []
+    if not phrases:
+        return out
+
+    if isinstance(phrases, str):
+        return [phrases]
+
+    if isinstance(phrases, list):
+        for p in phrases:
+            if isinstance(p, str):
+                out.append(p)
+            elif isinstance(p, list):
+                for pp in p:
+                    if isinstance(pp, str):
+                        out.append(pp)
+    return out
+
+
 def phrase_hits(
     sentences: List[str],
-    phrases: List[Any],
+    phrases: Any,
     *,
     allow_if_negated: bool = True,
     max_evidence: int = 6
 ) -> Tuple[int, List[str], List[str]]:
     """
     Returns:
-      hit_count, matched_phrases (dedup), evidence_sentences (dedup; capped)
-    Supports phrases list that may accidentally contain nested lists (we ignore non-strings safely).
+      hit_count (dedup phrase count),
+      matched_phrases (sorted, dedup),
+      evidence_sentences (dedup, capped)
     """
-    matched_phrases_set = set()
-    evidence_set = []
-    evidence_seen = set()
+    flat = _flatten_phrases(phrases)
 
-    # flatten only one level if someone accidentally nested
-    flat: List[str] = []
-    for p in (phrases or []):
-        if isinstance(p, str):
-            flat.append(p)
-        elif isinstance(p, list):
-            for pp in p:
-                if isinstance(pp, str):
-                    flat.append(pp)
+    matched_phrases: set[str] = set()
+    evidence: List[str] = []
+    seen_sent: set[str] = set()
 
     for sent in sentences:
-        s_low = sent.lower()
+        s_norm = sent.lower()
         for p in flat:
-            p_low = p.lower()
-            if p_low and p_low in s_low:
-                # if phrase is prohibited-style, ignore when negated
+            p_norm = (p or "").lower()
+            if p_norm and p_norm in s_norm:
                 if not allow_if_negated and _is_negated(sent, p):
                     continue
-                matched_phrases_set.add(p)
-                if len(evidence_set) < max_evidence and sent not in evidence_seen:
-                    evidence_set.append(sent)
-                    evidence_seen.add(sent)
+                matched_phrases.add(p)
+                if len(evidence) < max_evidence and sent not in seen_sent:
+                    evidence.append(sent)
+                    seen_sent.add(sent)
 
-    return len(matched_phrases_set), sorted(matched_phrases_set), evidence_set
+    return len(matched_phrases), sorted(matched_phrases), evidence
 
 
 def cluster_hits(
     sentences: List[str],
-    clusters: List[Any],
+    clusters: Any,
     *,
     allow_if_negated: bool = True,
     max_evidence: int = 6
 ) -> Tuple[int, List[str], List[str]]:
     """
     A cluster is satisfied if ANY phrase in that cluster hits at least once.
+    clusters expected: list[list[str]]
     Returns:
       satisfied_cluster_count, matched_phrases (dedup), evidence_sentences (dedup; capped)
     """
-    satisfied = 0
-    matched_phrases_set = set()
-    evidence_set = []
-    evidence_seen = set()
-
     if not isinstance(clusters, list):
         return 0, [], []
 
+    satisfied = 0
+    matched_all: set[str] = set()
+    evidence: List[str] = []
+    seen_sent: set[str] = set()
+
     for cluster in clusters:
-        # each cluster should be list[str]
         if not isinstance(cluster, list):
             continue
-        hit_count, phrases, ev = phrase_hits(
-            sentences, cluster,
+
+        hit_n, phrases, ev = phrase_hits(
+            sentences,
+            cluster,
             allow_if_negated=allow_if_negated,
             max_evidence=max_evidence
         )
-        if hit_count > 0:
+
+        if hit_n > 0:
             satisfied += 1
             for p in phrases:
-                matched_phrases_set.add(p)
+                matched_all.add(p)
             for s in ev:
-                if len(evidence_set) < max_evidence and s not in evidence_seen:
-                    evidence_set.append(s)
-                    evidence_seen.add(s)
+                if len(evidence) < max_evidence and s not in seen_sent:
+                    evidence.append(s)
+                    seen_sent.add(s)
 
-    return satisfied, sorted(matched_phrases_set), evidence_set
+    return satisfied, sorted(matched_all), evidence
 
 
-# ---------------------------------
+# =================================
 # APPLICABILITY
-# ---------------------------------
+# =================================
 
-def applies(rule_applies_when: Dict[str, Any], context: Dict[str, Any]) -> bool:
+def applies(rule_applies_when: Any, context: Dict[str, Any]) -> bool:
     """
     Supports:
       applies_when:
-        advice_type: advised        (scalar)
-        advice_type: [advised,...]  (list)
+        advice_type: advised
+        advice_type: [advised, nonadvised]
         investment_element: true
     """
     if not rule_applies_when:
         return True
+    if not isinstance(rule_applies_when, dict):
+        return False
+
     for key, expected in rule_applies_when.items():
         actual = context.get(key)
 
@@ -168,18 +196,13 @@ def applies(rule_applies_when: Dict[str, Any], context: Dict[str, Any]) -> bool:
     return True
 
 
-# ---------------------------------
-# DECISION LOGIC PARSING
-# ---------------------------------
+# =================================
+# DECISION LOGIC
+# =================================
 
 _COND_RE = re.compile(r"^\s*(>=|==|<=|>|<)\s*(\d+)\s+([a-zA-Z0-9_]+)\s*$")
 
 def eval_condition(counts: Dict[str, int], cond: str) -> bool:
-    """
-    cond examples:
-      ">=2 positive_clusters"
-      "==0 negative_indicators"
-    """
     m = _COND_RE.match(cond or "")
     if not m:
         return False
@@ -199,42 +222,37 @@ def eval_condition(counts: Dict[str, int], cond: str) -> bool:
         return v < n
     return False
 
+
 def eval_ok_if(counts: Dict[str, int], ok_if: Any) -> Tuple[bool, str]:
     """
-    Supports:
-      ok_if: ["<=0 negative_indicators", "AND >=2 positive_clusters", "AND >=1 linkage_indicators"]
-    or:
-      ok_if:
-        - ">=2 positive_clusters"
-        - "AND >=1 linkage_indicators"
+    ok_if:
+      - ">=2 positive_clusters"
+      - "AND >=1 linkage_indicators"
+      - "AND ==0 negative_indicators"
     """
     if ok_if is None:
         return True, "No ok_if provided."
-
-    if isinstance(ok_if, dict):
-        # not supported; keep deterministic
-        return False, "ok_if must be a list of strings."
 
     if isinstance(ok_if, str):
         ok_if_list = [ok_if]
     elif isinstance(ok_if, list):
         ok_if_list = ok_if
     else:
-        return False, "ok_if must be list/str."
+        return False, "ok_if must be a list of strings (or a string)."
 
-    # default operator between clauses is AND (explicit AND supported)
     clauses: List[str] = []
     for raw in ok_if_list:
         if not isinstance(raw, str):
             continue
         s = raw.strip()
-        s = s.replace("AND ", "").strip() if s.upper().startswith("AND ") else s
+        if s.upper().startswith("AND "):
+            s = s[4:].strip()
         clauses.append(s)
 
     if not clauses:
         return True, "No clauses."
 
-    failed = []
+    failed: List[str] = []
     for c in clauses:
         if not eval_condition(counts, c):
             failed.append(c)
@@ -244,9 +262,9 @@ def eval_ok_if(counts: Dict[str, int], ok_if: Any) -> Tuple[bool, str]:
     return True, "All conditions met."
 
 
-# ---------------------------------
-# RULE EVALUATION (V1-LEVEL)
-# ---------------------------------
+# =================================
+# RULE EVALUATION
+# =================================
 
 def evaluate_rule(rule: Dict[str, Any], text: str, context: Dict[str, Any]) -> Dict[str, Any]:
     if not applies(rule.get("applies_when", {}), context):
@@ -256,80 +274,100 @@ def evaluate_rule(rule: Dict[str, Any], text: str, context: Dict[str, Any]) -> D
     evidence_spec = rule.get("evidence", {}) or {}
     decision = rule.get("decision_logic", {}) or {}
 
-    # count buckets
     counts: Dict[str, int] = {}
+    matched_phrases_all: set[str] = set()
+    evidence_sentences: List[str] = []
+    evidence_seen: set[str] = set()
 
-    # evidence capture (dedup)
-    matched_phrases_all = set()
-    evidence_sentences_all: List[str] = []
-    evidence_seen = set()
-
-    # helper to merge evidence
     def merge(phrases: List[str], ev_sents: List[str], cap: int = 6):
-        nonlocal matched_phrases_all, evidence_sentences_all, evidence_seen
+        nonlocal matched_phrases_all, evidence_sentences, evidence_seen
         for p in phrases:
             matched_phrases_all.add(p)
         for s in ev_sents:
-            if len(evidence_sentences_all) >= cap:
+            if len(evidence_sentences) >= cap:
                 break
             if s not in evidence_seen:
-                evidence_sentences_all.append(s)
+                evidence_sentences.append(s)
                 evidence_seen.add(s)
 
-    # Process known evidence keys; any *_clusters treated as clusters; any other list treated as phrase list.
-    for key, spec in evidence_spec.items():
-        if key.endswith("_clusters"):
-            hit_n, phrases, ev = cluster_hits(
-                sentences, spec,
-                allow_if_negated=True,      # cluster phrases are generally "positive signals"
-                max_evidence=6
-            )
-            counts[key] = hit_n
-            merge(phrases, ev, cap=6)
+    if isinstance(evidence_spec, dict):
+        for key, spec in evidence_spec.items():
+            if key.endswith("_clusters"):
+                hit_n, phrases, ev = cluster_hits(
+                    sentences,
+                    spec,
+                    allow_if_negated=True,   # clusters = positive signals
+                    max_evidence=6
+                )
+                counts[key] = hit_n
+                merge(phrases, ev, cap=6)
+            else:
+                # negative/prohibited style keys: ignore when negated (avoid false flags)
+                allow_if_negated = True
+                if key in ("negative_indicators", "prohibited_phrases", "must_not_contain"):
+                    allow_if_negated = False
 
-        else:
-            # special case: negative_indicators should ignore negated contexts (avoid false flags)
-            allow_if_negated = True
-            if key in ("negative_indicators", "prohibited_phrases", "must_not_contain"):
-                allow_if_negated = False
+                hit_n, phrases, ev = phrase_hits(
+                    sentences,
+                    spec,
+                    allow_if_negated=allow_if_negated,
+                    max_evidence=6
+                )
+                counts[key] = hit_n
+                merge(phrases, ev, cap=6)
+    else:
+        # If someone broke the YAML shape, treat as no evidence.
+        evidence_spec = {}
 
-            hit_n, phrases, ev = phrase_hits(
-                sentences, spec,
-                allow_if_negated=allow_if_negated,
-                max_evidence=6
-            )
-            counts[key] = hit_n
-            merge(phrases, ev, cap=6)
-
-    # Decision evaluation
     ok_if = decision.get("ok_if", None)
-
     ok, why = eval_ok_if(counts, ok_if)
     status = "OK" if ok else "POTENTIAL_ISSUE"
 
-    # Make "OK" require at least one matched sentence IF ok_if exists and is non-empty.
-    # This keeps the v1 philosophy: absence of evidence != compliance.
-    if status == "OK":
-        # If there is an ok_if and we have zero evidence sentences, downgrade.
-        if ok_if and len(evidence_sentences_all) == 0:
-            status = "POTENTIAL_ISSUE"
-            why = "Decision conditions met numerically, but no matching snippets found (no evidence)."
-
-    # Cap evidence and keep it readable
-    evidence_out = evidence_sentences_all[:6]
+    # v1 philosophy: don't mark OK unless we can point to at least *some* evidence
+    if status == "OK" and ok_if and len(evidence_sentences) == 0:
+        status = "POTENTIAL_ISSUE"
+        why = "Decision conditions met numerically, but no matching snippets found (no evidence)."
 
     return {
         "status": status,
         "why": why,
         "counts": counts,
-        "evidence": evidence_out,
-        "matched_phrases": sorted(matched_phrases_all)[:30],  # keep small but useful
+        "evidence": evidence_sentences[:6],
+        "matched_phrases": sorted(matched_phrases_all)[:30],
     }
 
 
-# ---------------------------------
+# =================================
+# RULESET LOAD (ENV OVERRIDE + FALLBACK)
+# =================================
+
+def _resolve_rules_path(default_path: str) -> str:
+    """
+    1) RULES_PATH env var overrides
+    2) use provided/default if exists
+    3) fallback to v1 if v2 missing
+    """
+    path = os.environ.get("RULES_PATH", default_path)
+
+    if os.path.exists(path):
+        return path
+
+    fallback = "rules/cobs-suitability-v1.yaml"
+    if os.path.exists(fallback):
+        return fallback
+
+    raise FileNotFoundError(f"Rules file not found: {path} (and fallback missing: {fallback})")
+
+
+def _load_ruleset(path: str) -> Dict[str, Any]:
+    with open(path, "r", encoding="utf-8") as f:
+        data = yaml.safe_load(f)
+    return data if isinstance(data, dict) else {}
+
+
+# =================================
 # EXECUTOR ENTRY POINT
-# ---------------------------------
+# =================================
 
 def run_rules_engine(
     document_text: str,
@@ -337,10 +375,12 @@ def run_rules_engine(
     rules_path: str = "rules/cobs-suitability-v1.yaml",
 ) -> Dict[str, Any]:
 
-    with open(rules_path, "r") as f:
-        ruleset = yaml.safe_load(f) or {}
+    resolved_path = _resolve_rules_path(rules_path)
+    ruleset = _load_ruleset(resolved_path)
 
-    rules = ruleset.get("rules", []) or []
+    rules = ruleset.get("rules", [])
+    if not isinstance(rules, list):
+        rules = []
 
     grouped: Dict[str, List[Dict[str, Any]]] = {}
 
@@ -350,7 +390,7 @@ def run_rules_engine(
 
         outcome = evaluate_rule(rule, document_text, context)
 
-        section = rule.get("section", "Unsorted")
+        section = rule.get("section") or "Unsorted"
         grouped.setdefault(section, [])
 
         grouped[section].append({
@@ -363,14 +403,14 @@ def run_rules_engine(
             "evidence": outcome.get("evidence", []),
         })
 
-    # stable ordering: sort rules by rule_id within each section
+    # stable ordering
     for s in list(grouped.keys()):
         grouped[s] = sorted(grouped[s], key=lambda r: (r.get("rule_id") or ""))
 
     summary = {
-        "ok": sum(1 for sec in grouped.values() for r in sec if r["status"] == "OK"),
-        "potential_issue": sum(1 for sec in grouped.values() for r in sec if r["status"] == "POTENTIAL_ISSUE"),
-        "not_assessed": sum(1 for sec in grouped.values() for r in sec if r["status"] == "NOT_ASSESSED"),
+        "ok": sum(1 for sec in grouped.values() for r in sec if r.get("status") == "OK"),
+        "potential_issue": sum(1 for sec in grouped.values() for r in sec if r.get("status") == "POTENTIAL_ISSUE"),
+        "not_assessed": sum(1 for sec in grouped.values() for r in sec if r.get("status") == "NOT_ASSESSED"),
     }
 
     return {
@@ -379,4 +419,5 @@ def run_rules_engine(
         "checked_at": datetime.utcnow().isoformat() + "Z",
         "summary": summary,
         "sections": grouped,
+        "rules_path_used": resolved_path,
     }
