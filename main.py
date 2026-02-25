@@ -47,7 +47,7 @@ async def admin_test_post(
     result = run_rules_engine(
         document_text=sr_text or "",
         context=ctx,
-        rules_path="rules/cobs-suitability-v2.yaml"
+        rules_path="rules/cobs-mvp-v2.yaml"
     )
 
     # Re-render SAME page with results (and auto-scroll in template)
