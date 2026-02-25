@@ -1,4 +1,4 @@
-# executor.py
+#eval executor.py
 import os
 import yaml
 import re
@@ -225,34 +225,34 @@ def eval_condition(counts: Dict[str, int], cond: str) -> bool:
 
 def eval_ok_if(counts: Dict[str, int], ok_if: Any) -> Tuple[bool, str]:
     """
-    ok_if:
-      - ">=2 positive_clusters"
-      - "AND >=1 linkage_indicators"
-      - "AND ==0 negative_indicators"
+    If ok_if is missing/None -> DO NOT auto-pass.
+    We only mark OK when explicit conditions are provided and met.
     """
     if ok_if is None:
-        return True, "No ok_if provided."
+        return False, "No ok_if provided (cannot auto-pass)."
+
+    if isinstance(ok_if, dict):
+        return False, "ok_if must be a list of strings."
 
     if isinstance(ok_if, str):
         ok_if_list = [ok_if]
     elif isinstance(ok_if, list):
         ok_if_list = ok_if
     else:
-        return False, "ok_if must be a list of strings (or a string)."
+        return False, "ok_if must be list/str."
 
     clauses: List[str] = []
     for raw in ok_if_list:
         if not isinstance(raw, str):
             continue
         s = raw.strip()
-        if s.upper().startswith("AND "):
-            s = s[4:].strip()
+        s = s.replace("AND ", "").strip() if s.upper().startswith("AND ") else s
         clauses.append(s)
 
     if not clauses:
-        return True, "No clauses."
+        return False, "ok_if empty (cannot auto-pass)."
 
-    failed: List[str] = []
+    failed = []
     for c in clauses:
         if not eval_condition(counts, c):
             failed.append(c)
@@ -273,6 +273,18 @@ def evaluate_rule(rule: Dict[str, Any], text: str, context: Dict[str, Any]) -> D
     sentences = split_sentences(text)
     evidence_spec = rule.get("evidence", {}) or {}
     decision = rule.get("decision_logic", {}) or {}
+
+    # --------------------------------------------------
+# STRICT DEFAULT: no evidence = potential issue
+# --------------------------------------------------
+
+# We will compute counts first, then enforce that
+# zero matches cannot auto-pass.
+
+counts: Dict[str, int] = {}
+matched_phrases_all: set[str] = set()
+evidence_sentences: List[str] = []
+evidence_seen: set[str] = set()
 
     counts: Dict[str, int] = {}
     matched_phrases_all: set[str] = set()
@@ -318,6 +330,17 @@ def evaluate_rule(rule: Dict[str, Any], text: str, context: Dict[str, Any]) -> D
     else:
         # If someone broke the YAML shape, treat as no evidence.
         evidence_spec = {}
+
+total_hits = sum(int(v) for v in counts.values())
+
+if total_hits == 0:
+    return {
+        "status": "POTENTIAL_ISSUE",
+        "why": "No rule indicators matched. No evidence found.",
+        "counts": counts,
+        "evidence": [],
+        "matched_phrases": [],
+    }
 
     ok_if = decision.get("ok_if", None)
     ok, why = eval_ok_if(counts, ok_if)
