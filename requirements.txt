@@ -4,3 +4,4 @@ requests
 pydantic
 pyyaml
 python-multipart
+jinja2==3.1.4
