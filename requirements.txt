@@ -5,3 +5,4 @@ pydantic
 pyyaml
 python-multipart
 jinja2==3.1.4
+sqlalchemy>=2.0
