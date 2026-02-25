@@ -1,0 +1,163 @@
+<!-- templates/admin_test.html -->
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Assure — Admin Test</title>
+    <style>
+      body { font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica, Arial, sans-serif; margin: 24px; }
+      textarea { width: 100%; min-height: 260px; }
+      table { border-collapse: collapse; width: 100%; margin-top: 12px; }
+      th, td { border: 1px solid #999; padding: 8px; vertical-align: top; }
+      th { background: #f3f3f3; }
+      details { margin: 6px 0; }
+      .pill { display: inline-block; padding: 2px 8px; border: 1px solid #bbb; border-radius: 999px; margin-left: 6px; font-size: 12px; }
+      .ok { color: #0a7a2f; font-weight: 700; }
+      .pi { color: #b85a00; font-weight: 700; }
+      .na { color: #666; font-weight: 700; }
+      .muted { color: #666; font-size: 13px; }
+      .reason { font-size: 13px; margin: 6px 0 0; }
+      .mini { font-size: 12px; color: #444; }
+      .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+    </style>
+  </head>
+  <body>
+    <h1>Assure — Admin Test</h1>
+    <p class="muted">Deterministic check. Results grouped by section. Evidence is capped snippets (no full SR echo).</p>
+
+    <form method="post">
+      <div style="display:flex; gap:16px; flex-wrap:wrap;">
+        <div>
+          <label>Advice type</label><br/>
+          <select name="advice_type">
+            <option value="advised" {% if advice_type=="advised" %}selected{% endif %}>advised</option>
+            <option value="nonadvised" {% if advice_type=="nonadvised" %}selected{% endif %}>nonadvised</option>
+          </select>
+        </div>
+
+        <div>
+          <label>Investment element</label><br/>
+          <select name="investment_element">
+            <option value="true" {% if investment_element=="true" %}selected{% endif %}>true</option>
+            <option value="false" {% if investment_element=="false" %}selected{% endif %}>false</option>
+          </select>
+        </div>
+
+        <div>
+          <label>Ongoing service</label><br/>
+          <select name="ongoing_service">
+            <option value="false" {% if ongoing_service=="false" %}selected{% endif %}>false</option>
+            <option value="true" {% if ongoing_service=="true" %}selected{% endif %}>true</option>
+          </select>
+        </div>
+      </div>
+
+      <h3>Suitability Report text</h3>
+      <textarea name="sr_text" placeholder="Paste SR text here...">{{ sr_text }}</textarea>
+      <br/><br/>
+      <button type="submit">Run check</button>
+    </form>
+
+    {% if result %}
+      <hr/>
+      <h2>Results</h2>
+      <div>
+        <div><b>Ruleset:</b> {{ result["ruleset_id"] }} {{ result["ruleset_version"] }}</div>
+        <div><b>Checked at:</b> {{ result["checked_at"] }}</div>
+        <div><b>Summary:</b> <span class="mono">{{ result["summary"] }}</span></div>
+      </div>
+
+      {% for section_name, rules in result["sections"].items() %}
+        {% set ok_count = (rules | selectattr("status","equalto","OK") | list | length) %}
+        {% set pi_count = (rules | selectattr("status","equalto","POTENTIAL_ISSUE") | list | length) %}
+        {% set na_count = (rules | selectattr("status","equalto","NOT_ASSESSED") | list | length) %}
+
+        <details style="margin-top:14px;" open>
+          <summary>
+            <b>{{ section_name }}</b>
+            <span class="pill">OK: {{ ok_count }}</span>
+            <span class="pill">PI: {{ pi_count }}</span>
+            <span class="pill">NA: {{ na_count }}</span>
+          </summary>
+
+          <table>
+            <thead>
+              <tr>
+                <th style="width: 28%;">Rule</th>
+                <th style="width: 12%;">Status</th>
+                <th style="width: 25%;">Citation</th>
+                <th>Evidence</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for r in rules %}
+                <tr>
+                  <td>
+                    <div class="mono"><b>{{ r["rule_id"] }}</b></div>
+                    <div class="mini">{{ r["title"] }}</div>
+                  </td>
+
+                  <td>
+                    {% if r["status"] == "OK" %}
+                      <span class="ok">OK</span>
+                    {% elif r["status"] == "POTENTIAL_ISSUE" %}
+                      <span class="pi">POTENTIAL_ISSUE</span>
+                    {% else %}
+                      <span class="na">NOT_ASSESSED</span>
+                    {% endif %}
+                  </td>
+
+                  <td>
+                    <div>{{ r["citation"] }}</div>
+                    {% if r["source_url"] %}
+                      <div><a href="{{ r["source_url"] }}" target="_blank">{{ r["source_url"] }}</a></div>
+                    {% endif %}
+                  </td>
+
+                  <td>
+                    <!-- ALWAYS show details so UI doesn't look "broken" -->
+                    <details>
+                      <summary>Show evidence</summary>
+
+                      <div class="reason"><b>Why:</b> {{ r["reason"] }}</div>
+
+                      {% if r["missing_terms"] and (r["status"] == "POTENTIAL_ISSUE") %}
+                        <div class="mini" style="margin-top:6px;">
+                          <b>Missing terms (signals):</b>
+                          <span class="mono">{{ r["missing_terms"] }}</span>
+                        </div>
+                      {% endif %}
+
+                      {% if r["matched_terms"] %}
+                        <div class="mini" style="margin-top:6px;">
+                          <b>Matched terms:</b>
+                          <span class="mono">{{ r["matched_terms"] }}</span>
+                        </div>
+                      {% endif %}
+
+                      {% if r["evidence_snippets"] %}
+                        <ul>
+                          {% for s in r["evidence_snippets"] %}
+                            <li>{{ s }}</li>
+                          {% endfor %}
+                        </ul>
+                      {% else %}
+                        <div class="mini" style="margin-top:6px;"><i>No matching snippets found.</i></div>
+                      {% endif %}
+                    </details>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </details>
+      {% endfor %}
+
+      <hr/>
+      <details>
+        <summary>Raw JSON (debug)</summary>
+        <pre class="mono">{{ result }}</pre>
+      </details>
+    {% endif %}
+  </body>
+</html>
