@@ -140,29 +140,43 @@
                     </td>
 
                     <td>
-                      {% set ev = r.get("evidence", []) %}
-                      {% set why = r.get("why", "") %}
-                      {% if ev and (ev | length) > 0 %}
-                        <details>
-                          <summary>Show evidence</summary>
-                          <ul>
-                            {% for e in ev %}
-                              <li>{{ e }}</li>
-                            {% endfor %}
-                          </ul>
-                          {% if why %}
-                            <div class="why"><b>Why:</b> {{ why }}</div>
-                          {% endif %}
-                        </details>
-                      {% else %}
-                        <details>
-                          <summary>Show evidence</summary>
-                          <div class="why">
-                            <b>Why:</b> {{ why if why else "No matching snippets found." }}
-                          </div>
-                        </details>
-                      {% endif %}
-                    </td>
+  {% set ev = r.get("evidence", []) %}
+  {% set why = r.get("why", "") %}
+  {% set missing = r.get("missing", []) %}
+  {% set details_list = r.get("details", []) %}
+
+  <details>
+    <summary>Show evidence</summary>
+
+    {% if ev and (ev | length) > 0 %}
+      <ul>
+        {% for e in ev %}
+          <li>{{ e }}</li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <div class="muted">No matching snippets found.</div>
+    {% endif %}
+
+    {% if details_list and (details_list | length) > 0 %}
+      <div class="why"><b>Details:</b></div>
+      <ul>
+        {% for d in details_list %}
+          <li>{{ d }}</li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+
+    {% if missing and (missing | length) > 0 %}
+      <div class="why"><b>Missing terms (signals):</b></div>
+      <div class="muted">{{ missing | join(", ") }}</div>
+    {% endif %}
+
+    <div class="why">
+      <b>Why:</b> {{ why if why else "No reason provided." }}
+    </div>
+  </details>
+</td>
                   </tr>
                 {% endfor %}
               </tbody>
