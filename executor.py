@@ -1,286 +1,288 @@
+# executor.py
 import re
 import yaml
 from datetime import datetime
-from typing import Dict, List, Any, Tuple, Optional
+from typing import Any, Dict, List, Tuple, Optional
+
+
+EXECUTOR_VERSION = "2026-02-24-v3-reason-missing-negation"
 
 
 # -----------------------------
 # TEXT HELPERS
 # -----------------------------
 
-def normalise(text: str) -> str:
-    return re.sub(r"\s+", " ", (text or "")).strip()
+def _norm(s: str) -> str:
+    return re.sub(r"\s+", " ", (s or "").strip().lower())
+
 
 def split_sentences(text: str) -> List[str]:
-    """
-    Deterministic sentence-ish splitter.
-    Keeps bullets reasonably intact.
-    """
-    t = normalise(text)
+    t = (text or "").strip()
     if not t:
         return []
-    # split on line breaks first (bullets / headings), then sentence punctuation
-    lines = [ln.strip() for ln in re.split(r"[\r\n]+", t) if ln.strip()]
-    out: List[str] = []
-    for ln in lines:
-        parts = re.split(r"(?<=[.!?])\s+", ln)
-        out.extend([p.strip() for p in parts if p.strip()])
-    return out
+    parts = re.split(r"(?<=[.!?])\s+", t)
+    return [p.strip() for p in parts if p and p.strip()]
 
-def _ensure_str_list(x: Any) -> List[str]:
+
+def _flatten_phrases(x: Any) -> List[str]:
+    """
+    YAML sometimes ends up nested (lists inside lists). This makes phrase matching safe.
+    """
+    out: List[str] = []
     if x is None:
-        return []
+        return out
     if isinstance(x, str):
         return [x]
     if isinstance(x, list):
-        return [str(i) for i in x if isinstance(i, (str, int, float))]
-    return [str(x)]
-
-def _compile_patterns(patterns: List[str], regex: bool) -> List[re.Pattern]:
-    compiled = []
-    for p in patterns:
-        try:
-            compiled.append(re.compile(p, re.IGNORECASE) if regex else re.compile(re.escape(p), re.IGNORECASE))
-        except re.error:
-            # skip invalid regex (deterministic, don't crash)
-            continue
-    return compiled
-
-def find_hits(
-    sentences: List[str],
-    patterns: List[str],
-    *,
-    regex: bool = False,
-) -> List[Tuple[str, str, int]]:
-    """
-    Returns list of (pattern, sentence, sentence_index)
-    """
-    pats = _compile_patterns(patterns, regex)
-    hits: List[Tuple[str, str, int]] = []
-    if not pats:
-        return hits
-
-    for i, sent in enumerate(sentences):
-        for raw, comp in zip(patterns, pats):
-            if comp.search(sent):
-                hits.append((raw, sent, i))
-    return hits
-
-def dedupe_preserve_order(items: List[str]) -> List[str]:
-    seen = set()
-    out = []
-    for it in items:
-        if it not in seen:
-            seen.add(it)
-            out.append(it)
+        for item in x:
+            out.extend(_flatten_phrases(item))
+        return out
+    # anything else -> ignore
     return out
 
-def cap(items: List[str], n: int) -> List[str]:
-    return items[: max(0, int(n or 0))]
+
+def _dedupe_preserve_order(items: List[str]) -> List[str]:
+    seen = set()
+    out = []
+    for s in items:
+        if s not in seen:
+            seen.add(s)
+            out.append(s)
+    return out
+
+
+def _cap_snippet(s: str, limit: int = 240) -> str:
+    s = re.sub(r"\s+", " ", (s or "")).strip()
+    if len(s) <= limit:
+        return s
+    return s[: limit - 1].rstrip() + "…"
+
+
+NEGATION_TOKENS = [
+    "no",
+    "not",
+    "never",
+    "without",
+    "cannot",
+    "can't",
+    "do not",
+    "does not",
+    "is not",
+    "isn't",
+    "aren't",
+    "are not",
+    "non",
+    "none",
+]
+
+
+def _is_negated(sentence_norm: str, match_start: int, window: int = 35) -> bool:
+    """
+    If there is negation language near the hit, treat as *allowed* (not a breach).
+    """
+    left = max(0, match_start - window)
+    context = sentence_norm[left:match_start]
+    return any(tok in context for tok in NEGATION_TOKENS)
+
+
+def find_hits(sentences: List[str], phrases: List[str]) -> Tuple[List[str], List[str]]:
+    """
+    Returns (matched_sentences, matched_phrases)
+    """
+    phrases = [p for p in _flatten_phrases(phrases) if isinstance(p, str) and p.strip()]
+    if not phrases or not sentences:
+        return [], []
+
+    matched_sents: List[str] = []
+    matched_phrases: List[str] = []
+
+    for sent in sentences:
+        s_norm = _norm(sent)
+        for p in phrases:
+            p_norm = _norm(p)
+            if not p_norm:
+                continue
+            if p_norm in s_norm:
+                matched_sents.append(sent)
+                matched_phrases.append(p)
+    return matched_sents, matched_phrases
+
+
+def find_forbidden_hits(
+    sentences: List[str],
+    forbidden_phrases: List[str],
+    allow_negation: bool = True,
+) -> Tuple[List[str], List[str]]:
+    """
+    Returns forbidden hits that are NOT negated (if allow_negation=True).
+    """
+    forbidden_phrases = [p for p in _flatten_phrases(forbidden_phrases) if isinstance(p, str) and p.strip()]
+    if not forbidden_phrases or not sentences:
+        return [], []
+
+    bad_sents: List[str] = []
+    bad_phrases: List[str] = []
+
+    for sent in sentences:
+        s_norm = _norm(sent)
+        for p in forbidden_phrases:
+            p_norm = _norm(p)
+            if not p_norm:
+                continue
+            idx = s_norm.find(p_norm)
+            if idx == -1:
+                continue
+            if allow_negation and _is_negated(s_norm, idx):
+                # e.g. "There are no guaranteed returns" -> allowed
+                continue
+            bad_sents.append(sent)
+            bad_phrases.append(p)
+
+    return bad_sents, bad_phrases
 
 
 # -----------------------------
-# CUSTOM CHECKS (deterministic)
+# APPLIES_WHEN
 # -----------------------------
 
-AGE_RE = re.compile(r"\bage\s*(\d{2})\b", re.IGNORECASE)
-EQUITY_ALLOC_RE = re.compile(r"\b(\d{1,3})\s*%\s*(?:global\s*)?(?:equity|equities|shares)\b", re.IGNORECASE)
-
-def check_equity_near_retirement(sentences: List[str], cfg: Dict[str, Any]) -> Dict[str, Any]:
+def applies_when_ok(applies_when: Dict[str, Any], context: Dict[str, Any]) -> bool:
     """
-    Flags if:
-      - age >= min_age (default 55)
-      - max equity allocation >= min_equity_pct (default 75)
-      - and NO balancing language present anywhere (default phrases list)
+    Supports:
+      applies_when:
+        advice_type: advised
+      or
+        advice_type: [advised, nonadvised]
+      or
+        vulnerable: true
     """
-    min_age = int(cfg.get("min_age", 55))
-    min_equity = int(cfg.get("min_equity_pct", 75))
-    balancers = _ensure_str_list(cfg.get("balancers")) or [
-        "can fall as well as rise",
-        "no guarantee",
-        "not guaranteed",
-        "may get back less",
-        "volatility",
-        "capacity for loss",
-        "risk of loss",
-    ]
+    if not applies_when:
+        return True
 
-    full_text = " ".join(sentences)
+    for k, expected in applies_when.items():
+        actual = context.get(k)
 
-    # age
-    ages = [int(m.group(1)) for m in AGE_RE.finditer(full_text) if m.group(1).isdigit()]
-    age = max(ages) if ages else None
+        if isinstance(expected, list):
+            if actual not in expected:
+                return False
+        else:
+            if actual != expected:
+                return False
 
-    # equity pct
-    pcts = []
-    for m in EQUITY_ALLOC_RE.finditer(full_text):
-        try:
-            pct = int(m.group(1))
-            if 0 <= pct <= 100:
-                pcts.append(pct)
-        except ValueError:
-            pass
-    max_equity = max(pcts) if pcts else None
-
-    # balancers
-    has_balancer = any(re.search(re.escape(b), full_text, re.IGNORECASE) for b in balancers)
-
-    evidence: List[str] = []
-    if age is not None:
-        evidence.append(f"Detected age {age}.")
-    if max_equity is not None:
-        evidence.append(f"Detected equity allocation {max_equity}%.")
-
-    if age is None or max_equity is None:
-        return {"status": "NOT_ASSESSED", "evidence": cap(evidence, 5)}
-
-    if age >= min_age and max_equity >= min_equity and not has_balancer:
-        return {"status": "POTENTIAL_ISSUE", "evidence": cap(evidence, 5)}
-
-    return {"status": "OK", "evidence": cap(evidence, 5)}
+    return True
 
 
 # -----------------------------
 # RULE EVALUATION
 # -----------------------------
 
-def evaluate_rule(rule: Dict[str, Any], text: str, context: Dict[str, Any]) -> Dict[str, Any]:
-    applies = rule.get("applies_when", {}) or {}
-    for k, v in applies.items():
-        if context.get(k) != v:
-            return {"status": "NOT_ASSESSED", "evidence": []}
+def evaluate_rule(rule: Dict[str, Any], document_text: str, context: Dict[str, Any]) -> Dict[str, Any]:
+    if not applies_when_ok(rule.get("applies_when", {}), context):
+        return {
+            "status": "NOT_ASSESSED",
+            "reason": "Rule does not apply to this context.",
+            "evidence_snippets": [],
+            "matched_terms": [],
+            "missing_terms": [],
+        }
 
-    sentences = split_sentences(text)
+    sentences = split_sentences(document_text)
 
-    # Custom rule handler
-    if rule.get("type") == "custom" and rule.get("custom") == "equity_near_retirement":
-        return check_equity_near_retirement(sentences, rule.get("custom_config", {}) or {})
+    # required / positive evidence
+    required_phrases = _flatten_phrases(rule.get("phrases", []))
+    min_hits = int(rule.get("min_hits", 1) or 1)
 
-    evidence_cap = int(rule.get("evidence_cap", 5))
+    # forbidden / negative evidence
+    forbidden_phrases = _flatten_phrases(rule.get("forbidden_phrases", []))
+    allow_negation = bool(rule.get("forbidden_allow_negation", True))
 
-    # 1) FORBIDDEN (certainty / guarantees)
-    forbid = _ensure_str_list(rule.get("forbid_phrases"))
-    forbid_regex = _ensure_str_list(rule.get("forbid_regex"))
-    allow_near = _ensure_str_list(rule.get("allow_if_near"))
-    allow_near_regex = _ensure_str_list(rule.get("allow_if_near_regex"))
-    near_window = int(rule.get("near_window", 1))
+    # 1) forbidden check FIRST (if present)
+    if forbidden_phrases:
+        bad_sents, bad_terms = find_forbidden_hits(
+            sentences,
+            forbidden_phrases,
+            allow_negation=allow_negation,
+        )
+        bad_sents = _dedupe_preserve_order([_cap_snippet(s) for s in bad_sents])[:5]
+        bad_terms = sorted(set([t for t in bad_terms if t]))
 
-    forbid_hits = []
-    if forbid:
-        forbid_hits.extend(find_hits(sentences, forbid, regex=False))
-    if forbid_regex:
-        forbid_hits.extend(find_hits(sentences, forbid_regex, regex=True))
+        if bad_sents:
+            return {
+                "status": "POTENTIAL_ISSUE",
+                "reason": rule.get("forbidden_reason") or "Potentially misleading / prohibited language detected.",
+                "evidence_snippets": bad_sents,
+                "matched_terms": bad_terms,
+                "missing_terms": [],
+            }
 
-    if forbid_hits:
-        # If allow_near exists, require a balancer phrase within ±near_window sentences
-        if allow_near or allow_near_regex:
-            allow_hits = []
-            if allow_near:
-                allow_hits.extend(find_hits(sentences, allow_near, regex=False))
-            if allow_near_regex:
-                allow_hits.extend(find_hits(sentences, allow_near_regex, regex=True))
+    # 2) required evidence check
+    matched_sents, matched_terms = find_hits(sentences, required_phrases)
+    matched_sents = _dedupe_preserve_order([_cap_snippet(s) for s in matched_sents])[:5]
+    matched_terms_set = sorted(set([t for t in matched_terms if t]))
 
-            allow_idx = {idx for _, _, idx in allow_hits}
-            bad_sentences = []
-            for _, sent, idx in forbid_hits:
-                ok = any((idx + d) in allow_idx for d in range(-near_window, near_window + 1))
-                if not ok:
-                    bad_sentences.append(sent)
+    if len(matched_sents) >= min_hits:
+        return {
+            "status": "OK",
+            "reason": rule.get("ok_reason") or "Required content found.",
+            "evidence_snippets": matched_sents,
+            "matched_terms": matched_terms_set,
+            "missing_terms": [],
+        }
 
-            bad_sentences = dedupe_preserve_order(bad_sentences)
-            if bad_sentences:
-                return {"status": "POTENTIAL_ISSUE", "evidence": cap(bad_sentences, evidence_cap)}
-
-        # no allow_near configured -> any forbid hit is a potential issue
-        matched = dedupe_preserve_order([s for _, s, _ in forbid_hits])
-        return {"status": "POTENTIAL_ISSUE", "evidence": cap(matched, evidence_cap)}
-
-    # 2) REQUIRED SETS (logic-style checks)
-    # rule passes if it satisfies ALL sets
-    # set shape: { any: [...], any_regex: [...], min_hits: 1 }
-    require_sets = rule.get("require_sets") or []
-    if require_sets:
-        all_evidence: List[str] = []
-        for rs in require_sets:
-            any_phr = _ensure_str_list(rs.get("any"))
-            any_re = _ensure_str_list(rs.get("any_regex"))
-            min_hits = int(rs.get("min_hits", 1))
-
-            hits = []
-            if any_phr:
-                hits.extend(find_hits(sentences, any_phr, regex=False))
-            if any_re:
-                hits.extend(find_hits(sentences, any_re, regex=True))
-
-            matched = dedupe_preserve_order([s for _, s, _ in hits])
-            if len(matched) < min_hits:
-                # fail fast
-                return {"status": "POTENTIAL_ISSUE", "evidence": cap(dedupe_preserve_order(all_evidence), evidence_cap)}
-            all_evidence.extend(matched)
-
-        return {"status": "OK", "evidence": cap(dedupe_preserve_order(all_evidence), evidence_cap)}
-
-    # 3) SIMPLE REQUIRED PHRASES (default)
-    phrases = _ensure_str_list(rule.get("phrases"))
-    regexes = _ensure_str_list(rule.get("regex_phrases"))
-    min_hits = int(rule.get("min_hits", 1))
-
-    hits = []
-    if phrases:
-        hits.extend(find_hits(sentences, phrases, regex=False))
-    if regexes:
-        hits.extend(find_hits(sentences, regexes, regex=True))
-
-    matched = dedupe_preserve_order([s for _, s, _ in hits])
-
-    if len(matched) >= min_hits:
-        return {"status": "OK", "evidence": cap(matched, evidence_cap)}
-
-    return {"status": "POTENTIAL_ISSUE", "evidence": cap(matched, evidence_cap)}
+    # Missing-content failure (no “offending snippet” exists)
+    missing_terms = sorted(set([p for p in required_phrases if isinstance(p, str) and p.strip()]))
+    return {
+        "status": "POTENTIAL_ISSUE",
+        "reason": rule.get("missing_reason") or "Required content not found.",
+        "evidence_snippets": matched_sents,  # may be empty; UI should still expand + show reason
+        "matched_terms": matched_terms_set,
+        "missing_terms": missing_terms,
+    }
 
 
 # -----------------------------
 # EXECUTOR ENTRY POINT
 # -----------------------------
 
-def run_rules_engine(
-    document_text: str,
-    context: Dict[str, Any],
-    rules_path: str,
-) -> Dict[str, Any]:
-
+def run_rules_engine(document_text: str, context: Dict[str, Any], rules_path: str) -> Dict[str, Any]:
     with open(rules_path, "r") as f:
         ruleset = yaml.safe_load(f) or {}
 
     rules = ruleset.get("rules", []) or []
 
-    grouped: Dict[str, List[Dict[str, Any]]] = {}
+    sections: Dict[str, List[Dict[str, Any]]] = {}
 
     for rule in rules:
+        if not isinstance(rule, dict):
+            continue
+
         outcome = evaluate_rule(rule, document_text, context)
 
-        section = rule.get("section", "Unsorted")
-        grouped.setdefault(section, [])
+        section = rule.get("section") or "Unsorted"
+        sections.setdefault(section, [])
 
-        grouped[section].append({
-            "rule_id": rule.get("id"),
-            "title": rule.get("title", ""),
-            "status": outcome.get("status", "NOT_ASSESSED"),
-            "citation": rule.get("citation", ""),
-            "source_url": rule.get("source_url", ""),
-            "evidence": dedupe_preserve_order(outcome.get("evidence", []) or []),
-        })
+        sections[section].append(
+            {
+                "rule_id": rule.get("id"),
+                "title": rule.get("title") or "",
+                "status": outcome["status"],
+                "reason": outcome.get("reason", ""),
+                "citation": rule.get("citation") or "",
+                "source_url": rule.get("source_url") or "",
+                "evidence_snippets": outcome.get("evidence_snippets", []) or [],
+                "matched_terms": outcome.get("matched_terms", []) or [],
+                "missing_terms": outcome.get("missing_terms", []) or [],
+            }
+        )
 
-    summary = {
-        "ok": sum(1 for s in grouped.values() for r in s if r["status"] == "OK"),
-        "potential_issue": sum(1 for s in grouped.values() for r in s if r["status"] == "POTENTIAL_ISSUE"),
-        "not_assessed": sum(1 for s in grouped.values() for r in s if r["status"] == "NOT_ASSESSED"),
-    }
+    ok = sum(1 for sec in sections.values() for r in sec if r["status"] == "OK")
+    pi = sum(1 for sec in sections.values() for r in sec if r["status"] == "POTENTIAL_ISSUE")
+    na = sum(1 for sec in sections.values() for r in sec if r["status"] == "NOT_ASSESSED")
 
     return {
-        "ruleset_id": ruleset.get("ruleset_id", "unknown"),
-        "ruleset_version": ruleset.get("version", "unknown"),
+        "ruleset_id": ruleset.get("ruleset_id") or ruleset.get("id") or "unknown",
+        "ruleset_version": ruleset.get("version") or "unknown",
+        "executor_version": EXECUTOR_VERSION,
         "checked_at": datetime.utcnow().isoformat() + "Z",
-        "summary": summary,
-        "sections": grouped,
+        "summary": {"ok": ok, "potential_issue": pi, "not_assessed": na},
+        "sections": sections,
     }
