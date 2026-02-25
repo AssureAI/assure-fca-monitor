@@ -1,407 +1,382 @@
-import re
 import yaml
+import re
 from datetime import datetime
 from typing import Dict, List, Any, Tuple, Optional
 
 
-EXECUTOR_VERSION = "2026-02-25-v2.0-hardened"
+# ---------------------------------
+# NORMALISATION + SENTENCE SPLIT
+# ---------------------------------
 
-
-# -----------------------------
-# TEXT HELPERS
-# -----------------------------
+_WS_RE = re.compile(r"\s+")
+_SENT_RE = re.compile(r'(?<=[.!?])\s+')
 
 def normalise(text: str) -> str:
-    return re.sub(r"\s+", " ", (text or "").strip())
-
+    return _WS_RE.sub(" ", (text or "").strip())
 
 def normalise_lower(text: str) -> str:
     return normalise(text).lower()
 
-
 def split_sentences(text: str) -> List[str]:
-    # Deterministic, decent-enough sentence splitting (avoid heavy NLP deps)
-    t = normalise(text)
+    t = (text or "").strip()
     if not t:
         return []
-    parts = re.split(r'(?<=[\.\?\!])\s+|\n{2,}', t)
-    out = []
-    for p in parts:
-        p = p.strip()
-        if p:
-            out.append(p)
-    return out
+    parts = _SENT_RE.split(t)
+    return [p.strip() for p in parts if p and p.strip()]
 
 
-def unique_preserve_order(items: List[str]) -> List[str]:
-    seen = set()
-    out = []
-    for x in items:
-        k = x.strip()
-        if not k:
-            continue
-        if k in seen:
-            continue
-        seen.add(k)
-        out.append(x)
-    return out
+# ---------------------------------
+# MATCHING HELPERS (DETERMINISTIC)
+# ---------------------------------
 
+_NEGATION_TOKENS = {"not", "no", "never", "without", "none", "cannot", "can't", "isn't", "aren't", "won't", "don't"}
 
-def find_hits_by_terms(sentences: List[str], terms: List[str]) -> List[str]:
-    if not terms:
-        return []
-    terms_l = [t.lower() for t in terms]
-    hits = []
-    for s in sentences:
-        s_l = s.lower()
-        for t in terms_l:
-            if t and t in s_l:
-                hits.append(s)
-                break
-    return hits
+def _tokenise(s: str) -> List[str]:
+    # keep it simple & deterministic
+    return re.findall(r"[a-zA-Z']+", (s or "").lower())
 
-
-def find_hits_by_patterns(sentences: List[str], patterns: List[str]) -> List[str]:
-    if not patterns:
-        return []
-    compiled = [re.compile(p, re.IGNORECASE) for p in patterns]
-    hits = []
-    for s in sentences:
-        for rx in compiled:
-            if rx.search(s):
-                hits.append(s)
-                break
-    return hits
-
-
-# -----------------------------
-# STRUCTURED EXTRACTORS
-# -----------------------------
-
-PCT_RE = re.compile(r"(\d{1,3}(?:\.\d{1,2})?)\s*%")
-AGE_RE = re.compile(r"\bage\s*(\d{1,3})\b", re.IGNORECASE)
-RETIRE_AGE_RE = re.compile(r"\bretire(?:ment)?\s*(?:at|age)\s*(\d{1,3})\b", re.IGNORECASE)
-HORIZON_YEARS_RE = re.compile(r"\bnext\s*(\d{1,2})\s*years?\b|\b(\d{1,2})\s*year\s*(?:time\s*)?horizon\b", re.IGNORECASE)
-
-EQUITY_WORDS = [
-    "equity", "equities", "global equity", "uk equity", "emerging markets", "shares", "stock", "stocks"
-]
-BOND_WORDS = [
-    "bond", "bonds", "fixed income", "gilts", "credit", "strategic bond"
-]
-DIVERSIFY_WORDS = [
-    "diversif", "asset class", "multi-asset", "balanced", "spread risk", "mix of", "allocation across"
-]
-
-def extract_age(text: str) -> Optional[int]:
-    m = AGE_RE.search(text or "")
-    if not m:
-        return None
-    try:
-        return int(m.group(1))
-    except:
-        return None
-
-
-def extract_retire_age(text: str) -> Optional[int]:
-    m = RETIRE_AGE_RE.search(text or "")
-    if not m:
-        return None
-    try:
-        return int(m.group(1))
-    except:
-        return None
-
-
-def infer_years_to_retirement(text: str) -> Optional[int]:
-    a = extract_age(text)
-    r = extract_retire_age(text)
-    if a is None or r is None:
-        return None
-    yrs = r - a
-    if yrs < 0 or yrs > 80:
-        return None
-    return yrs
-
-
-def extract_horizon_years(text: str) -> Optional[int]:
-    m = HORIZON_YEARS_RE.search(text or "")
-    if not m:
-        return None
-    for g in m.groups():
-        if g:
-            try:
-                return int(g)
-            except:
-                pass
-    return None
-
-
-def parse_allocation_blocks(text: str) -> List[Tuple[str, float]]:
+def _is_negated(sentence: str, phrase: str, window_tokens: int = 4) -> bool:
     """
-    Very lightweight allocation parser.
-    Returns list of (label, pct) from bullet-like lines containing %.
+    True if the phrase appears, and a negation token is within N tokens immediately before it.
+    This prevents false flags like: "there are no guaranteed returns".
     """
-    allocations: List[Tuple[str, float]] = []
-    if not text:
-        return allocations
+    s_low = sentence.lower()
+    p_low = (phrase or "").lower().strip()
+    if not p_low or p_low not in s_low:
+        return False
 
-    lines = [ln.strip(" \t•-*") for ln in (text.splitlines() or [])]
-    for ln in lines:
-        if not ln:
-            continue
-        m = PCT_RE.search(ln)
-        if not m:
-            continue
-        try:
-            pct = float(m.group(1))
-        except:
-            continue
-        label = PCT_RE.sub("", ln).strip(" :-–—")
-        if not label:
-            label = "unknown"
-        allocations.append((label, pct))
-    return allocations
+    tokens = _tokenise(sentence)
+    phrase_tokens = _tokenise(phrase)
+    if not phrase_tokens:
+        return False
 
+    # find occurrences of phrase_tokens in tokens
+    for i in range(len(tokens) - len(phrase_tokens) + 1):
+        if tokens[i:i+len(phrase_tokens)] == phrase_tokens:
+            start = max(0, i - window_tokens)
+            prior = tokens[start:i]
+            if any(t in _NEGATION_TOKENS for t in prior):
+                return True
+    return False
 
-def equity_pct_from_allocations(allocs: List[Tuple[str, float]]) -> Optional[float]:
-    if not allocs:
-        return None
-    eq = 0.0
-    total = 0.0
-    for label, pct in allocs:
-        total += pct
-        l = (label or "").lower()
-        if any(w in l for w in EQUITY_WORDS):
-            eq += pct
-    # ignore if totals look insane
-    if total < 20 or total > 150:
-        # could still be valid, but we avoid confident numeric assertions
-        return None
-    return eq
-
-
-def has_any_words(text: str, words: List[str]) -> bool:
-    t = (text or "").lower()
-    return any(w.lower() in t for w in words)
-
-
-# -----------------------------
-# RULE EVALUATION
-# -----------------------------
-
-def applies_when_ok(applies: Dict[str, Any], context: Dict[str, Any]) -> bool:
+def phrase_hits(
+    sentences: List[str],
+    phrases: List[Any],
+    *,
+    allow_if_negated: bool = True,
+    max_evidence: int = 6
+) -> Tuple[int, List[str], List[str]]:
     """
-    supports:
-      key: value
-      key: [v1, v2]
+    Returns:
+      hit_count, matched_phrases (dedup), evidence_sentences (dedup; capped)
+    Supports phrases list that may accidentally contain nested lists (we ignore non-strings safely).
     """
-    if not applies:
+    matched_phrases_set = set()
+    evidence_set = []
+    evidence_seen = set()
+
+    # flatten only one level if someone accidentally nested
+    flat: List[str] = []
+    for p in (phrases or []):
+        if isinstance(p, str):
+            flat.append(p)
+        elif isinstance(p, list):
+            for pp in p:
+                if isinstance(pp, str):
+                    flat.append(pp)
+
+    for sent in sentences:
+        s_low = sent.lower()
+        for p in flat:
+            p_low = p.lower()
+            if p_low and p_low in s_low:
+                # if phrase is prohibited-style, ignore when negated
+                if not allow_if_negated and _is_negated(sent, p):
+                    continue
+                matched_phrases_set.add(p)
+                if len(evidence_set) < max_evidence and sent not in evidence_seen:
+                    evidence_set.append(sent)
+                    evidence_seen.add(sent)
+
+    return len(matched_phrases_set), sorted(matched_phrases_set), evidence_set
+
+
+def cluster_hits(
+    sentences: List[str],
+    clusters: List[Any],
+    *,
+    allow_if_negated: bool = True,
+    max_evidence: int = 6
+) -> Tuple[int, List[str], List[str]]:
+    """
+    A cluster is satisfied if ANY phrase in that cluster hits at least once.
+    Returns:
+      satisfied_cluster_count, matched_phrases (dedup), evidence_sentences (dedup; capped)
+    """
+    satisfied = 0
+    matched_phrases_set = set()
+    evidence_set = []
+    evidence_seen = set()
+
+    if not isinstance(clusters, list):
+        return 0, [], []
+
+    for cluster in clusters:
+        # each cluster should be list[str]
+        if not isinstance(cluster, list):
+            continue
+        hit_count, phrases, ev = phrase_hits(
+            sentences, cluster,
+            allow_if_negated=allow_if_negated,
+            max_evidence=max_evidence
+        )
+        if hit_count > 0:
+            satisfied += 1
+            for p in phrases:
+                matched_phrases_set.add(p)
+            for s in ev:
+                if len(evidence_set) < max_evidence and s not in evidence_seen:
+                    evidence_set.append(s)
+                    evidence_seen.add(s)
+
+    return satisfied, sorted(matched_phrases_set), evidence_set
+
+
+# ---------------------------------
+# APPLICABILITY
+# ---------------------------------
+
+def applies(rule_applies_when: Dict[str, Any], context: Dict[str, Any]) -> bool:
+    """
+    Supports:
+      applies_when:
+        advice_type: advised        (scalar)
+        advice_type: [advised,...]  (list)
+        investment_element: true
+    """
+    if not rule_applies_when:
         return True
-    for k, v in applies.items():
-        cv = context.get(k)
-        if isinstance(v, list):
-            if cv not in v:
+    for key, expected in rule_applies_when.items():
+        actual = context.get(key)
+
+        if isinstance(expected, list):
+            if actual not in expected:
                 return False
         else:
-            if cv != v:
+            if actual != expected:
                 return False
     return True
 
 
+# ---------------------------------
+# DECISION LOGIC PARSING
+# ---------------------------------
+
+_COND_RE = re.compile(r"^\s*(>=|==|<=|>|<)\s*(\d+)\s+([a-zA-Z0-9_]+)\s*$")
+
+def eval_condition(counts: Dict[str, int], cond: str) -> bool:
+    """
+    cond examples:
+      ">=2 positive_clusters"
+      "==0 negative_indicators"
+    """
+    m = _COND_RE.match(cond or "")
+    if not m:
+        return False
+    op, n_str, key = m.group(1), m.group(2), m.group(3)
+    n = int(n_str)
+    v = int(counts.get(key, 0))
+
+    if op == ">=":
+        return v >= n
+    if op == "==":
+        return v == n
+    if op == "<=":
+        return v <= n
+    if op == ">":
+        return v > n
+    if op == "<":
+        return v < n
+    return False
+
+def eval_ok_if(counts: Dict[str, int], ok_if: Any) -> Tuple[bool, str]:
+    """
+    Supports:
+      ok_if: ["<=0 negative_indicators", "AND >=2 positive_clusters", "AND >=1 linkage_indicators"]
+    or:
+      ok_if:
+        - ">=2 positive_clusters"
+        - "AND >=1 linkage_indicators"
+    """
+    if ok_if is None:
+        return True, "No ok_if provided."
+
+    if isinstance(ok_if, dict):
+        # not supported; keep deterministic
+        return False, "ok_if must be a list of strings."
+
+    if isinstance(ok_if, str):
+        ok_if_list = [ok_if]
+    elif isinstance(ok_if, list):
+        ok_if_list = ok_if
+    else:
+        return False, "ok_if must be list/str."
+
+    # default operator between clauses is AND (explicit AND supported)
+    clauses: List[str] = []
+    for raw in ok_if_list:
+        if not isinstance(raw, str):
+            continue
+        s = raw.strip()
+        s = s.replace("AND ", "").strip() if s.upper().startswith("AND ") else s
+        clauses.append(s)
+
+    if not clauses:
+        return True, "No clauses."
+
+    failed = []
+    for c in clauses:
+        if not eval_condition(counts, c):
+            failed.append(c)
+
+    if failed:
+        return False, "Failed: " + "; ".join(failed)
+    return True, "All conditions met."
+
+
+# ---------------------------------
+# RULE EVALUATION (V1-LEVEL)
+# ---------------------------------
+
 def evaluate_rule(rule: Dict[str, Any], text: str, context: Dict[str, Any]) -> Dict[str, Any]:
-    if not applies_when_ok(rule.get("applies_when", {}), context):
-        return {"status": "NOT_ASSESSED", "evidence": [], "why": "Rule not applicable for selected inputs.", "missing": []}
+    if not applies(rule.get("applies_when", {}), context):
+        return {"status": "NOT_ASSESSED", "why": "Rule not applicable for current context.", "evidence": []}
 
     sentences = split_sentences(text)
-    text_l = normalise_lower(text)
+    evidence_spec = rule.get("evidence", {}) or {}
+    decision = rule.get("decision_logic", {}) or {}
 
-    # Signals
-    require_any_terms = rule.get("require_any_terms", []) or []
-    require_any_patterns = rule.get("require_any_patterns", []) or []
-    require_all_terms = rule.get("require_all_terms", []) or []
-    forbid_any_terms = rule.get("forbid_any_terms", []) or []
-    forbid_any_patterns = rule.get("forbid_any_patterns", []) or []
+    # count buckets
+    counts: Dict[str, int] = {}
 
-    hits = []
-    hits += find_hits_by_terms(sentences, require_any_terms)
-    hits += find_hits_by_patterns(sentences, require_any_patterns)
+    # evidence capture (dedup)
+    matched_phrases_all = set()
+    evidence_sentences_all: List[str] = []
+    evidence_seen = set()
 
-    # All-terms enforcement (best-effort)
-    all_ok = True
-    missing_all = []
-    for t in require_all_terms:
-        if t.lower() not in text_l:
-            all_ok = False
-            missing_all.append(t)
+    # helper to merge evidence
+    def merge(phrases: List[str], ev_sents: List[str], cap: int = 6):
+        nonlocal matched_phrases_all, evidence_sentences_all, evidence_seen
+        for p in phrases:
+            matched_phrases_all.add(p)
+        for s in ev_sents:
+            if len(evidence_sentences_all) >= cap:
+                break
+            if s not in evidence_seen:
+                evidence_sentences_all.append(s)
+                evidence_seen.add(s)
 
-    # Forbid checks
-    forbid_hits = []
-    forbid_hits += find_hits_by_terms(sentences, forbid_any_terms)
-    forbid_hits += find_hits_by_patterns(sentences, forbid_any_patterns)
+    # Process known evidence keys; any *_clusters treated as clusters; any other list treated as phrase list.
+    for key, spec in evidence_spec.items():
+        if key.endswith("_clusters"):
+            hit_n, phrases, ev = cluster_hits(
+                sentences, spec,
+                allow_if_negated=True,      # cluster phrases are generally "positive signals"
+                max_evidence=6
+            )
+            counts[key] = hit_n
+            merge(phrases, ev, cap=6)
 
-    # Structured checks
-    structured = rule.get("structured_checks", {}) or {}
-    structured_findings = []
-    structured_ok = True
-    structured_missing = []
+        else:
+            # special case: negative_indicators should ignore negated contexts (avoid false flags)
+            allow_if_negated = True
+            if key in ("negative_indicators", "prohibited_phrases", "must_not_contain"):
+                allow_if_negated = False
 
-    if structured:
-        # Retirement equity mismatch: near retirement + high equity + lacks balancing language
-        if structured.get("type") == "retirement_equity_mismatch":
-            yrs = infer_years_to_retirement(text)  # may be None
-            horizon = extract_horizon_years(text)
-            yrs_effective = yrs if yrs is not None else horizon
+            hit_n, phrases, ev = phrase_hits(
+                sentences, spec,
+                allow_if_negated=allow_if_negated,
+                max_evidence=6
+            )
+            counts[key] = hit_n
+            merge(phrases, ev, cap=6)
 
-            allocs = parse_allocation_blocks(text)
-            eq_pct = equity_pct_from_allocations(allocs)
+    # Decision evaluation
+    ok_if = decision.get("ok_if", None)
 
-            # thresholds configurable
-            max_years = int(structured.get("near_retirement_years", 7))
-            eq_threshold = float(structured.get("equity_pct_threshold", 70.0))
+    ok, why = eval_ok_if(counts, ok_if)
+    status = "OK" if ok else "POTENTIAL_ISSUE"
 
-            balancing_terms = structured.get("balancing_terms", []) or []
-            has_balancing = has_any_words(text, balancing_terms) if balancing_terms else has_any_words(text, DIVERSIFY_WORDS + BOND_WORDS)
+    # Make "OK" require at least one matched sentence IF ok_if exists and is non-empty.
+    # This keeps the v1 philosophy: absence of evidence != compliance.
+    if status == "OK":
+        # If there is an ok_if and we have zero evidence sentences, downgrade.
+        if ok_if and len(evidence_sentences_all) == 0:
+            status = "POTENTIAL_ISSUE"
+            why = "Decision conditions met numerically, but no matching snippets found (no evidence)."
 
-            if yrs_effective is None:
-                # If we can't infer, we *don't* fail the rule; we mark as missing context
-                structured_ok = False
-                structured_missing.append("Could not infer time-to-retirement / investment horizon.")
-            else:
-                if yrs_effective <= max_years:
-                    # We are near retirement; now check equity %
-                    if eq_pct is None:
-                        structured_ok = False
-                        structured_missing.append("Could not confidently detect equity allocation %.")
-                    else:
-                        if eq_pct >= eq_threshold and not has_balancing:
-                            # This is the *risk* condition; for this rule, meeting condition means POTENTIAL_ISSUE.
-                            structured_findings.append(
-                                f"Detected approx equity allocation {eq_pct:.0f}% with horizon {yrs_effective}y and no balancing/diversification language."
-                            )
-                        else:
-                            # Not a mismatch
-                            pass
-                else:
-                    # Not near retirement -> not applicable
-                    return {"status": "NOT_ASSESSED", "evidence": [], "why": f"Not near retirement (inferred horizon {yrs_effective}y).", "missing": []}
-
-    # Decide status
-    min_hits = int(rule.get("min_hits", 1))
-
-    # Special rule mode: "forbid_only" means OK if no forbidden hits; POTENTIAL_ISSUE if forbidden hits.
-    if rule.get("mode") == "forbid_only":
-        if forbid_hits:
-            ev = unique_preserve_order(forbid_hits)[: int(rule.get("evidence_cap", 5))]
-            return {
-                "status": "POTENTIAL_ISSUE",
-                "evidence": ev,
-                "why": "Prohibited / risky wording detected.",
-                "missing": [],
-            }
-        return {"status": "OK", "evidence": [], "why": "No prohibited / risky wording detected.", "missing": []}
-
-    # Structured mismatch mode: if findings exist -> POTENTIAL_ISSUE
-    if structured.get("type") == "retirement_equity_mismatch":
-        if structured_findings:
-            return {
-                "status": "POTENTIAL_ISSUE",
-                "evidence": [],
-                "why": "Retirement/equity mismatch risk flagged.",
-                "missing": [],
-                "details": structured_findings,
-            }
-        # If we tried and couldn't infer, treat as POTENTIAL_ISSUE with why, unless rule says otherwise
-        if structured_missing:
-            return {
-                "status": "POTENTIAL_ISSUE",
-                "evidence": [],
-                "why": "Unable to confirm retirement/equity balance from document.",
-                "missing": structured_missing,
-            }
-        return {"status": "OK", "evidence": [], "why": "No retirement/equity mismatch detected.", "missing": []}
-
-    # Standard positive-signal rule:
-    ok_by_hits = len(unique_preserve_order(hits)) >= min_hits
-    ok_by_all = all_ok
-    ok_by_forbid = not bool(forbid_hits)
-
-    if ok_by_hits and ok_by_all and ok_by_forbid:
-        ev = unique_preserve_order(hits)[: int(rule.get("evidence_cap", 5))]
-        return {"status": "OK", "evidence": ev, "why": "Required signals found.", "missing": []}
-
-    # Potential issue
-    ev = unique_preserve_order(hits)[: int(rule.get("evidence_cap", 5))]
-    missing = []
-    # Missing “any” signals: report what it was looking for
-    if not ok_by_hits:
-        missing += (require_any_terms or [])
-    if not ok_by_all:
-        missing += missing_all
-    if forbid_hits:
-        # show the forbidden signals as "missing" isn't right; keep them as evidence for why
-        ev2 = unique_preserve_order(forbid_hits)[: int(rule.get("evidence_cap", 5))]
-        return {
-            "status": "POTENTIAL_ISSUE",
-            "evidence": ev2,
-            "why": "Risky/prohibited wording detected.",
-            "missing": [],
-        }
+    # Cap evidence and keep it readable
+    evidence_out = evidence_sentences_all[:6]
 
     return {
-        "status": "POTENTIAL_ISSUE",
-        "evidence": ev,
-        "why": "Required signals not found.",
-        "missing": unique_preserve_order(missing)[:15],
+        "status": status,
+        "why": why,
+        "counts": counts,
+        "evidence": evidence_out,
+        "matched_phrases": sorted(matched_phrases_all)[:30],  # keep small but useful
     }
 
 
-# -----------------------------
+# ---------------------------------
 # EXECUTOR ENTRY POINT
-# -----------------------------
+# ---------------------------------
 
 def run_rules_engine(
     document_text: str,
     context: Dict[str, Any],
-    rules_path: str,
+    rules_path: str = "rules/cobs-suitability-v1.yaml",
 ) -> Dict[str, Any]:
-    with open(rules_path, "r", encoding="utf-8") as f:
+
+    with open(rules_path, "r") as f:
         ruleset = yaml.safe_load(f) or {}
 
-    ruleset_id = ruleset.get("ruleset_id") or ruleset.get("ruleset", {}).get("id") or "unknown-ruleset"
-    version = ruleset.get("version") or ruleset.get("ruleset", {}).get("version") or "unknown"
+    rules = ruleset.get("rules", []) or []
 
-    sections: Dict[str, List[Dict[str, Any]]] = {}
+    grouped: Dict[str, List[Dict[str, Any]]] = {}
 
-    for rule in (ruleset.get("rules") or []):
-        outcome = evaluate_rule(rule, document_text or "", context or {})
+    for rule in rules:
+        if not isinstance(rule, dict):
+            continue
+
+        outcome = evaluate_rule(rule, document_text, context)
 
         section = rule.get("section", "Unsorted")
-        sections.setdefault(section, [])
+        grouped.setdefault(section, [])
 
-        sections[section].append({
-            "rule_id": rule.get("id", "UNKNOWN"),
+        grouped[section].append({
+            "rule_id": rule.get("id", ""),
             "title": rule.get("title", ""),
-            "status": outcome.get("status", "NOT_ASSESSED"),
+            "status": outcome.get("status", "POTENTIAL_ISSUE"),
             "citation": rule.get("citation", ""),
-            "source_url": rule.get("source_url", ""),  # OPTIONAL
-            "evidence": outcome.get("evidence", []),
+            "source_url": rule.get("source_url", ""),  # optional
             "why": outcome.get("why", ""),
-            "missing": outcome.get("missing", []),
-            "details": outcome.get("details", []),
+            "evidence": outcome.get("evidence", []),
         })
 
+    # stable ordering: sort rules by rule_id within each section
+    for s in list(grouped.keys()):
+        grouped[s] = sorted(grouped[s], key=lambda r: (r.get("rule_id") or ""))
+
     summary = {
-        "ok": sum(1 for rs in sections.values() for r in rs if r["status"] == "OK"),
-        "potential_issue": sum(1 for rs in sections.values() for r in rs if r["status"] == "POTENTIAL_ISSUE"),
-        "not_assessed": sum(1 for rs in sections.values() for r in rs if r["status"] == "NOT_ASSESSED"),
+        "ok": sum(1 for sec in grouped.values() for r in sec if r["status"] == "OK"),
+        "potential_issue": sum(1 for sec in grouped.values() for r in sec if r["status"] == "POTENTIAL_ISSUE"),
+        "not_assessed": sum(1 for sec in grouped.values() for r in sec if r["status"] == "NOT_ASSESSED"),
     }
 
     return {
-        "executor_version": EXECUTOR_VERSION,
-        "ruleset_id": ruleset_id,
-        "ruleset_version": version,
+        "ruleset_id": ruleset.get("ruleset_id", "unknown-ruleset"),
+        "ruleset_version": ruleset.get("version", "0.0"),
         "checked_at": datetime.utcnow().isoformat() + "Z",
         "summary": summary,
-        "sections": sections,
+        "sections": grouped,
     }
