@@ -161,6 +161,8 @@ def admin_test_get(request: Request):
             "investment_element": "true",
             "ongoing_service": "false",
             "sr_text": "",
+            "result_json": None,
+            "run_id": None,
         },
     )
 
@@ -192,6 +194,7 @@ async def admin_test_post(
         {
             "request": request,
             "result": result,
+            "result_json": json.dumps(result, ensure_ascii=False, indent=2),
             "run_id": run_id,
             "advice_type": advice_type,
             "investment_element": investment_element,
