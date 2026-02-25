@@ -54,8 +54,9 @@ rules:
         - ["employed", "self-employed", "contractor", "unemployed", "retired"]
         - ["basic rate", "higher rate", "additional rate", "tax band", "tax rate"]
       supporting_circumstances:
-        - ["assets", "savings", "isa", "gia", "pension", "pensions", "sipp", "property", "investments"]
+        - ["assets", "savings", "isa", "gia", "pension", "pensions", "sipp", "property"]
         - ["emergency fund", "cash reserve", "cash buffer", "liquid assets"]
+        - ["portfolio value", "investable assets", "assets under management", "aum"]
     decision_logic:
       require_all:
         hard_circumstances: ">=1"
