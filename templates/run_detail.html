@@ -1,0 +1,73 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>Assure – Run</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <style>
+    body{font-family:system-ui,Arial;margin:20px;background:#f5f5f5}
+    .card{background:#fff;border:1px solid #ddd;border-radius:10px;padding:16px;margin-bottom:16px}
+    pre{background:#0b1020;color:#e5e7eb;padding:12px;border-radius:10px;overflow:auto}
+    details summary{cursor:pointer;font-weight:700}
+    .pill{display:inline-block;padding:2px 10px;border-radius:999px;background:#eee;font-size:12px}
+    table{width:100%;border-collapse:collapse}
+    th,td{border:1px solid #ddd;padding:8px;font-size:13px;vertical-align:top}
+    th{background:#fafafa;text-align:left}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1 style="margin:0;">Run</h1>
+    <p>
+      <a href="/admin/runs">Back to runs</a> · <a href="/admin/test">Run another</a>
+    </p>
+    <div><b>Created:</b> {{ run.created_at }}</div>
+    <div><b>Ruleset:</b> {{ run.ruleset_id }} v{{ run.ruleset_version }}</div>
+    <div><b>Checked at:</b> {{ run.checked_at }}</div>
+    <div style="margin-top:10px;">
+      <span class="pill">ok: {{ run.summary.ok or 0 }}</span>
+      <span class="pill">pi: {{ run.summary.potential_issue or 0 }}</span>
+      <span class="pill">na: {{ run.summary.not_assessed or 0 }}</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2 style="margin:0 0 10px 0;">Context</h2>
+    <pre>{{ run.context }}</pre>
+  </div>
+
+  <div class="card">
+    <h2 style="margin:0 0 10px 0;">Sections</h2>
+    {% for sname, rules in run.sections.items() %}
+      <details open style="margin-bottom:12px;">
+        <summary>{{ sname }} ({{ rules|length }})</summary>
+        <table style="margin-top:10px;">
+          <thead>
+            <tr><th>Rule</th><th>Status</th><th>Citation</th><th>Evidence</th></tr>
+          </thead>
+          <tbody>
+            {% for r in rules %}
+            <tr>
+              <td><b>{{ r.rule_id }}</b><div style="color:#6b7280;font-size:12px">{{ r.title }}</div></td>
+              <td>{{ r.status }}</td>
+              <td>{{ r.citation }}</td>
+              <td>
+                {% if r.evidence and r.evidence|length > 0 %}
+                  <ul>
+                    {% for e in r.evidence %}
+                      <li>{{ e }}</li>
+                    {% endfor %}
+                  </ul>
+                {% else %}
+                  <div style="color:#6b7280">No evidence.</div>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </details>
+    {% endfor %}
+  </div>
+</body>
+</html>
