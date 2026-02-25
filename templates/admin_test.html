@@ -11,7 +11,7 @@
     .card { background: white; border: 1px solid #ddd; border-radius: 10px; padding: 16px; margin-bottom: 16px; }
     label { display:block; font-weight: 600; margin-top: 10px; }
     select, textarea { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 8px; font-size: 14px; }
-    textarea { min-height: 200px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+    textarea { min-height: 220px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
     button { background: #111827; color: white; border: 0; padding: 10px 14px; border-radius: 10px; font-weight: 700; cursor: pointer; margin-top: 12px; }
     button:hover { opacity: 0.92; }
     hr { border: 0; border-top: 1px solid #ddd; margin: 18px 0; }
@@ -31,6 +31,16 @@
     .why { color: #374151; font-size: 12px; margin-top: 6px; white-space: pre-wrap; }
     a { color: #2563eb; text-decoration: none; }
     a:hover { text-decoration: underline; }
+
+    pre.debug {
+      white-space: pre-wrap;
+      font-size: 12px;
+      background: #0b1020;
+      color: #e5e7eb;
+      padding: 12px;
+      border-radius: 10px;
+      overflow: auto;
+    }
   </style>
 </head>
 <body>
@@ -38,7 +48,6 @@
   <div class="sub">Deterministic check. Results grouped by section. Evidence is capped snippets (no full SR echo).</div>
 
   <div class="card" id="input">
-    {# Collapsible form when result exists #}
     <details {% if not result %}open{% endif %}>
       <summary>{% if result %}Edit inputs{% else %}Inputs{% endif %}</summary>
 
@@ -77,6 +86,16 @@
       <div class="muted">
         <div><b>Ruleset:</b> {{ result.get("ruleset_id", "") }} {{ result.get("ruleset_version", "") }}</div>
         <div><b>Checked at:</b> {{ result.get("checked_at", "") }}</div>
+        {% if result.get("rules_path_used") %}
+          <div><b>Rules path used:</b> {{ result.get("rules_path_used") }}</div>
+        {% endif %}
+        {% if run_id %}
+          <div style="margin-top:6px;">
+            <b>Run:</b> <a href="/admin/runs/{{ run_id }}">Open run detail</a> · <a href="/admin/runs">Run history</a>
+          </div>
+        {% else %}
+          <div style="margin-top:6px;"><a href="/admin/runs">Run history</a></div>
+        {% endif %}
       </div>
 
       {% set summary = result.get("summary", {}) %}
@@ -89,7 +108,6 @@
 
       <hr/>
 
-      {# result["sections"] is expected to be dict: section_name -> list[rules] #}
       {% set sections = result.get("sections", {}) %}
       {% for sname, rules in sections.items() %}
         {% set okc = rules | selectattr("status", "equalto", "OK") | list | length %}
@@ -140,43 +158,41 @@
                     </td>
 
                     <td>
-  {% set ev = r.get("evidence", []) %}
-  {% set why = r.get("why", "") %}
-  {% set missing = r.get("missing", []) %}
-  {% set details_list = r.get("details", []) %}
+                      {% set ev = r.get("evidence", []) %}
+                      {% set why = r.get("why", "") %}
+                      {% set missing = r.get("missing", []) %}
+                      {% set details_list = r.get("details", []) %}
 
-  <details>
-    <summary>Show evidence</summary>
+                      <details>
+                        <summary>Show evidence</summary>
 
-    {% if ev and (ev | length) > 0 %}
-      <ul>
-        {% for e in ev %}
-          <li>{{ e }}</li>
-        {% endfor %}
-      </ul>
-    {% else %}
-      <div class="muted">No matching snippets found.</div>
-    {% endif %}
+                        {% if ev and (ev | length) > 0 %}
+                          <ul>
+                            {% for e in ev %}
+                              <li>{{ e }}</li>
+                            {% endfor %}
+                          </ul>
+                        {% else %}
+                          <div class="muted">No matching snippets found.</div>
+                        {% endif %}
 
-    {% if details_list and (details_list | length) > 0 %}
-      <div class="why"><b>Details:</b></div>
-      <ul>
-        {% for d in details_list %}
-          <li>{{ d }}</li>
-        {% endfor %}
-      </ul>
-    {% endif %}
+                        {% if details_list and (details_list | length) > 0 %}
+                          <div class="why"><b>Details:</b></div>
+                          <ul>
+                            {% for d in details_list %}
+                              <li>{{ d }}</li>
+                            {% endfor %}
+                          </ul>
+                        {% endif %}
 
-    {% if missing and (missing | length) > 0 %}
-      <div class="why"><b>Missing terms (signals):</b></div>
-      <div class="muted">{{ missing | join(", ") }}</div>
-    {% endif %}
+                        {% if missing and (missing | length) > 0 %}
+                          <div class="why"><b>Missing signals:</b></div>
+                          <div class="muted">{{ missing | join(", ") }}</div>
+                        {% endif %}
 
-    <div class="why">
-      <b>Why:</b> {{ why if why else "No reason provided." }}
-    </div>
-  </details>
-</td>
+                        <div class="why"><b>Why:</b> {{ why if why else "No reason provided." }}</div>
+                      </details>
+                    </td>
                   </tr>
                 {% endfor %}
               </tbody>
@@ -185,13 +201,23 @@
         </details>
       {% endfor %}
 
+      <hr/>
+
+      <details>
+        <summary>Raw JSON (debug)</summary>
+        {% if result_json %}
+          <pre class="debug">{{ result_json }}</pre>
+        {% else %}
+          <div class="muted">No result_json provided by backend. (Add it in main.py template context.)</div>
+        {% endif %}
+      </details>
+
       <div style="margin-top:10px;">
         <a href="/admin/test">Run again</a>
       </div>
     </div>
 
     <script>
-      // Auto-scroll to results after run.
       (function () {
         const el = document.getElementById("results");
         if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
