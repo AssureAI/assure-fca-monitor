@@ -1,26 +1,27 @@
-# rules/cobs-suitability-v1.yaml
 ruleset_id: assure-cobs-suitability
-version: "1.2-cobs9-hardened"
+version: "1.3-cobs9-bolstered"
 
 rules:
-  # -----------------------------
-  # COBS 9 — Suitability
-  # -----------------------------
+
+  # -------------------------
+  # COBS 9 — Suitability core
+  # -------------------------
+
   - id: COBS9_OBJ
     section: "COBS 9 — Suitability"
     title: "Client objectives identified"
     citation: "COBS 9.2.2R"
     source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
     applies_when:
-      advice_type: [advised]
-    phrases:
+      advice_type: advised
+    require_any_terms:
       - "investment objective"
       - "your objectives"
       - "your goals"
+      - "financial goals"
       - "objective is to"
     min_hits: 1
-    ok_reason: "Objectives language detected."
-    missing_reason: "No clear objectives language found."
+    evidence_cap: 6
 
   - id: COBS9_OBJ_LINK
     section: "COBS 9 — Suitability"
@@ -28,15 +29,15 @@ rules:
     citation: "COBS 9.2.2R"
     source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
     applies_when:
-      advice_type: [advised]
-    phrases:
+      advice_type: advised
+    require_any_terms:
       - "based on your objectives"
-      - "aligned to your objectives"
-      - "in line with your objectives"
-      - "meets your objectives because"
+      - "aligned with your objectives"
+      - "meets your objectives"
+      - "because"
+      - "this recommendation is suitable because"
     min_hits: 1
-    ok_reason: "Recommendation linked to objectives."
-    missing_reason: "No explicit link from recommendation to objectives."
+    evidence_cap: 6
 
   - id: COBS9_RISK
     section: "COBS 9 — Suitability"
@@ -44,17 +45,17 @@ rules:
     citation: "COBS 9.2.2R"
     source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
     applies_when:
-      advice_type: [advised]
-    phrases:
+      advice_type: advised
+    require_any_terms:
       - "attitude to risk"
       - "risk profile"
       - "risk tolerance"
       - "risk questionnaire"
       - "balanced"
       - "medium risk"
+      - "high medium"
     min_hits: 1
-    ok_reason: "Risk profiling language detected."
-    missing_reason: "No clear risk profiling / risk category language found."
+    evidence_cap: 6
 
   - id: COBS9_RISK_LINK
     section: "COBS 9 — Suitability"
@@ -62,15 +63,14 @@ rules:
     citation: "COBS 9.2.2R"
     source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
     applies_when:
-      advice_type: [advised]
-    phrases:
+      advice_type: advised
+    require_any_terms:
       - "aligned to your risk profile"
       - "in line with your risk profile"
-      - "matches your assessed attitude to risk"
+      - "matches your risk profile"
       - "based on your attitude to risk"
     min_hits: 1
-    ok_reason: "Recommendation linked to risk profile."
-    missing_reason: "No explicit link from recommendation to risk profile."
+    evidence_cap: 6
 
   - id: COBS9_CFL
     section: "COBS 9 — Suitability"
@@ -78,15 +78,15 @@ rules:
     citation: "COBS 9.2.2R"
     source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
     applies_when:
-      advice_type: [advised]
-    phrases:
+      advice_type: advised
+    require_any_terms:
       - "capacity for loss"
-      - "afford to lose"
       - "could afford"
-      - "without materially affecting"
+      - "afford a fall"
+      - "impact of losses"
+      - "you can afford"
     min_hits: 1
-    ok_reason: "Capacity for loss language detected."
-    missing_reason: "No capacity for loss language found."
+    evidence_cap: 6
 
   - id: COBS9_CFL_STRENGTH
     section: "COBS 9 — Suitability"
@@ -94,16 +94,13 @@ rules:
     citation: "COBS 9.2.2R"
     source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
     applies_when:
-      advice_type: [advised]
-    phrases:
-      - "without materially affecting"
-      - "standard of living"
-      - "retirement plans"
-      - "temporary fall"
-      - "could afford a fall"
+      advice_type: advised
+    require_any_patterns:
+      - "(afford|could afford).*(\\d{1,3}\\s*%|temporary fall|drop in value)"
+      - "(without materially affecting|without impacting).*(standard of living|retirement plans|objectives)"
+      - "(capacity for loss).*(\\d{1,3}\\s*%|temporary fall|drop)"
     min_hits: 1
-    ok_reason: "Capacity for loss explained with impact."
-    missing_reason: "Capacity for loss not explained beyond a label."
+    evidence_cap: 6
 
   - id: COBS9_TIME
     section: "COBS 9 — Suitability"
@@ -111,32 +108,31 @@ rules:
     citation: "COBS 9.2.2R"
     source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
     applies_when:
-      advice_type: [advised]
-    phrases:
-      - "time horizon"
-      - "over the next"
-      - "years"
-      - "until retirement"
+      advice_type: advised
+    require_any_patterns:
+      - "next\\s*\\d{1,2}\\s*years"
+      - "\\d{1,2}\\s*year\\s*(time\\s*)?horizon"
+      - "retire(?:ment)?\\s*(at|age)\\s*\\d{2}"
     min_hits: 1
-    ok_reason: "Time horizon language detected."
-    missing_reason: "No clear time horizon language found."
+    evidence_cap: 6
 
   - id: COBS9_RATIONALE
     section: "COBS 9 — Suitability"
-    title: "Suitability rationale given (why this solution fits the client)"
+    title: "Suitability rationale given with client-linked logic (not generic)"
     citation: "COBS 9.2.1R / 9.2.2R"
     source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
     applies_when:
-      advice_type: [advised]
-    phrases:
+      advice_type: advised
+    require_any_terms:
       - "this recommendation is suitable because"
-      - "suitable because"
       - "this is suitable because"
-      - "fits your circumstances"
-      - "aligns with your circumstances"
+      - "it aligns with your"
+      - "it matches your"
+      - "it reflects your"
+    require_all_terms:
+      - "because"
     min_hits: 1
-    ok_reason: "Suitability rationale detected."
-    missing_reason: "No clear suitability rationale found (beyond generic growth language)."
+    evidence_cap: 6
 
   - id: COBS9_ALTS
     section: "COBS 9 — Suitability"
@@ -144,16 +140,15 @@ rules:
     citation: "COBS 9.2.2R"
     source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
     applies_when:
-      advice_type: [advised]
-    phrases:
+      advice_type: advised
+    require_any_terms:
       - "alternatives"
       - "other options"
       - "we considered"
       - "we also considered"
-      - "keeping your existing"
+      - "alternative approach"
     min_hits: 1
-    ok_reason: "Alternatives language detected."
-    missing_reason: "No discussion of alternatives/options found."
+    evidence_cap: 6
 
   - id: COBS9_DRAWBACKS
     section: "COBS 9 — Suitability"
@@ -161,66 +156,78 @@ rules:
     citation: "COBS 9.2.2R"
     source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
     applies_when:
-      advice_type: [advised]
-    phrases:
+      advice_type: advised
+    require_any_terms:
       - "disadvantages"
       - "drawbacks"
       - "risks"
-      - "potential disadvantages"
+      - "you should be aware"
+      - "may result in"
+      - "could mean"
     min_hits: 1
-    ok_reason: "Drawbacks/risks language detected."
-    missing_reason: "No drawbacks/disadvantages language found."
+    evidence_cap: 6
 
+  # Structured risk rule: near retirement + high equity + no balancing language
   - id: COBS9_RETIREMENT_EQUITY_MISMATCH
     section: "COBS 9 — Suitability"
     title: "High equity allocation near retirement without balancing risk language"
     citation: "COBS 9.2.2R"
     source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
     applies_when:
-      advice_type: [advised]
-    forbidden_phrases:
-      - "80% global equity"
-      - "90% global equity"
-      - "100% equity"
-    forbidden_allow_negation: true
-    forbidden_reason: "High equity allocation flagged — ensure suitability/risk mitigation is clearly evidenced for near-retirement clients."
+      advice_type: advised
+    structured_checks:
+      type: retirement_equity_mismatch
+      near_retirement_years: 7
+      equity_pct_threshold: 70
+      balancing_terms:
+        - "diversif"
+        - "multi-asset"
+        - "balanced"
+        - "volatility"
+        - "reduce volatility"
+        - "moderating volatility"
+        - "strategic bond"
+        - "fixed income"
+        - "cash"
+        - "spread risk"
 
-  # -----------------------------
+  # -------------------------
   # COBS 6 — Costs & Charges
-  # -----------------------------
+  # -------------------------
+
   - id: COBS6_COSTS
     section: "COBS 6 — Costs & Charges"
-    title: "Costs and charges disclosed"
+    title: "Costs and charges disclosed (platform/fund/adviser)"
     citation: "COBS 6.1ZA / 6.1ZB"
     source_url: "https://handbook.fca.org.uk/handbook/COBS/6/"
     applies_when:
       investment_element: true
-    phrases:
-      - "costs and charges"
-      - "ongoing charge"
-      - "platform charge"
-      - "adviser charge"
-      - "% per annum"
-      - "total ongoing charge"
-    min_hits: 1
-    ok_reason: "Costs/charges language detected."
-    missing_reason: "No clear costs/charges disclosure language found."
+    require_any_patterns:
+      - "(platform charge|platform fee).*\\d"
+      - "(ongoing charge|ocf|fund charge).*\\d"
+      - "(adviser charge|ongoing advice|advice fee).*\\d"
+      - "(total ongoing|total charge).*\\d"
+    min_hits: 2
+    evidence_cap: 6
 
-  # -----------------------------
+  # -------------------------
   # COBS 4 — Communications
-  # -----------------------------
+  # -------------------------
+
+  # IMPORTANT: avoid false flags on "no guaranteed returns"
   - id: COBS4_NO_GUARANTEE
     section: "COBS 4 — Communications"
     title: "No inappropriate guarantees / certainty language"
     citation: "COBS 4.2.1R"
     source_url: "https://handbook.fca.org.uk/handbook/COBS/4/2.html"
+    mode: forbid_only
     applies_when:
-      advice_type: [advised, nonadvised]
-    forbidden_phrases:
-      - "guaranteed return"
-      - "risk-free"
-      - "cannot lose"
-      - "guaranteed growth"
-      - "certain return"
-    forbidden_allow_negation: true
-    forbidden_reason: "Potential guarantee / certainty claim detected (check wording and risk warnings)."
+      investment_element: true
+    forbid_any_patterns:
+      - "\\bguaranteed\\s+return(s)?\\b"
+      - "\\brisk[-\\s]?free\\b"
+      - "\\bcannot\\s+lose\\b"
+      - "\\bno\\s+risk\\b"
+      - "\\bguaranteed\\s+growth\\b"
+      - "\\bcertain\\s+profit\\b"
+    evidence_cap: 6
