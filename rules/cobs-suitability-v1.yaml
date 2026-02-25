@@ -1,27 +1,271 @@
-ruleset_id: assure-cobs-suitability
-version: "1.3-cobs9-bolstered"
+ruleset_id: assure-cobs-full
+version: "1.0-full-mvp-2026-02-25"
 
 rules:
 
-  # -------------------------
-  # COBS 9 — Suitability core
-  # -------------------------
+  # ============================================================
+  # COBS 2 — Client’s best interests / Conflicts / Communications
+  # (SR-facing proxies: fair treatment language, conflicts, independence, permissions)
+  # ============================================================
 
-  - id: COBS9_OBJ
+  - id: COBS2_BEST_INTERESTS
+    section: "COBS 2 — Client’s best interests"
+    title: "Statement / framing consistent with acting in client’s best interests"
+    citation: "COBS 2.1.1R"
+    source_url: "https://handbook.fca.org.uk/handbook/COBS/2/1.html"
+    phrases:
+      - "best interests"
+      - "act in your best interests"
+      - "in your best interests"
+      - "treating customers fairly"
+      - "tcf"
+    min_hits: 1
+
+  - id: COBS2_CONFLICTS
+    section: "COBS 2 — Client’s best interests"
+    title: "Conflicts of interest disclosed / managed"
+    citation: "COBS 2.1.1R / SYSC conflicts"
+    source_url: "https://handbook.fca.org.uk/handbook/COBS/2/1.html"
+    phrases:
+      - "conflict of interest"
+      - "conflicts of interest"
+      - "we manage conflicts"
+      - "we have policies to manage conflicts"
+      - "potential conflict"
+    min_hits: 1
+
+  - id: COBS2_INDUCEMENTS
+    section: "COBS 2 — Client’s best interests"
+    title: "Inducements / non-monetary benefits acknowledged (where relevant)"
+    citation: "COBS 2.3A"
+    source_url: "https://handbook.fca.org.uk/handbook/COBS/2/3A.html"
+    phrases:
+      - "inducement"
+      - "non-monetary benefit"
+      - "soft commission"
+      - "we do not accept inducements"
+      - "no inducements"
+    min_hits: 1
+
+  - id: COBS2_ADVICE_SCOPE
+    section: "COBS 2 — Client’s best interests"
+    title: "Scope of service / advice described (what we did and didn’t do)"
+    citation: "COBS 2.1.1R"
+    source_url: "https://handbook.fca.org.uk/handbook/COBS/2/1.html"
+    phrases:
+      - "scope of this advice"
+      - "scope of our service"
+      - "what this advice covers"
+      - "outside the scope"
+      - "limitations of this advice"
+    min_hits: 1
+
+  - id: COBS2_CLIENT_AGREEMENT_REF
+    section: "COBS 2 — Client’s best interests"
+    title: "Client agreement / terms referenced"
+    citation: "COBS 2.2A / COBS 6.1A / general disclosure"
+    source_url: "https://handbook.fca.org.uk/handbook/COBS/2/2A.html"
+    phrases:
+      - "client agreement"
+      - "terms of business"
+      - "terms and conditions"
+      - "service agreement"
+      - "our agreement with you"
+    min_hits: 1
+
+
+  # ============================================================
+  # COBS 4 — Communications: fair, clear, not misleading / risk warnings
+  # ============================================================
+
+  - id: COBS4_FCNL
+    section: "COBS 4 — Communications"
+    title: "Balanced risk framing (values can fall as well as rise / you may get back less)"
+    citation: "COBS 4.2.1R"
+    source_url: "https://handbook.fca.org.uk/handbook/COBS/4/2.html"
+    phrases:
+      - "can fall as well as rise"
+      - "may get back less than you invested"
+      - "not guaranteed"
+      - "capital is at risk"
+      - "investment values can go down"
+    min_hits: 1
+
+  - id: COBS4_RISK_WARNINGS_PRESENT
+    section: "COBS 4 — Communications"
+    title: "Key investment risks described (equity/bond/inflation/liquidity etc.)"
+    citation: "COBS 4.2.1R"
+    source_url: "https://handbook.fca.org.uk/handbook/COBS/4/2.html"
+    phrases:
+      - "market volatility"
+      - "inflation risk"
+      - "liquidity risk"
+      - "interest rate risk"
+      - "credit risk"
+      - "currency risk"
+      - "emerging markets"
+    min_hits: 1
+
+  - id: COBS4_PAST_PERFORMANCE
+    section: "COBS 4 — Communications"
+    title: "Past performance caveat (if discussing returns/performance)"
+    citation: "COBS 4.2.1R / general comms"
+    source_url: "https://handbook.fca.org.uk/handbook/COBS/4/2.html"
+    phrases:
+      - "past performance is not a reliable indicator"
+      - "past performance is not a guide to future performance"
+      - "past performance is not an indicator of future results"
+    min_hits: 1
+
+  - id: COBS4_FEES_RISK_TAX_DISCLOSURE
+    section: "COBS 4 — Communications"
+    title: "Mentions costs/charges/tax as impacts (balanced comms)"
+    citation: "COBS 4.2.1R"
+    source_url: "https://handbook.fca.org.uk/handbook/COBS/4/2.html"
+    phrases:
+      - "costs"
+      - "charges"
+      - "fees"
+      - "taxation"
+      - "tax treatment may change"
+    min_hits: 1
+
+  # IMPORTANT: This is tuned to avoid false-flagging "no guaranteed returns".
+  # We only search for strongly problematic *positive certainty* language.
+  - id: COBS4_INAPPROPRIATE_CERTAINTY
+    section: "COBS 4 — Communications"
+    title: "No inappropriate certainty / guaranteed outcomes language"
+    citation: "COBS 4.2.1R"
+    source_url: "https://handbook.fca.org.uk/handbook/COBS/4/2.html"
+    phrases:
+      - "risk-free"
+      - "cannot lose"
+      - "will not lose"
+      - "guaranteed growth"
+      - "guaranteed profit"
+      - "assured return"
+      - "certain return"
+      - "guaranteed income"
+    min_hits: 1
+
+
+  # ============================================================
+  # COBS 6 — Costs & charges / adviser remuneration (SR-facing)
+  # ============================================================
+
+  - id: COBS6_COSTS_ANY
+    section: "COBS 6 — Costs & Charges"
+    title: "Costs and charges discussed (at least some explicit mention)"
+    citation: "COBS 6.1ZA / 6.1ZB"
+    source_url: "https://handbook.fca.org.uk/handbook/COBS/6/"
+    applies_when:
+      investment_element: true
+    phrases:
+      - "costs"
+      - "charges"
+      - "fees"
+      - "ongoing charge"
+      - "ocf"
+      - "amc"
+    min_hits: 1
+
+  - id: COBS6_COSTS_BREAKDOWN
+    section: "COBS 6 — Costs & Charges"
+    title: "Charges broken down by component (platform/fund/adviser)"
+    citation: "COBS 6.1ZA / 6.1ZB"
+    source_url: "https://handbook.fca.org.uk/handbook/COBS/6/"
+    applies_when:
+      investment_element: true
+    phrases:
+      - "platform charge"
+      - "fund charge"
+      - "ongoing fund charge"
+      - "adviser charge"
+      - "ongoing advice fee"
+      - "service fee"
+    min_hits: 2
+
+  - id: COBS6_TOTAL_COSTS
+    section: "COBS 6 — Costs & Charges"
+    title: "Total cost figure or combined ongoing charge stated"
+    citation: "COBS 6.1ZA / 6.1ZB"
+    source_url: "https://handbook.fca.org.uk/handbook/COBS/6/"
+    applies_when:
+      investment_element: true
+    phrases:
+      - "total ongoing charge"
+      - "total cost"
+      - "combined charge"
+      - "overall charge"
+      - "in total"
+    min_hits: 1
+
+  - id: COBS6_INITIAL_CHARGES
+    section: "COBS 6 — Costs & Charges"
+    title: "Initial charges mentioned or explicitly stated as none"
+    citation: "COBS 6.1ZA / 6.1ZB"
+    source_url: "https://handbook.fca.org.uk/handbook/COBS/6/"
+    applies_when:
+      investment_element: true
+    phrases:
+      - "initial charge"
+      - "initial adviser charge"
+      - "no initial adviser charges"
+      - "no initial charges"
+      - "entry charge"
+    min_hits: 1
+
+  - id: COBS6_ILLUSTRATION
+    section: "COBS 6 — Costs & Charges"
+    title: "Costs/charges illustration referenced (personalised illustration)"
+    citation: "COBS 6.1ZA / 6.1ZB"
+    source_url: "https://handbook.fca.org.uk/handbook/COBS/6/"
+    applies_when:
+      investment_element: true
+    phrases:
+      - "cost and charges illustration"
+      - "costs and charges illustration"
+      - "illustration"
+      - "you will receive"
+      - "separately"
+    min_hits: 1
+
+
+  # ============================================================
+  # COBS 9 — Suitability (Advised). We keep applies_when advised.
+  # ============================================================
+
+  - id: COBS9_CIRCUMSTANCES
     section: "COBS 9 — Suitability"
-    title: "Client objectives identified"
+    title: "Client circumstances captured (age/retirement/income/assets)"
     citation: "COBS 9.2.2R"
     source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
     applies_when:
       advice_type: advised
-    require_any_terms:
+    phrases:
+      - "age"
+      - "retire"
+      - "income"
+      - "per annum"
+      - "pension"
+      - "assets"
+      - "expenditure"
+    min_hits: 2
+
+  - id: COBS9_OBJ
+    section: "COBS 9 — Suitability"
+    title: "Client investment objectives identified"
+    citation: "COBS 9.2.2R"
+    source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
+    applies_when:
+      advice_type: advised
+    phrases:
       - "investment objective"
       - "your objectives"
       - "your goals"
+      - "primary objective"
       - "financial goals"
-      - "objective is to"
     min_hits: 1
-    evidence_cap: 6
 
   - id: COBS9_OBJ_LINK
     section: "COBS 9 — Suitability"
@@ -30,32 +274,30 @@ rules:
     source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
     applies_when:
       advice_type: advised
-    require_any_terms:
+    phrases:
       - "based on your objectives"
-      - "aligned with your objectives"
+      - "aligns with your objectives"
+      - "in line with your objectives"
       - "meets your objectives"
-      - "because"
-      - "this recommendation is suitable because"
+      - "to achieve your objective"
     min_hits: 1
-    evidence_cap: 6
 
   - id: COBS9_RISK
     section: "COBS 9 — Suitability"
-    title: "Attitude to risk assessed"
+    title: "Attitude to risk assessed / risk profile stated"
     citation: "COBS 9.2.2R"
     source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
     applies_when:
       advice_type: advised
-    require_any_terms:
+    phrases:
       - "attitude to risk"
       - "risk profile"
       - "risk tolerance"
       - "risk questionnaire"
-      - "balanced"
+      - "balanced risk"
       - "medium risk"
       - "high medium"
     min_hits: 1
-    evidence_cap: 6
 
   - id: COBS9_RISK_LINK
     section: "COBS 9 — Suitability"
@@ -64,13 +306,13 @@ rules:
     source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
     applies_when:
       advice_type: advised
-    require_any_terms:
+    phrases:
       - "aligned to your risk profile"
       - "in line with your risk profile"
       - "matches your risk profile"
-      - "based on your attitude to risk"
+      - "consistent with your risk profile"
+      - "reflects your attitude to risk"
     min_hits: 1
-    evidence_cap: 6
 
   - id: COBS9_CFL
     section: "COBS 9 — Suitability"
@@ -79,14 +321,13 @@ rules:
     source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
     applies_when:
       advice_type: advised
-    require_any_terms:
+    phrases:
       - "capacity for loss"
-      - "could afford"
-      - "afford a fall"
+      - "afford to lose"
       - "impact of losses"
-      - "you can afford"
+      - "without materially affecting"
+      - "standard of living"
     min_hits: 1
-    evidence_cap: 6
 
   - id: COBS9_CFL_STRENGTH
     section: "COBS 9 — Suitability"
@@ -95,12 +336,15 @@ rules:
     source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
     applies_when:
       advice_type: advised
-    require_any_patterns:
-      - "(afford|could afford).*(\\d{1,3}\\s*%|temporary fall|drop in value)"
-      - "(without materially affecting|without impacting).*(standard of living|retirement plans|objectives)"
-      - "(capacity for loss).*(\\d{1,3}\\s*%|temporary fall|drop)"
+    phrases:
+      - "temporary fall"
+      - "could afford"
+      - "would not materially affect"
+      - "impact on retirement"
+      - "impact your standard of living"
+      - "15"
+      - "20"
     min_hits: 1
-    evidence_cap: 6
 
   - id: COBS9_TIME
     section: "COBS 9 — Suitability"
@@ -109,30 +353,44 @@ rules:
     source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
     applies_when:
       advice_type: advised
-    require_any_patterns:
-      - "next\\s*\\d{1,2}\\s*years"
-      - "\\d{1,2}\\s*year\\s*(time\\s*)?horizon"
-      - "retire(?:ment)?\\s*(at|age)\\s*\\d{2}"
+    phrases:
+      - "time horizon"
+      - "next"
+      - "years"
+      - "in preparation for retirement"
+      - "long-term"
+      - "medium to long-term"
     min_hits: 1
-    evidence_cap: 6
+
+  - id: COBS9_EXISTING_REVIEW
+    section: "COBS 9 — Suitability"
+    title: "Existing arrangements reviewed (what they have now)"
+    citation: "COBS 9.2.2R"
+    source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
+    applies_when:
+      advice_type: advised
+    phrases:
+      - "existing"
+      - "current arrangements"
+      - "reviewed your existing"
+      - "we reviewed"
+      - "current pension"
+    min_hits: 1
 
   - id: COBS9_RATIONALE
     section: "COBS 9 — Suitability"
-    title: "Suitability rationale given with client-linked logic (not generic)"
+    title: "Suitability rationale given (why this solution fits the client)"
     citation: "COBS 9.2.1R / 9.2.2R"
     source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
     applies_when:
       advice_type: advised
-    require_any_terms:
+    phrases:
       - "this recommendation is suitable because"
+      - "suitable because"
       - "this is suitable because"
-      - "it aligns with your"
-      - "it matches your"
-      - "it reflects your"
-    require_all_terms:
-      - "because"
+      - "why this recommendation is suitable"
+      - "rationale"
     min_hits: 1
-    evidence_cap: 6
 
   - id: COBS9_ALTS
     section: "COBS 9 — Suitability"
@@ -141,14 +399,13 @@ rules:
     source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
     applies_when:
       advice_type: advised
-    require_any_terms:
+    phrases:
       - "alternatives"
       - "other options"
+      - "option"
       - "we considered"
-      - "we also considered"
-      - "alternative approach"
+      - "alternative"
     min_hits: 1
-    evidence_cap: 6
 
   - id: COBS9_DRAWBACKS
     section: "COBS 9 — Suitability"
@@ -157,17 +414,30 @@ rules:
     source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
     applies_when:
       advice_type: advised
-    require_any_terms:
-      - "disadvantages"
-      - "drawbacks"
+    phrases:
+      - "disadvantage"
+      - "drawback"
       - "risks"
-      - "you should be aware"
-      - "may result in"
-      - "could mean"
+      - "potential disadvantages"
+      - "there is a risk that"
     min_hits: 1
-    evidence_cap: 6
 
-  # Structured risk rule: near retirement + high equity + no balancing language
+  - id: COBS9_NEXT_STEPS
+    section: "COBS 9 — Suitability"
+    title: "Next steps / client consent / implementation plan"
+    citation: "COBS 9.2.2R (practical suitability outcome)"
+    source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
+    applies_when:
+      advice_type: advised
+    phrases:
+      - "next steps"
+      - "subject to your agreement"
+      - "we will"
+      - "implement"
+      - "arrange transfer"
+      - "annual review"
+    min_hits: 1
+
   - id: COBS9_RETIREMENT_EQUITY_MISMATCH
     section: "COBS 9 — Suitability"
     title: "High equity allocation near retirement without balancing risk language"
@@ -175,59 +445,232 @@ rules:
     source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
     applies_when:
       advice_type: advised
-    structured_checks:
-      type: retirement_equity_mismatch
-      near_retirement_years: 7
-      equity_pct_threshold: 70
-      balancing_terms:
-        - "diversif"
-        - "multi-asset"
-        - "balanced"
-        - "volatility"
-        - "reduce volatility"
-        - "moderating volatility"
-        - "strategic bond"
-        - "fixed income"
-        - "cash"
-        - "spread risk"
+    phrases:
+      - "80% global equity"
+      - "primarily in global equity"
+      - "higher-growth portfolio"
+      - "emerging markets equity"
+      - "maximize growth"
+      - "maximise growth"
+    min_hits: 1
 
-  # -------------------------
-  # COBS 6 — Costs & Charges
-  # -------------------------
 
-  - id: COBS6_COSTS
-    section: "COBS 6 — Costs & Charges"
-    title: "Costs and charges disclosed (platform/fund/adviser)"
+  # ============================================================
+  # COBS 10 — Appropriateness (Non-advised). SR/record proxies.
+  # ============================================================
+
+  - id: COBS10_NONADVISED_NATURE
+    section: "COBS 10 — Appropriateness (non-advised)"
+    title: "Non-advised nature stated (no personal recommendation)"
+    citation: "COBS 10 (appropriateness) / general disclosure"
+    source_url: "https://handbook.fca.org.uk/handbook/COBS/10/"
+    applies_when:
+      advice_type: nonadvised
+    phrases:
+      - "non-advised"
+      - "not advice"
+      - "no personal recommendation"
+      - "we have not assessed suitability"
+      - "you are responsible for"
+    min_hits: 1
+
+  - id: COBS10_KNOWLEDGE_EXPERIENCE
+    section: "COBS 10 — Appropriateness (non-advised)"
+    title: "Knowledge/experience assessed for appropriateness (where relevant)"
+    citation: "COBS 10.2.1R"
+    source_url: "https://handbook.fca.org.uk/handbook/COBS/10/2.html"
+    applies_when:
+      advice_type: nonadvised
+    phrases:
+      - "appropriateness"
+      - "knowledge and experience"
+      - "experience of investing"
+      - "we assessed whether this is appropriate"
+      - "questionnaire"
+    min_hits: 1
+
+  - id: COBS10_WARNING_IF_NOT_APPROPRIATE
+    section: "COBS 10 — Appropriateness (non-advised)"
+    title: "Warning given if product/service may be inappropriate"
+    citation: "COBS 10.2.1R"
+    source_url: "https://handbook.fca.org.uk/handbook/COBS/10/2.html"
+    applies_when:
+      advice_type: nonadvised
+    phrases:
+      - "may not be appropriate"
+      - "not appropriate"
+      - "we are unable to assess"
+      - "we cannot determine"
+      - "warning"
+    min_hits: 1
+
+
+  # ============================================================
+  # COBS 10A — Execution-only (where applicable). SR/record proxies.
+  # ============================================================
+
+  - id: COBS10A_EXEC_ONLY_NATURE
+    section: "COBS 10A — Execution-only"
+    title: "Execution-only nature stated (no advice, no appropriateness where exempt)"
+    citation: "COBS 10A"
+    source_url: "https://handbook.fca.org.uk/handbook/COBS/10A/"
+    applies_when:
+      advice_type: execution_only
+    phrases:
+      - "execution-only"
+      - "we will not provide advice"
+      - "no advice"
+      - "no recommendation"
+      - "you are responsible for your investment decision"
+    min_hits: 1
+
+  - id: COBS10A_COMPLEXITY_WARNING
+    section: "COBS 10A — Execution-only"
+    title: "Complex product handling / warning (if relevant)"
+    citation: "COBS 10A / appropriateness boundary"
+    source_url: "https://handbook.fca.org.uk/handbook/COBS/10A/"
+    applies_when:
+      advice_type: execution_only
+    phrases:
+      - "complex"
+      - "not straightforward"
+      - "you may not understand"
+      - "higher risk"
+      - "not appropriate"
+    min_hits: 1
+
+
+  # ============================================================
+  # Ongoing service (SR/record proxies)
+  # ============================================================
+
+  - id: ONGOING_SERVICE_SCOPE
+    section: "Ongoing service"
+    title: "Ongoing service described (what reviews / monitoring include)"
+    citation: "COBS 6 / ongoing adviser charging context"
+    source_url: "https://handbook.fca.org.uk/handbook/COBS/6/"
+    applies_when:
+      ongoing_service: true
+    phrases:
+      - "ongoing service"
+      - "ongoing advice"
+      - "annual review"
+      - "regular review"
+      - "portfolio monitoring"
+      - "rebalance"
+    min_hits: 1
+
+  - id: ONGOING_SERVICE_FEE
+    section: "Ongoing service"
+    title: "Ongoing service fee stated"
     citation: "COBS 6.1ZA / 6.1ZB"
     source_url: "https://handbook.fca.org.uk/handbook/COBS/6/"
     applies_when:
-      investment_element: true
-    require_any_patterns:
-      - "(platform charge|platform fee).*\\d"
-      - "(ongoing charge|ocf|fund charge).*\\d"
-      - "(adviser charge|ongoing advice|advice fee).*\\d"
-      - "(total ongoing|total charge).*\\d"
-    min_hits: 2
-    evidence_cap: 6
+      ongoing_service: true
+    phrases:
+      - "ongoing advice service fee"
+      - "ongoing fee"
+      - "ongoing adviser charge"
+      - "service fee"
+      - "% per annum"
+    min_hits: 1
 
-  # -------------------------
-  # COBS 4 — Communications
-  # -------------------------
-
-  # IMPORTANT: avoid false flags on "no guaranteed returns"
-  - id: COBS4_NO_GUARANTEE
-    section: "COBS 4 — Communications"
-    title: "No inappropriate guarantees / certainty language"
-    citation: "COBS 4.2.1R"
+  - id: ONGOING_SERVICE_CANCEL
+    section: "Ongoing service"
+    title: "Ability to stop/cancel ongoing service mentioned"
+    citation: "Consumer understanding / fair comms"
     source_url: "https://handbook.fca.org.uk/handbook/COBS/4/2.html"
-    mode: forbid_only
+    applies_when:
+      ongoing_service: true
+    phrases:
+      - "you can cancel"
+      - "you may stop"
+      - "terminate"
+      - "opt out"
+      - "stop the ongoing service"
+    min_hits: 1
+
+
+  # ============================================================
+  # Product / portfolio description (SR-facing proxies)
+  # ============================================================
+
+  - id: PORTFOLIO_DESCRIPTION
+    section: "Portfolio / Product"
+    title: "Recommended portfolio/product described (what it is)"
+    citation: "COBS 4.2.1R / COBS 9.2.2R"
+    source_url: "https://handbook.fca.org.uk/handbook/COBS/4/2.html"
+    phrases:
+      - "portfolio allocation"
+      - "asset allocation"
+      - "diversified"
+      - "multi-asset"
+      - "fund"
+      - "sipp"
+      - "isa"
+    min_hits: 1
+
+  - id: PORTFOLIO_ALLOCATION_NUMBERS
+    section: "Portfolio / Product"
+    title: "Allocation includes weights/percentages (e.g., 40% equity)"
+    citation: "COBS 9.2.2R (sufficient detail)"
+    source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
     applies_when:
       investment_element: true
-    forbid_any_patterns:
-      - "\\bguaranteed\\s+return(s)?\\b"
-      - "\\brisk[-\\s]?free\\b"
-      - "\\bcannot\\s+lose\\b"
-      - "\\bno\\s+risk\\b"
-      - "\\bguaranteed\\s+growth\\b"
-      - "\\bcertain\\s+profit\\b"
-    evidence_cap: 6
+    phrases:
+      - "%"
+      - "allocation"
+      - "equity"
+      - "bond"
+      - "cash"
+    min_hits: 2
+
+  - id: TRANSFER_IMPLEMENTATION
+    section: "Implementation"
+    title: "Transfers / implementation steps described (where relevant)"
+    citation: "COBS 9.2.2R (implementation context)"
+    source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
+    phrases:
+      - "transfer"
+      - "consolidat"
+      - "arrange transfer"
+      - "implement the recommended portfolio"
+      - "platform"
+    min_hits: 1
+
+
+  # ============================================================
+  # Tax wrappers / tax caveats (SR-facing)
+  # ============================================================
+
+  - id: TAX_TREATMENT_CAVEAT
+    section: "Tax & legal"
+    title: "Tax treatment caveat (may change; depends on circumstances)"
+    citation: "COBS 4.2.1R (balanced comms)"
+    source_url: "https://handbook.fca.org.uk/handbook/COBS/4/2.html"
+    phrases:
+      - "tax treatment"
+      - "taxation may change"
+      - "depends on your circumstances"
+      - "hmrc"
+      - "subject to change"
+    min_hits: 1
+
+
+  # ============================================================
+  # Governance / evidence quality (helps explain outcomes)
+  # ============================================================
+
+  - id: DOC_STRUCTURE_HEADINGS
+    section: "Document quality"
+    title: "Basic SR structure present (headings for circumstances/objectives/risk/charges)"
+    citation: "Operational quality (internal)"
+    source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
+    phrases:
+      - "circumstances"
+      - "objectives"
+      - "risk"
+      - "costs"
+      - "charges"
+      - "recommendation"
+    min_hits: 3
