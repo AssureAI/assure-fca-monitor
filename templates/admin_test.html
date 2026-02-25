@@ -1,163 +1,188 @@
-<!-- templates/admin_test.html -->
-<!doctype html>
-<html>
-  <head>
-    <meta charset="utf-8" />
-    <title>Assure — Admin Test</title>
-    <style>
-      body { font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica, Arial, sans-serif; margin: 24px; }
-      textarea { width: 100%; min-height: 260px; }
-      table { border-collapse: collapse; width: 100%; margin-top: 12px; }
-      th, td { border: 1px solid #999; padding: 8px; vertical-align: top; }
-      th { background: #f3f3f3; }
-      details { margin: 6px 0; }
-      .pill { display: inline-block; padding: 2px 8px; border: 1px solid #bbb; border-radius: 999px; margin-left: 6px; font-size: 12px; }
-      .ok { color: #0a7a2f; font-weight: 700; }
-      .pi { color: #b85a00; font-weight: 700; }
-      .na { color: #666; font-weight: 700; }
-      .muted { color: #666; font-size: 13px; }
-      .reason { font-size: 13px; margin: 6px 0 0; }
-      .mini { font-size: 12px; color: #444; }
-      .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
-    </style>
-  </head>
-  <body>
-    <h1>Assure — Admin Test</h1>
-    <p class="muted">Deterministic check. Results grouped by section. Evidence is capped snippets (no full SR echo).</p>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Assure – Admin Test</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+    h1 { font-size: 28px; margin: 0 0 6px 0; }
+    .sub { color: #555; margin-bottom: 18px; }
+    .card { background: white; border: 1px solid #ddd; border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+    label { display:block; font-weight: 600; margin-top: 10px; }
+    select, textarea { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 8px; font-size: 14px; }
+    textarea { min-height: 200px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+    button { background: #111827; color: white; border: 0; padding: 10px 14px; border-radius: 10px; font-weight: 700; cursor: pointer; margin-top: 12px; }
+    button:hover { opacity: 0.92; }
+    hr { border: 0; border-top: 1px solid #ddd; margin: 18px 0; }
 
-    <form method="post">
-      <div style="display:flex; gap:16px; flex-wrap:wrap;">
-        <div>
-          <label>Advice type</label><br/>
-          <select name="advice_type">
-            <option value="advised" {% if advice_type=="advised" %}selected{% endif %}>advised</option>
-            <option value="nonadvised" {% if advice_type=="nonadvised" %}selected{% endif %}>nonadvised</option>
-          </select>
-        </div>
+    .pill { display:inline-block; padding: 3px 10px; border-radius: 999px; background: #eee; font-size: 12px; margin-left: 6px; }
+    .ok { color: #0a7a2f; font-weight: 800; }
+    .pi { color: #b45309; font-weight: 800; }
+    .na { color: #6b7280; font-weight: 800; }
 
-        <div>
-          <label>Investment element</label><br/>
-          <select name="investment_element">
-            <option value="true" {% if investment_element=="true" %}selected{% endif %}>true</option>
-            <option value="false" {% if investment_element=="false" %}selected{% endif %}>false</option>
-          </select>
-        </div>
+    table { width: 100%; border-collapse: collapse; background: white; }
+    th, td { border: 1px solid #ddd; padding: 8px; vertical-align: top; font-size: 13px; }
+    th { background: #fafafa; text-align: left; }
 
-        <div>
-          <label>Ongoing service</label><br/>
-          <select name="ongoing_service">
-            <option value="false" {% if ongoing_service=="false" %}selected{% endif %}>false</option>
-            <option value="true" {% if ongoing_service=="true" %}selected{% endif %}>true</option>
-          </select>
-        </div>
+    details summary { cursor: pointer; font-weight: 700; }
+    ul { margin: 8px 0 0 18px; }
+    .muted { color: #6b7280; font-size: 12px; }
+    .why { color: #374151; font-size: 12px; margin-top: 6px; white-space: pre-wrap; }
+    a { color: #2563eb; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <h1>Assure – Admin Test</h1>
+  <div class="sub">Deterministic check. Results grouped by section. Evidence is capped snippets (no full SR echo).</div>
+
+  <div class="card" id="input">
+    {# Collapsible form when result exists #}
+    <details {% if not result %}open{% endif %}>
+      <summary>{% if result %}Edit inputs{% else %}Inputs{% endif %}</summary>
+
+      <form method="post" action="/admin/test">
+        <label for="advice_type">Advice type</label>
+        <select name="advice_type" id="advice_type">
+          <option value="advised" {% if advice_type == "advised" %}selected{% endif %}>advised</option>
+          <option value="nonadvised" {% if advice_type == "nonadvised" %}selected{% endif %}>nonadvised</option>
+          <option value="execution_only" {% if advice_type == "execution_only" %}selected{% endif %}>execution_only</option>
+        </select>
+
+        <label for="investment_element">Investment element</label>
+        <select name="investment_element" id="investment_element">
+          <option value="true" {% if investment_element == "true" %}selected{% endif %}>true</option>
+          <option value="false" {% if investment_element == "false" %}selected{% endif %}>false</option>
+        </select>
+
+        <label for="ongoing_service">Ongoing service</label>
+        <select name="ongoing_service" id="ongoing_service">
+          <option value="false" {% if ongoing_service == "false" %}selected{% endif %}>false</option>
+          <option value="true" {% if ongoing_service == "true" %}selected{% endif %}>true</option>
+        </select>
+
+        <label for="sr_text">Suitability Report text</label>
+        <textarea name="sr_text" id="sr_text" placeholder="Paste SR text here...">{{ sr_text or "" }}</textarea>
+
+        <button type="submit">Run check</button>
+      </form>
+    </details>
+  </div>
+
+  {% if result %}
+    <div id="results" class="card">
+      <h2 style="margin:0 0 10px 0;">Results</h2>
+
+      <div class="muted">
+        <div><b>Ruleset:</b> {{ result.get("ruleset_id", "") }} {{ result.get("ruleset_version", "") }}</div>
+        <div><b>Checked at:</b> {{ result.get("checked_at", "") }}</div>
       </div>
 
-      <h3>Suitability Report text</h3>
-      <textarea name="sr_text" placeholder="Paste SR text here...">{{ sr_text }}</textarea>
-      <br/><br/>
-      <button type="submit">Run check</button>
-    </form>
+      {% set summary = result.get("summary", {}) %}
+      <div style="margin-top:10px;">
+        <b>Summary:</b>
+        <span class="pill">ok: {{ summary.get("ok", 0) }}</span>
+        <span class="pill">potential_issue: {{ summary.get("potential_issue", 0) }}</span>
+        <span class="pill">not_assessed: {{ summary.get("not_assessed", 0) }}</span>
+      </div>
 
-    {% if result %}
       <hr/>
-      <h2>Results</h2>
-      <div>
-        <div><b>Ruleset:</b> {{ result["ruleset_id"] }} {{ result["ruleset_version"] }}</div>
-        <div><b>Checked at:</b> {{ result["checked_at"] }}</div>
-        <div><b>Summary:</b> <span class="mono">{{ result["summary"] }}</span></div>
-      </div>
 
-      {% for section_name, rules in result["sections"].items() %}
-        {% set ok_count = (rules | selectattr("status","equalto","OK") | list | length) %}
-        {% set pi_count = (rules | selectattr("status","equalto","POTENTIAL_ISSUE") | list | length) %}
-        {% set na_count = (rules | selectattr("status","equalto","NOT_ASSESSED") | list | length) %}
+      {# result["sections"] is expected to be dict: section_name -> list[rules] #}
+      {% set sections = result.get("sections", {}) %}
+      {% for sname, rules in sections.items() %}
+        {% set okc = rules | selectattr("status", "equalto", "OK") | list | length %}
+        {% set pic = rules | selectattr("status", "equalto", "POTENTIAL_ISSUE") | list | length %}
+        {% set nac = rules | selectattr("status", "equalto", "NOT_ASSESSED") | list | length %}
 
-        <details style="margin-top:14px;" open>
+        <details open style="margin-bottom:14px;">
           <summary>
-            <b>{{ section_name }}</b>
-            <span class="pill">OK: {{ ok_count }}</span>
-            <span class="pill">PI: {{ pi_count }}</span>
-            <span class="pill">NA: {{ na_count }}</span>
+            {{ sname }}
+            <span class="pill">OK: {{ okc }}</span>
+            <span class="pill">PI: {{ pic }}</span>
+            <span class="pill">NA: {{ nac }}</span>
           </summary>
 
-          <table>
-            <thead>
-              <tr>
-                <th style="width: 28%;">Rule</th>
-                <th style="width: 12%;">Status</th>
-                <th style="width: 25%;">Citation</th>
-                <th>Evidence</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for r in rules %}
+          <div style="margin-top:10px;">
+            <table>
+              <thead>
                 <tr>
-                  <td>
-                    <div class="mono"><b>{{ r["rule_id"] }}</b></div>
-                    <div class="mini">{{ r["title"] }}</div>
-                  </td>
-
-                  <td>
-                    {% if r["status"] == "OK" %}
-                      <span class="ok">OK</span>
-                    {% elif r["status"] == "POTENTIAL_ISSUE" %}
-                      <span class="pi">POTENTIAL_ISSUE</span>
-                    {% else %}
-                      <span class="na">NOT_ASSESSED</span>
-                    {% endif %}
-                  </td>
-
-                  <td>
-                    <div>{{ r["citation"] }}</div>
-                    {% if r["source_url"] %}
-                      <div><a href="{{ r["source_url"] }}" target="_blank">{{ r["source_url"] }}</a></div>
-                    {% endif %}
-                  </td>
-
-                  <td>
-                    <!-- ALWAYS show details so UI doesn't look "broken" -->
-                    <details>
-                      <summary>Show evidence</summary>
-
-                      <div class="reason"><b>Why:</b> {{ r["reason"] }}</div>
-
-                      {% if r["missing_terms"] and (r["status"] == "POTENTIAL_ISSUE") %}
-                        <div class="mini" style="margin-top:6px;">
-                          <b>Missing terms (signals):</b>
-                          <span class="mono">{{ r["missing_terms"] }}</span>
-                        </div>
-                      {% endif %}
-
-                      {% if r["matched_terms"] %}
-                        <div class="mini" style="margin-top:6px;">
-                          <b>Matched terms:</b>
-                          <span class="mono">{{ r["matched_terms"] }}</span>
-                        </div>
-                      {% endif %}
-
-                      {% if r["evidence_snippets"] %}
-                        <ul>
-                          {% for s in r["evidence_snippets"] %}
-                            <li>{{ s }}</li>
-                          {% endfor %}
-                        </ul>
-                      {% else %}
-                        <div class="mini" style="margin-top:6px;"><i>No matching snippets found.</i></div>
-                      {% endif %}
-                    </details>
-                  </td>
+                  <th style="width: 26%;">Rule</th>
+                  <th style="width: 12%;">Status</th>
+                  <th style="width: 32%;">Citation</th>
+                  <th>Evidence</th>
                 </tr>
-              {% endfor %}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {% for r in rules %}
+                  <tr>
+                    <td>
+                      <div><b>{{ r.get("rule_id") }}</b></div>
+                      <div class="muted">{{ r.get("title", "") }}</div>
+                    </td>
+
+                    <td>
+                      {% if r.get("status") == "OK" %}
+                        <span class="ok">OK</span>
+                      {% elif r.get("status") == "POTENTIAL_ISSUE" %}
+                        <span class="pi">POTENTIAL_ISSUE</span>
+                      {% else %}
+                        <span class="na">NOT_ASSESSED</span>
+                      {% endif %}
+                    </td>
+
+                    <td>
+                      <div>{{ r.get("citation", "") }}</div>
+                      {% if r.get("source_url") %}
+                        <div><a href="{{ r.get('source_url') }}" target="_blank" rel="noopener">Source</a></div>
+                      {% endif %}
+                    </td>
+
+                    <td>
+                      {% set ev = r.get("evidence", []) %}
+                      {% set why = r.get("why", "") %}
+                      {% if ev and (ev | length) > 0 %}
+                        <details>
+                          <summary>Show evidence</summary>
+                          <ul>
+                            {% for e in ev %}
+                              <li>{{ e }}</li>
+                            {% endfor %}
+                          </ul>
+                          {% if why %}
+                            <div class="why"><b>Why:</b> {{ why }}</div>
+                          {% endif %}
+                        </details>
+                      {% else %}
+                        <details>
+                          <summary>Show evidence</summary>
+                          <div class="why">
+                            <b>Why:</b> {{ why if why else "No matching snippets found." }}
+                          </div>
+                        </details>
+                      {% endif %}
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
         </details>
       {% endfor %}
 
-      <hr/>
-      <details>
-        <summary>Raw JSON (debug)</summary>
-        <pre class="mono">{{ result }}</pre>
-      </details>
-    {% endif %}
-  </body>
+      <div style="margin-top:10px;">
+        <a href="/admin/test">Run again</a>
+      </div>
+    </div>
+
+    <script>
+      // Auto-scroll to results after run.
+      (function () {
+        const el = document.getElementById("results");
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+      })();
+    </script>
+  {% endif %}
+</body>
 </html>
