@@ -12,6 +12,15 @@ from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, Plai
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 
+from fastapi.responses import StreamingResponse
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, ListFlowable, ListItem
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+from reportlab.lib import colors
+from reportlab.lib.units import inch
+from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.pdfbase import pdfmetrics
+from io import BytesIO
+
 from pydantic import BaseModel
 
 from executor import run_rules_engine
