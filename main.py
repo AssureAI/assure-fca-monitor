@@ -516,6 +516,55 @@ def admin_run_detail(request: Request, run_id: str, user: User = Depends(require
         {"request": request, "run": run, "user_email": user.email},
     )
 
+@app.get("/admin/users", response_class=HTMLResponse)
+def manage_users(request: Request, user: User = Depends(require_user_html), db=Depends(get_db)):
+
+    if user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin only")
+
+    users = db.query(User).filter(User.firm_id == user.firm_id).all()
+
+    return templates.TemplateResponse(
+        "users.html",
+        {"request": request, "users": users}
+    )
+
+@app.post("/admin/users/create")
+def create_user(
+    request: Request,
+    email: str = Form(...),
+    password: str = Form(...),
+    role: str = Form("member"),
+    user: User = Depends(require_user_html),
+    db=Depends(get_db),
+):
+    if user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin only")
+
+    email_clean = email.strip().lower()
+
+    # Prevent duplicate user within firm
+    existing = (
+        db.query(User)
+        .filter(User.email == email_clean, User.firm_id == user.firm_id)
+        .first()
+    )
+    if existing:
+        raise HTTPException(status_code=400, detail="User with this email already exists")
+
+    new_user = User(
+        firm_id=user.firm_id,
+        email=email_clean,
+        password_hash=hash_password(password),
+        role=role,
+        is_active=1,
+    )
+
+    db.add(new_user)
+    db.commit()
+
+    return RedirectResponse(url="/admin/users", status_code=303)
+
 # -----------------------------
 # HEALTH / ROOT
 # -----------------------------
