@@ -276,22 +276,226 @@ def _eval_require_block(
 
     return ok, missing, details
 
+# ---------------------------------
+# HUMAN "WHAT TO FIX" + SUGGESTED WORDING
+# ---------------------------------
+
+# Per-rule plain-English fixes (shown when status != OK)
+RULE_FIXES: dict[str, list[str]] = {
+    # COBS 4
+    "COBS4_BALANCED": [
+        "Add at least one clear benefit of the recommendation (why it helps meet the client’s objectives).",
+        "Add at least one clear risk/disadvantage (what could go wrong, including capital at risk where relevant).",
+        "Keep benefits and risks in the same section or adjacent sections so it reads balanced."
+    ],
+    "COBS4_NO_GUAR_IMPLIED": [
+        "Remove any wording that implies certainty (e.g. “guaranteed”, “will”, “risk-free”).",
+        "Add a clear statement that returns are not guaranteed and capital may be at risk."
+    ],
+    "COBS4_PAST_PERF": [
+        "If you mention past performance, include the standard warning that it is not a reliable indicator of future performance.",
+        "If you include projections/illustrations, explain key assumptions and that outcomes may differ materially."
+    ],
+
+    # COBS 6
+    "COBS6_COSTS_DISC": [
+        "State platform/product charges and ongoing fund charges (OCF) clearly.",
+        "Include numeric values (e.g. percentages) rather than generic statements like “charges apply”.",
+        "If relevant, mention adviser initial/ongoing fees separately."
+    ],
+    "COBS6_COSTS_TOTAL": [
+        "Provide an aggregated/total ongoing cost figure (e.g. ‘total ongoing charge is ~X% p.a.’).",
+        "Make it obvious whether the figure includes platform + fund costs (+ adviser fee if applicable)."
+    ],
+
+    # COBS 9
+    "COBS9_ALTS": [
+        "Briefly list the reasonable alternatives considered (e.g. do nothing, keep existing, lower-risk option).",
+        "State why the alternatives were rejected (tie it back to objectives, risk profile, time horizon, costs)."
+    ],
+    "COBS9_CFL": [
+        "Explain capacity for loss using a scenario (e.g. ‘in a downturn you could tolerate ~15–20% fall…’).",
+        "Link the scenario back to essentials/lifestyle/retirement plan to show impact is understood."
+    ],
+    "COBS9_CIRC": [
+        "Add key personal/financial circumstances (income, assets, debts, dependants, emergency fund, retirement timing).",
+        "Include enough context to show the adviser considered the client’s situation, not just a risk score."
+    ],
+    "COBS9_CHANGES": [
+        "Record explicit client understanding/confirmation (e.g. confirms they understand risks and volatility)."
+    ],
+    "COBS9_DOWNSIDES": [
+        "Include disadvantages/drawbacks specific to the recommendation (not only generic market-risk text)."
+    ],
+    "COBS9_KNOWEXP": [
+        "Reference the client’s knowledge/experience where relevant (previous investing, familiarity with products).",
+        "If experience is limited, acknowledge and show how the recommendation remains appropriate."
+    ],
+    "COBS9_RISKS": [
+        "Explain material risks in plain English (market risk, volatility, concentration, liquidity, inflation).",
+        "Include ‘capital at risk’ style language where appropriate."
+    ],
+    "COBS9_OBJ": [
+        "State the client’s objectives clearly (what they want to achieve and by when).",
+        "Show how the recommendation links to those objectives (not just restating the objectives)."
+    ],
+    "COBS9_RECO": [
+        "Make the personal recommendation explicit (what to do, where, and what allocation/portfolio)."
+    ],
+    "COBS9_RISK": [
+        "State the assessed attitude to risk.",
+        "Explain how the recommended portfolio matches that risk profile (link risk → allocation).",
+        "Avoid any certainty/guarantee language."
+    ],
+    "COBS9_RATIONALE": [
+        "Explain the ‘because… therefore…’ rationale (why this recommendation is suitable for this client).",
+        "Tie the rationale to objectives, time horizon, risk profile, costs, and circumstances."
+    ],
+    "COBS9_TIME": [
+        "State the investment time horizon (e.g. years to retirement / intended holding period).",
+        "Link time horizon to asset mix (e.g. why equities/bonds/cash proportions make sense)."
+    ],
+
+    # Structure / good practice
+    "SR_STRUCT_CLIENT_DETAILS": [
+        "Include client name and key metadata (date, adviser, firm) near the top of the report."
+    ],
+    "SR_STRUCT_NEXT_STEPS": [
+        "Add clear next steps (transfer/implementation steps, what happens after sign-off, review if applicable)."
+    ],
+}
+
+# Optional suggested snippets (kept short on purpose)
+RULE_SUGGESTED_WORDING: dict[str, list[str]] = {
+    "COBS4_PAST_PERF": [
+        "Past performance is not a reliable indicator of future performance.",
+        "If projections are shown, they are based on assumptions and actual outcomes may differ materially."
+    ],
+    "COBS4_NO_GUAR_IMPLIED": [
+        "Investment returns are not guaranteed and the value of investments can fall as well as rise.",
+        "You may get back less than you invested."
+    ],
+    "COBS6_COSTS_TOTAL": [
+        "The total ongoing charge is therefore approximately X% per annum (platform + fund costs)."
+    ],
+    "COBS9_CFL": [
+        "In a severe market downturn you could tolerate an approximate X% fall in value without materially affecting essential expenditure or retirement plans."
+    ],
+    "COBS9_RATIONALE": [
+        "Because you have a time horizon of X years and a Balanced risk profile, the recommended allocation aims to support long-term growth while moderating volatility through diversification."
+    ],
+}
+
+# Generic fallback: translate “missing” signals into human bullets if we don’t have a specific RULE_FIXES entry.
+_BUCKET_LABELS: dict[str, str] = {
+    "benefit_clusters": "a clear benefit statement",
+    "risk_clusters": "a clear risk/disadvantage statement",
+    "trigger_clusters": "a past performance reference (trigger)",
+    "warning_clusters": "a past performance warning",
+    "prohibited_phrases": "remove guarantee/certainty language",
+    "allowed_negations": "add a ‘no guarantee’ style disclaimer",
+    "cost_clusters": "cost/charge disclosure sections",
+    "cost_specific": "specific cost items (platform/fund/adviser fees)",
+    "numeric_indicators": "numeric values (%, £, p.a., etc.)",
+    "positive_clusters": "supporting wording for this control",
+    "linkage_indicators": "explicit linkage between client facts and recommendation",
+    "negative_indicators": "remove problematic/negative wording for this control",
+    "contextual_indicators": "scenario framing / context explanation",
+    "hard_circumstances": "core circumstances (income/assets/debts/dependants/emergency fund)",
+    "supporting_circumstances": "supporting circumstances (existing arrangements, goals, retirement timing)",
+    "causal_language": "causal rationale (‘because/therefore/as a result’)",
+}
+
+def _humanise_missing(missing: list[str]) -> list[str]:
+    """
+    Converts items like 'hard_circumstances >=1 (actual=0)' into plain-English bullets.
+    """
+    out: list[str] = []
+    for m in missing or []:
+        # match patterns like: "key >=1 (actual=0)" or "key ==0 (actual=1)"
+        # keep it very defensive: if it doesn't parse, just show a safer generic bullet
+        mm = (m or "").strip()
+        if not mm:
+            continue
+
+        # key is first token
+        key = mm.split(" ", 1)[0].strip()
+        label = _BUCKET_LABELS.get(key)
+
+        if label:
+            if key in ("prohibited_phrases", "negative_indicators"):
+                out.append("Remove wording that implies certainty/guarantees or otherwise breaches this control.")
+            elif key in ("warning_clusters",):
+                out.append("Add the standard warning alongside any past performance references.")
+            else:
+                out.append(f"Add {label} so this control is evidenced.")
+        else:
+            # unknown key — avoid showing the raw expression
+            out.append("Add clearer wording/evidence so this control is evidenced in the report.")
+
+    # de-dupe while preserving order
+    seen = set()
+    deduped: list[str] = []
+    for x in out:
+        if x not in seen:
+            deduped.append(x)
+            seen.add(x)
+    return deduped
 
 # ---------------------------------
 # RULE EVALUATION
 # ---------------------------------
 
 def evaluate_rule(rule: Dict[str, Any], text: str, context: Dict[str, Any]) -> Dict[str, Any]:
-    if not applies(rule.get("applies_when") or {}, context):
+    rule_id = rule.get("id", "") or ""
+
+    def _pack(
+        *,
+        status: str,
+        why: str,
+        counts: Dict[str, int],
+        evidence: List[str],
+        evidence_by_key: Dict[str, List[str]],
+        missing: List[str],
+        details: List[str],
+    ) -> Dict[str, Any]:
+        fixes: List[str] = []
+        suggested_wording: List[str] = []
+
+        if status != "OK":
+            fixes = list(RULE_FIXES.get(rule_id, []))
+            if not fixes:
+                fixes = _humanise_missing(missing)
+            if not fixes:
+                fixes = ["Add clear wording/evidence so this control is evidenced in the report."]
+
+            suggested_wording = list(RULE_SUGGESTED_WORDING.get(rule_id, []))
+
         return {
-            "status": "NOT_ASSESSED",
-            "why": "Rule not applicable for current context.",
-            "counts": {},
-            "evidence": [],
-            "evidence_by_key": {},
-            "missing": [],
-            "details": [],
+            "status": status,
+            "why": why,
+            "counts": counts,
+            "evidence": evidence[:6],
+            "evidence_by_key": evidence_by_key,
+            "missing": missing,
+            "details": details,
+            "fixes": fixes,
+            "suggested_wording": suggested_wording,
         }
+
+    # -----------------------------
+    # Applicability
+    # -----------------------------
+    if not applies(rule.get("applies_when") or {}, context):
+        return _pack(
+            status="NOT_ASSESSED",
+            why="Rule not applicable for current context.",
+            counts={},
+            evidence=[],
+            evidence_by_key={},
+            missing=[],
+            details=[],
+        )
 
     sentences = split_sentences(text)
     evidence_spec = rule.get("evidence") or {}
@@ -300,7 +504,6 @@ def evaluate_rule(rule: Dict[str, Any], text: str, context: Dict[str, Any]) -> D
     # Counts + evidence mapping
     counts: Dict[str, int] = {}
     evidence_by_key: Dict[str, List[str]] = {}
-    matched_phrases_all = set()
 
     # global evidence (for your table summary)
     evidence_sentences: List[str] = []
@@ -314,30 +517,29 @@ def evaluate_rule(rule: Dict[str, Any], text: str, context: Dict[str, Any]) -> D
                 evidence_sentences.append(s)
                 evidence_seen.add(s)
 
+    # -----------------------------
     # 1) Build counts per evidence bucket
+    # -----------------------------
     if isinstance(evidence_spec, dict):
         for key, spec in evidence_spec.items():
-            # "bad language" keys: ignore matches if negated
+            # “bad language” keys: ignore matches if negated
             allow_if_negated = True
             if key in ("negative_indicators", "prohibited_phrases", "must_not_contain"):
                 allow_if_negated = False
 
             if key.endswith("_clusters"):
-                # IMPORTANT: cluster count is satisfied clusters, not phrase hits
-                satisfied_n, phrases, ev, _by_cluster = cluster_hits(
+                # cluster count = satisfied clusters (ANY phrase in cluster)
+                satisfied_n, _phrases, ev, _by_cluster = cluster_hits(
                     sentences,
                     spec,
-                    allow_if_negated=True,   # clusters treated as positive signals
+                    allow_if_negated=True,  # clusters treated as positive signals
                     max_evidence=6,
                 )
                 counts[key] = satisfied_n
                 evidence_by_key[key] = ev
-                for p in phrases:
-                    matched_phrases_all.add(p)
                 _merge_global(ev, cap=6)
-
             else:
-                hit_n, phrases, ev, _pairs = phrase_hits(
+                hit_n, _phrases, ev, _pairs = phrase_hits(
                     sentences,
                     spec,
                     allow_if_negated=allow_if_negated,
@@ -345,35 +547,31 @@ def evaluate_rule(rule: Dict[str, Any], text: str, context: Dict[str, Any]) -> D
                 )
                 counts[key] = hit_n
                 evidence_by_key[key] = ev
-                for p in phrases:
-                    matched_phrases_all.add(p)
                 _merge_global(ev, cap=6)
     else:
-        # broken YAML -> treat as no evidence
         evidence_spec = {}
         counts = {}
         evidence_by_key = {}
 
-    # 2) Special-case: allow_negations override for prohibited phrases (stops false flags)
-    # If a prohibited phrase is only present alongside an allowed negation phrase, don't treat it as prohibited.
-    # Example: "There are no guaranteed returns" should NOT be flagged.
-    if "prohibited_phrases" in counts and counts.get("prohibited_phrases", 0) > 0:
-        if counts.get("allowed_negations", 0) > 0:
-            # neutralise prohibited hits
-            counts["prohibited_phrases"] = 0
+    # -----------------------------
+    # 2) Special-case: allow_negations override for prohibited phrases
+    # -----------------------------
+    if counts.get("prohibited_phrases", 0) > 0 and counts.get("allowed_negations", 0) > 0:
+        counts["prohibited_phrases"] = 0
 
-    # 3) Decision logic evaluation (supports your v2 YAML)
-    # v1 philosophy: NO AUTO-PASS. If decision logic missing/empty -> POTENTIAL_ISSUE.
+    # -----------------------------
+    # 3) Decision logic evaluation
+    # -----------------------------
     if not isinstance(decision, dict) or len(decision.keys()) == 0:
-        return {
-            "status": "POTENTIAL_ISSUE",
-            "why": "No decision_logic provided (cannot auto-pass).",
-            "counts": counts,
-            "evidence": evidence_sentences[:6],
-            "evidence_by_key": evidence_by_key,
-            "missing": ["decision_logic missing"],
-            "details": [],
-        }
+        return _pack(
+            status="POTENTIAL_ISSUE",
+            why="No decision_logic provided (cannot auto-pass).",
+            counts=counts,
+            evidence=evidence_sentences,
+            evidence_by_key=evidence_by_key,
+            missing=["decision_logic missing"],
+            details=[],
+        )
 
     require_all = decision.get("require_all")
     require_none = decision.get("require_none")
@@ -383,58 +581,50 @@ def evaluate_rule(rule: Dict[str, Any], text: str, context: Dict[str, Any]) -> D
     ok_none, missing_none, details_none = _eval_require_block(counts, require_none, block_name="require_none")
     ok_allow, missing_allow, details_allow = _eval_require_block(counts, allow_if_present, block_name="allow_if_present")
 
-    # Semantics:
-    # - require_all: must pass
-    # - require_none: must pass (typically "==0" or "<=0")
-    # - allow_if_present: doesn't make things OK by itself; it only *adds context* (and for the COBS4 guarantee rule,
-    #   we already neutralised prohibited_phrases when allowed_negations present).
-    missing: List[str] = []
     details: List[str] = []
-
     details.extend(details_all)
     details.extend(details_none)
     details.extend(details_allow)
 
+    missing: List[str] = []
     if not ok_all:
         missing.extend(missing_all)
     if not ok_none:
         missing.extend(missing_none)
+    # allow_if_present is informational, not pass/fail (kept in details only)
 
     # Strict: if no indicators matched at all, always PI (absence != compliance)
     total_hits = sum(int(v) for v in counts.values())
     if total_hits == 0:
-        return {
-            "status": "POTENTIAL_ISSUE",
-            "why": "No indicators matched for this rule (no evidence).",
-            "counts": counts,
-            "evidence": [],
-            "evidence_by_key": evidence_by_key,
-            "missing": ["All required signals (none matched)"],
-            "details": [],
-        }
+        return _pack(
+            status="POTENTIAL_ISSUE",
+            why="No supporting wording found in the report.",
+            counts=counts,
+            evidence=[],
+            evidence_by_key=evidence_by_key,
+            missing=["All required signals (none matched)"],
+            details=[],
+        )
 
-    # OK only if require_all and require_none (if present) are satisfied
     status = "OK" if (ok_all and ok_none) else "POTENTIAL_ISSUE"
 
-    if status == "OK":
-        # still enforce: must have evidence
-        if len(evidence_sentences) == 0:
-            status = "POTENTIAL_ISSUE"
-            missing.append("No evidence sentences (cannot assert OK).")
-            details.append("Downgraded: decision passed but evidence list empty.")
+    # still enforce: must have evidence if OK
+    if status == "OK" and len(evidence_sentences) == 0:
+        status = "POTENTIAL_ISSUE"
+        missing.append("No evidence sentences (cannot assert OK).")
+        details.append("Downgraded: decision passed but evidence list empty.")
 
     why = "OK" if status == "OK" else "Conditions not met."
 
-    return {
-        "status": status,
-        "why": why,
-        "counts": counts,
-        "evidence": evidence_sentences[:6],
-        "evidence_by_key": evidence_by_key,
-        "missing": missing,
-        "details": details,
-    }
-
+    return _pack(
+        status=status,
+        why=why,
+        counts=counts,
+        evidence=evidence_sentences,
+        evidence_by_key=evidence_by_key,
+        missing=missing,
+        details=details,
+    )
 
 # ---------------------------------
 # RULESET LOAD (ENV OVERRIDE + FALLBACK)
@@ -503,6 +693,8 @@ def run_rules_engine(
             "details": outcome.get("details", []),
             "evidence": outcome.get("evidence", []),
             "evidence_by_key": outcome.get("evidence_by_key", {}),
+            "fixes": outcome.get("fixes", []),
+            "suggested_wording": outcome.get("suggested_wording", []),
         })
 
     # stable ordering
