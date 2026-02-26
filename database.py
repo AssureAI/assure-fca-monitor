@@ -26,13 +26,14 @@ from sqlalchemy.orm import (
     relationship,
 )
 
-# -------------------------------------------------------------------
-# DATABASE CONFIG
-# -------------------------------------------------------------------
 DB_URL = os.environ.get("ASSURE_DB_URL")
 DB_PATH = os.environ.get("ASSURE_DB_PATH", "./assure.db")
 
-if not DB_URL:
+if DB_URL:
+    # Render often provides postgres:// but SQLAlchemy expects postgresql://
+    if DB_URL.startswith("postgres://"):
+        DB_URL = DB_URL.replace("postgres://", "postgresql://", 1)
+else:
     if DB_PATH.startswith("sqlite:"):
         DB_URL = DB_PATH
     else:
@@ -61,9 +62,6 @@ def utc_now() -> datetime:
     return datetime.now(timezone.utc).replace(microsecond=0)
 
 
-# -------------------------------------------------------------------
-# SECURITY HELPERS (NO EXTRA DEPENDENCIES)
-# -------------------------------------------------------------------
 _PBKDF2_ITERATIONS = int(os.environ.get("ASSURE_PBKDF2_ITERATIONS", "210000"))
 
 
@@ -101,10 +99,6 @@ def verify_password(password: str, password_hash: str) -> bool:
 def new_token(nbytes: int = 32) -> str:
     return secrets.token_urlsafe(nbytes)
 
-
-# -------------------------------------------------------------------
-# MODELS
-# -------------------------------------------------------------------
 
 class Firm(Base):
     __tablename__ = "firms"
@@ -147,7 +141,7 @@ class Session(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
-    user: Mapped["User"]] = relationship("User", back_populates="sessions")
+    user: Mapped["User"] = relationship("User", back_populates="sessions")
 
 
 class Run(Base):
@@ -157,7 +151,9 @@ class Run(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now, index=True)
 
     firm_id: Mapped[int] = mapped_column(Integer, ForeignKey("firms.id", ondelete="CASCADE"), nullable=False, index=True)
-    user_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    user_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
 
     ruleset_id: Mapped[str] = mapped_column(String(200), nullable=False)
     ruleset_version: Mapped[str] = mapped_column(String(50), nullable=False)
@@ -170,7 +166,6 @@ class Run(Base):
     sr_hash: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     sr_len: Mapped[int] = mapped_column(Integer, nullable=False)
 
-    # MI / reporting fields (stored at write-time so MI queries are cheap)
     ok_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     pi_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     na_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
@@ -179,7 +174,7 @@ class Run(Base):
     summary_json: Mapped[str] = mapped_column(Text, nullable=False)
     sections_json: Mapped[str] = mapped_column(Text, nullable=False)
 
-    firm: Mapped["Firm"]] = relationship("Firm", back_populates="runs")
+    firm: Mapped["Firm"] = relationship("Firm", back_populates="runs")
     user: Mapped[Optional["User"]] = relationship("User", back_populates="runs")
 
     @staticmethod
@@ -192,10 +187,6 @@ Index("ix_runs_firm_srhash", Run.firm_id, Run.sr_hash)
 Index("ix_runs_firm_user_created", Run.firm_id, Run.user_id, Run.created_at)
 Index("ix_runs_firm_user_completeness", Run.firm_id, Run.user_id, Run.completeness_pct)
 
-
-# -------------------------------------------------------------------
-# SESSION CREATION / VALIDATION HELPERS
-# -------------------------------------------------------------------
 
 _DEFAULT_SESSION_DAYS = int(os.environ.get("ASSURE_SESSION_DAYS", "14"))
 
@@ -233,10 +224,6 @@ def get_user_by_session_token(db, token: str) -> Optional[User]:
         return None
     return u
 
-
-# -------------------------------------------------------------------
-# INIT
-# -------------------------------------------------------------------
 
 def init_db() -> None:
     Base.metadata.create_all(bind=engine)
