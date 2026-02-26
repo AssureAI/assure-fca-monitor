@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Assure – Results</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+body {
+  margin: 0;
+  background: #0F172A;
+  color: #E2E8F0;
+  font-family: Inter, sans-serif;
+}
+header {
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  padding:20px 40px;
+  border-bottom:1px solid #1E293B;
+}
+.logo-row {
+  display:flex;
+  align-items:center;
+  gap:14px;
+}
+.logo-row span {
+  font-size:18px;
+  color:#94A3B8;
+}
+.container {
+  max-width:1000px;
+  margin:40px auto;
+  padding:0 20px;
+}
+.summary {
+  background:#111827;
+  padding:24px;
+  border-radius:14px;
+  margin-bottom:30px;
+}
+.badge-ok { color:#22C55E; }
+.badge-warn { color:#F59E0B; }
+.section {
+  background:#111827;
+  padding:20px;
+  border-radius:12px;
+  margin-bottom:20px;
+}
+.suggestion {
+  background:#1E293B;
+  padding:16px;
+  border-radius:8px;
+  margin-top:14px;
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo-row">
+    <img src="/static/logo-dark.svg" width="160"/>
+    <span>Demo</span>
+  </div>
+  <div>
+    <a href="/demo" style="color:#94A3B8;text-decoration:none;">New check</a>
+  </div>
+</header>
+
+<div class="container">
+
+  {% set summary = result.summary %}
+  <div class="summary">
+    {% if summary.potential_issue == 0 %}
+      <h2 class="badge-ok">✔ Ready to send</h2>
+      <p>{{ summary.ok }} controls evidenced.</p>
+    {% else %}
+      <h2 class="badge-warn">⚠ {{ summary.potential_issue }} item to review</h2>
+      <p>{{ summary.ok }} controls evidenced.</p>
+    {% endif %}
+  </div>
+
+  {% for section, rules in result.sections.items() %}
+    {% for r in rules %}
+      {% if r.status == "POTENTIAL_ISSUE" %}
+        <div class="section">
+          <h3>{{ r.title }}</h3>
+          <p><strong>Citation:</strong> {{ r.citation }}</p>
+
+          <p><strong>Control gap identified</strong></p>
+          <p>{{ r.why }}</p>
+
+          {% if r.evidence and r.evidence|length > 0 %}
+            <p><strong>Supporting excerpts</strong></p>
+            <ul>
+              {% for e in r.evidence %}
+                <li>{{ e }}</li>
+              {% endfor %}
+            </ul>
+          {% endif %}
+
+          <div class="suggestion">
+            <strong>Suggested wording</strong>
+            <p>
+              {% if r.rule_id == "COBS4_PAST_PERF" %}
+                “Past performance is not a reliable indicator of future performance.”
+              {% elif r.rule_id == "COBS4_NO_GUAR_IMPLIED" %}
+                “Investment returns are not guaranteed and capital is at risk.”
+              {% else %}
+                Consider including clear language to evidence this control in line with {{ r.citation }}.
+              {% endif %}
+            </p>
+          </div>
+        </div>
+      {% endif %}
+    {% endfor %}
+  {% endfor %}
+
+</div>
+</body>
+</html>
