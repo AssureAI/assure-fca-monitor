@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Assure – Demo</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body {
+      margin: 0;
+      background: #0F172A;
+      color: #E2E8F0;
+      font-family: Inter, sans-serif;
+    }
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 20px 40px;
+      border-bottom: 1px solid #1E293B;
+    }
+    .logo-row {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .logo-row span {
+      font-weight: 500;
+      font-size: 18px;
+      color: #94A3B8;
+    }
+    .container {
+      max-width: 900px;
+      margin: 40px auto;
+      padding: 0 20px;
+    }
+    textarea {
+      width: 100%;
+      height: 320px;
+      background: #111827;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      padding: 16px;
+      color: #E2E8F0;
+      font-size: 14px;
+    }
+    select {
+      background: #111827;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 10px;
+      color: #E2E8F0;
+    }
+    .row {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+    button {
+      margin-top: 20px;
+      padding: 12px 20px;
+      border-radius: 8px;
+      border: none;
+      background: #2563EB;
+      color: white;
+      font-weight: 600;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="logo-row">
+      <img src="/static/logo-dark.svg" width="160"/>
+      <span>Demo</span>
+    </div>
+    <div><a href="/logout" style="color:#94A3B8;text-decoration:none;">Logout</a></div>
+  </header>
+
+  <div class="container">
+    <h2>Check suitability report</h2>
+
+    <form method="post" action="/demo/run">
+      <div class="row">
+        <select name="advice_type">
+          <option value="advised">Advised</option>
+          <option value="nonadvised">Non-advised</option>
+          <option value="execution_only">Execution only</option>
+        </select>
+
+        <select name="investment_element">
+          <option value="true">Investment element: Yes</option>
+          <option value="false">Investment element: No</option>
+        </select>
+
+        <select name="ongoing_service">
+          <option value="false">Ongoing service: No</option>
+          <option value="true">Ongoing service: Yes</option>
+        </select>
+      </div>
+
+      <textarea name="sr_text" placeholder="Paste suitability report text here..."></textarea>
+
+      <button type="submit">Run check</button>
+    </form>
+  </div>
+</body>
+</html>
