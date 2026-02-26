@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Users</title>
+</head>
+<body>
+<h2>Firm Users</h2>
+
+<form method="post" action="/admin/users/create">
+  <input name="email" type="email" placeholder="Email" required/>
+  <input name="password" type="password" placeholder="Temporary password" required/>
+  <select name="role">
+    <option value="member">Member</option>
+    <option value="admin">Admin</option>
+  </select>
+  <button type="submit">Create user</button>
+</form>
+
+<hr/>
+
+<ul>
+  {% for u in users %}
+    <li>{{ u.email }} — {{ u.role }}</li>
+  {% endfor %}
+</ul>
+
+</body>
+</html>
