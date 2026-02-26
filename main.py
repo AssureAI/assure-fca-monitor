@@ -529,7 +529,7 @@ def manage_users(request: Request, user: User = Depends(require_user_html), db=D
         {"request": request, "users": users}
     )
 
-@app.post("/admin/users/create")
+@app.post("/admin/users/create", response_class=HTMLResponse)
 def create_user(
     request: Request,
     email: str = Form(...),
@@ -543,14 +543,24 @@ def create_user(
 
     email_clean = email.strip().lower()
 
-    # Prevent duplicate user within firm
     existing = (
         db.query(User)
         .filter(User.email == email_clean, User.firm_id == user.firm_id)
         .first()
     )
+
+    users = db.query(User).filter(User.firm_id == user.firm_id).all()
+
     if existing:
-        raise HTTPException(status_code=400, detail="User with this email already exists")
+        return templates.TemplateResponse(
+            "users.html",
+            {
+                "request": request,
+                "users": users,
+                "error": "User with this email already exists",
+            },
+            status_code=400,
+        )
 
     new_user = User(
         firm_id=user.firm_id,
@@ -563,7 +573,16 @@ def create_user(
     db.add(new_user)
     db.commit()
 
-    return RedirectResponse(url="/admin/users", status_code=303)
+    users = db.query(User).filter(User.firm_id == user.firm_id).all()
+
+    return templates.TemplateResponse(
+        "users.html",
+        {
+            "request": request,
+            "users": users,
+            "success": "User created successfully",
+        },
+    )
 
 # -----------------------------
 # HEALTH / ROOT
