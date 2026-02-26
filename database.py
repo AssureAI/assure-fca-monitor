@@ -181,23 +181,6 @@ class Run(Base):
     def dumps(obj: Dict[str, Any]) -> str:
         return json.dumps(obj, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
 
-class HandbookModule(Base):
-    __tablename__ = "handbook_modules"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-
-    firm_id: Mapped[Optional[int]] = mapped_column(
-        Integer, ForeignKey("firms.id", ondelete="CASCADE"), nullable=True, index=True
-    )
-    module: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
-    url: Mapped[str] = mapped_column(String(500), nullable=False)
-    last_updated: Mapped[str] = mapped_column(String(10), nullable=False)  # YYYY-MM-DD
-    ingested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)
-
-    firm: Mapped[Optional["Firm"]] = relationship("Firm")
-
-Index("ix_handbook_modules_firm_module", HandbookModule.firm_id, HandbookModule.module, unique=True)
-Index("ix_handbook_modules_module", HandbookModule.module)
 
 Index("ix_runs_firm_created", Run.firm_id, Run.created_at)
 Index("ix_runs_firm_srhash", Run.firm_id, Run.sr_hash)
