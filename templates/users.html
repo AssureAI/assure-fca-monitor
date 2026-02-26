@@ -7,6 +7,18 @@
 <body>
 <h2>Firm Users</h2>
 
+{% if error %}
+  <div style="color:#dc2626;margin-bottom:12px;">
+    {{ error }}
+  </div>
+{% endif %}
+
+{% if success %}
+  <div style="color:#16a34a;margin-bottom:12px;">
+    {{ success }}
+  </div>
+{% endif %}
+
 <form method="post" action="/admin/users/create">
   <input name="email" type="email" placeholder="Email" required/>
   <input name="password" type="password" placeholder="Temporary password" required/>
