@@ -193,15 +193,23 @@
           <div class="label">What to fix</div>
           <div>{{ item.issue_summary }}</div>
 
-          {% if item.evidence and item.evidence|length > 0 %}
-            <div class="label">Supporting excerpts</div>
-            <div class="evidence">
+          {% if r.fixes and r.fixes|length > 0 %}
+            <ul>
+              {% for f in r.fixes %}
+                <li>{{ f }}</li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            {# fallback only if fixes missing for any reason #}
+            {% if r.missing and r.missing|length > 0 %}
               <ul>
-                {% for e in item.evidence %}
-                  <li>{{ e }}</li>
+                {% for m in r.missing %}
+                  <li>{{ m }}</li>
                 {% endfor %}
               </ul>
-            </div>
+            {% else %}
+              <p>No changes suggested.</p>
+            {% endif %}
           {% endif %}
 
           <div class="label">Suggested wording / next step</div>
