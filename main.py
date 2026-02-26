@@ -1,16 +1,32 @@
-from fastapi import FastAPI, Request, Form, HTTPException
-from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
+from __future__ import annotations
+
+import os
+import json
+import uuid
+import hashlib
+from typing import Dict, Optional, Any
+
+from fastapi import FastAPI, Request, Form, HTTPException, Depends
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, PlainTextResponse
 from starlette.templating import Jinja2Templates
 
 from pydantic import BaseModel
-from typing import Dict, Optional, Any
 from datetime import datetime, timezone
-import os
-import json
-import sqlite3
-import uuid
 
 from executor import run_rules_engine
+
+from database import (
+    SessionLocal,
+    init_db,
+    Firm,
+    User,
+    Run,
+    hash_password,
+    verify_password,
+    create_session,
+    delete_session,
+    get_user_by_session_token,
+)
 
 # -----------------------------
 # APP
@@ -19,102 +35,123 @@ from executor import run_rules_engine
 app = FastAPI(title="Assure Deterministic Compliance Engine")
 templates = Jinja2Templates(directory="templates")
 
-RULES_PATH = os.environ.get("RULES_PATH", "rules/cobs-suitability-v1.yaml")
-DB_PATH = os.environ.get("ASSURE_DB_PATH", "assure.db")
+RULES_PATH = os.environ.get("RULES_PATH", "rules/cobs-mvp-v2.yaml")
+
+# Cookie name for sessions
+SESSION_COOKIE = os.environ.get("ASSURE_SESSION_COOKIE", "assure_session")
+
+# If you deploy behind HTTPS (Render), keep secure cookies on.
+COOKIE_SECURE = os.environ.get("ASSURE_COOKIE_SECURE", "true").lower() == "true"
+
+# Bootstrap (first admin user)
+BOOTSTRAP_EMAIL = os.environ.get("ASSURE_BOOTSTRAP_EMAIL", "").strip().lower()
+BOOTSTRAP_PASSWORD = os.environ.get("ASSURE_BOOTSTRAP_PASSWORD", "")
+BOOTSTRAP_FIRM = os.environ.get("ASSURE_BOOTSTRAP_FIRM", "Demo Firm")
+
+# Used to sign/validate sensitive flows later; for now it’s a “must set”.
+APP_SECRET = os.environ.get("ASSURE_APP_SECRET", "")
+
+if not APP_SECRET:
+    # Don’t hard fail import-time in local dev; we’ll enforce at startup.
+    pass
+
 
 # -----------------------------
-# DB
+# DB DEPENDENCY
 # -----------------------------
 
-def db() -> sqlite3.Connection:
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
-def init_db():
-    with db() as conn:
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS runs (
-              id TEXT PRIMARY KEY,
-              created_at TEXT NOT NULL,
-              context_json TEXT NOT NULL,
-              summary_json TEXT NOT NULL,
-              sections_json TEXT NOT NULL,
-              ruleset_id TEXT,
-              ruleset_version TEXT,
-              checked_at TEXT
-            )
-            """
-        )
-        conn.commit()
 
-@app.on_event("startup")
-def _startup():
-    init_db()
+# -----------------------------
+# AUTH HELPERS
+# -----------------------------
 
 def utc_now_iso() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
-def save_run(result: Dict[str, Any], context: Dict[str, Any]) -> str:
-    run_id = str(uuid.uuid4())
-    with db() as conn:
-        conn.execute(
-            """
-            INSERT INTO runs
-              (id, created_at, context_json, summary_json, sections_json, ruleset_id, ruleset_version, checked_at)
-            VALUES
-              (?,  ?,          ?,           ?,            ?,            ?,         ?,              ?)
-            """,
-            (
-                run_id,
-                utc_now_iso(),
-                json.dumps(context),
-                json.dumps(result.get("summary", {})),
-                json.dumps(result.get("sections", {})),
-                result.get("ruleset_id"),
-                result.get("ruleset_version"),
-                result.get("checked_at"),
-            ),
-        )
-        conn.commit()
-    return run_id
 
-def list_runs(limit: int = 50):
-    with db() as conn:
-        rows = conn.execute(
-            "SELECT id, created_at, ruleset_id, ruleset_version, checked_at, summary_json FROM runs ORDER BY created_at DESC LIMIT ?",
-            (limit,),
-        ).fetchall()
-    out = []
-    for r in rows:
-        out.append(
-            {
-                "id": r["id"],
-                "created_at": r["created_at"],
-                "ruleset_id": r["ruleset_id"],
-                "ruleset_version": r["ruleset_version"],
-                "checked_at": r["checked_at"],
-                "summary": json.loads(r["summary_json"] or "{}"),
-            }
-        )
-    return out
+def get_session_token_from_request(request: Request) -> str:
+    return request.cookies.get(SESSION_COOKIE, "")
 
-def get_run(run_id: str):
-    with db() as conn:
-        row = conn.execute("SELECT * FROM runs WHERE id = ?", (run_id,)).fetchone()
-    if not row:
-        return None
-    return {
-        "id": row["id"],
-        "created_at": row["created_at"],
-        "ruleset_id": row["ruleset_id"],
-        "ruleset_version": row["ruleset_version"],
-        "checked_at": row["checked_at"],
-        "context": json.loads(row["context_json"] or "{}"),
-        "summary": json.loads(row["summary_json"] or "{}"),
-        "sections": json.loads(row["sections_json"] or "{}"),
-    }
+
+def require_user(request: Request, db=Depends(get_db)) -> User:
+    token = get_session_token_from_request(request)
+    user = get_user_by_session_token(db, token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    return user
+
+
+def require_user_html(request: Request, db=Depends(get_db)) -> User:
+    token = get_session_token_from_request(request)
+    user = get_user_by_session_token(db, token)
+    if not user:
+        # Redirect for browser pages
+        raise HTTPException(status_code=401, detail="LOGIN_REQUIRED")
+    return user
+
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    # Special-case our HTML auth redirect
+    if exc.status_code == 401 and exc.detail == "LOGIN_REQUIRED":
+        return RedirectResponse(url="/login", status_code=303)
+    return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
+
+
+# -----------------------------
+# BOOTSTRAP
+# -----------------------------
+
+def ensure_bootstrap_admin(db) -> None:
+    """
+    Ensures there is at least one firm + admin user.
+    Controlled by ASSURE_BOOTSTRAP_* env vars.
+    """
+    if not APP_SECRET:
+        raise RuntimeError("ASSURE_APP_SECRET must be set in environment.")
+
+    # If any user exists, we assume bootstrap already done.
+    existing = db.query(User).first()
+    if existing:
+        return
+
+    if not BOOTSTRAP_EMAIL or not BOOTSTRAP_PASSWORD:
+        raise RuntimeError(
+            "No users exist yet. Set ASSURE_BOOTSTRAP_EMAIL and ASSURE_BOOTSTRAP_PASSWORD to create the first admin."
+        )
+
+    firm = Firm(name=BOOTSTRAP_FIRM)
+    db.add(firm)
+    db.commit()
+    db.refresh(firm)
+
+    admin = User(
+        firm_id=firm.id,
+        email=BOOTSTRAP_EMAIL,
+        password_hash=hash_password(BOOTSTRAP_PASSWORD),
+        role="admin",
+        is_active=1,
+    )
+    db.add(admin)
+    db.commit()
+
+
+@app.on_event("startup")
+def _startup():
+    init_db()
+    db = SessionLocal()
+    try:
+        ensure_bootstrap_admin(db)
+    finally:
+        db.close()
+
 
 # -----------------------------
 # API MODEL
@@ -126,12 +163,17 @@ class CheckRequest(BaseModel):
     investment_element: Optional[bool] = True
     ongoing_service: Optional[bool] = False
 
+
 # -----------------------------
-# CORE API
+# CORE API (AUTHED)
 # -----------------------------
 
 @app.post("/check")
-async def check(payload: CheckRequest):
+async def check(payload: CheckRequest, request: Request, db=Depends(get_db)):
+    user = get_user_by_session_token(db, get_session_token_from_request(request))
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
     context: Dict[str, object] = {
         "advice_type": payload.advice_type,
         "investment_element": bool(payload.investment_element),
@@ -144,14 +186,108 @@ async def check(payload: CheckRequest):
         rules_path=RULES_PATH,
     )
 
-    return JSONResponse(result)
+    # Persist firm-scoped run
+    run_id = str(uuid.uuid4())
+    sr_text = payload.document_text or ""
+    sr_hash = hashlib.sha256(sr_text.encode("utf-8")).hexdigest()
+    r = Run(
+        id=run_id,
+        firm_id=user.firm_id,
+        user_id=user.id,
+        ruleset_id=result.get("ruleset_id") or "",
+        ruleset_version=result.get("ruleset_version") or "",
+        checked_at=result.get("checked_at") or utc_now_iso(),
+        advice_type=str(context["advice_type"]),
+        investment_element="true" if bool(context["investment_element"]) else "false",
+        ongoing_service="true" if bool(context["ongoing_service"]) else "false",
+        sr_hash=sr_hash,
+        sr_len=len(sr_text),
+        summary_json=json.dumps(result.get("summary", {}), ensure_ascii=False),
+        sections_json=json.dumps(result.get("sections", {}), ensure_ascii=False),
+    )
+    db.add(r)
+    db.commit()
+
+    # Return result + run_id so UI can link to it later
+    result_out = dict(result)
+    result_out["run_id"] = run_id
+    return JSONResponse(result_out)
+
 
 # -----------------------------
-# ADMIN UI
+# LOGIN / LOGOUT (HTML)
+# -----------------------------
+
+@app.get("/login", response_class=HTMLResponse)
+def login_get(request: Request):
+    # If you have a template, use it. If not, this still works.
+    try:
+        return templates.TemplateResponse("login.html", {"request": request, "error": None})
+    except Exception:
+        html = """
+        <html><body style="font-family:system-ui;max-width:520px;margin:40px auto;">
+          <h2>Login</h2>
+          <form method="post">
+            <label>Email</label><br/>
+            <input name="email" type="email" style="width:100%;padding:8px" /><br/><br/>
+            <label>Password</label><br/>
+            <input name="password" type="password" style="width:100%;padding:8px" /><br/><br/>
+            <button style="padding:10px 14px">Login</button>
+          </form>
+        </body></html>
+        """
+        return HTMLResponse(html)
+
+
+@app.post("/login", response_class=HTMLResponse)
+def login_post(
+    request: Request,
+    email: str = Form(...),
+    password: str = Form(...),
+    db=Depends(get_db),
+):
+    email_n = (email or "").strip().lower()
+    user = db.query(User).filter(User.email == email_n).first()
+    if not user or not user.is_active or not verify_password(password or "", user.password_hash):
+        # Template if exists, else fallback HTML
+        try:
+            return templates.TemplateResponse("login.html", {"request": request, "error": "Invalid credentials"})
+        except Exception:
+            return HTMLResponse("<h3>Invalid credentials</h3><a href='/login'>Try again</a>", status_code=401)
+
+    token = create_session(db, user.id)
+    user.last_login_at = datetime.now(timezone.utc).replace(microsecond=0)
+    db.commit()
+
+    resp = RedirectResponse(url="/admin/test", status_code=303)
+    resp.set_cookie(
+        key=SESSION_COOKIE,
+        value=token,
+        httponly=True,
+        secure=COOKIE_SECURE,
+        samesite="lax",
+        max_age=60 * 60 * 24 * 14,
+        path="/",
+    )
+    return resp
+
+
+@app.post("/logout")
+def logout(request: Request, db=Depends(get_db)):
+    token = get_session_token_from_request(request)
+    if token:
+        delete_session(db, token)
+    resp = RedirectResponse(url="/login", status_code=303)
+    resp.delete_cookie(SESSION_COOKIE, path="/")
+    return resp
+
+
+# -----------------------------
+# ADMIN UI (AUTHED)
 # -----------------------------
 
 @app.get("/admin/test", response_class=HTMLResponse)
-def admin_test_get(request: Request):
+def admin_test_get(request: Request, user: User = Depends(require_user_html)):
     return templates.TemplateResponse(
         "admin_test.html",
         {
@@ -163,8 +299,11 @@ def admin_test_get(request: Request):
             "sr_text": "",
             "result_json": None,
             "run_id": None,
+            "user_email": user.email,
+            "firm_id": user.firm_id,
         },
     )
+
 
 @app.post("/admin/test", response_class=HTMLResponse)
 async def admin_test_post(
@@ -173,6 +312,8 @@ async def admin_test_post(
     investment_element: str = Form("true"),
     ongoing_service: str = Form("false"),
     sr_text: str = Form(""),
+    user: User = Depends(require_user_html),
+    db=Depends(get_db),
 ):
     ctx = {
         "advice_type": advice_type,
@@ -186,8 +327,27 @@ async def admin_test_post(
         rules_path=RULES_PATH,
     )
 
-    # persist run
-    run_id = save_run(result, ctx)
+    run_id = str(uuid.uuid4())
+    text = sr_text or ""
+    sr_hash = hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+    r = Run(
+        id=run_id,
+        firm_id=user.firm_id,
+        user_id=user.id,
+        ruleset_id=result.get("ruleset_id") or "",
+        ruleset_version=result.get("ruleset_version") or "",
+        checked_at=result.get("checked_at") or utc_now_iso(),
+        advice_type=advice_type,
+        investment_element="true" if ctx["investment_element"] else "false",
+        ongoing_service="true" if ctx["ongoing_service"] else "false",
+        sr_hash=sr_hash,
+        sr_len=len(text),
+        summary_json=json.dumps(result.get("summary", {}), ensure_ascii=False),
+        sections_json=json.dumps(result.get("sections", {}), ensure_ascii=False),
+    )
+    db.add(r)
+    db.commit()
 
     return templates.TemplateResponse(
         "admin_test.html",
@@ -200,30 +360,67 @@ async def admin_test_post(
             "investment_element": investment_element,
             "ongoing_service": ongoing_service,
             "sr_text": sr_text,
+            "user_email": user.email,
+            "firm_id": user.firm_id,
         },
     )
 
-# -----------------------------
-# RUN HISTORY (THIS FIXES YOUR 404)
-# -----------------------------
 
 @app.get("/admin/runs", response_class=HTMLResponse)
-def admin_runs(request: Request):
-    runs = list_runs(limit=100)
-    return templates.TemplateResponse(
-        "runs.html",
-        {"request": request, "runs": runs},
+def admin_runs(request: Request, user: User = Depends(require_user_html), db=Depends(get_db)):
+    rows = (
+        db.query(Run)
+        .filter(Run.firm_id == user.firm_id)
+        .order_by(Run.created_at.desc())
+        .limit(200)
+        .all()
     )
 
+    runs = []
+    for r in rows:
+        runs.append(
+            {
+                "id": r.id,
+                "created_at": r.created_at.isoformat() if r.created_at else "",
+                "ruleset_id": r.ruleset_id,
+                "ruleset_version": r.ruleset_version,
+                "checked_at": r.checked_at,
+                "summary": json.loads(r.summary_json or "{}"),
+            }
+        )
+
+    return templates.TemplateResponse(
+        "runs.html",
+        {"request": request, "runs": runs, "user_email": user.email, "firm_id": user.firm_id},
+    )
+
+
 @app.get("/admin/runs/{run_id}", response_class=HTMLResponse)
-def admin_run_detail(request: Request, run_id: str):
-    run = get_run(run_id)
-    if not run:
+def admin_run_detail(request: Request, run_id: str, user: User = Depends(require_user_html), db=Depends(get_db)):
+    r = db.query(Run).filter(Run.id == run_id, Run.firm_id == user.firm_id).first()
+    if not r:
         raise HTTPException(status_code=404, detail="Run not found")
+
+    run = {
+        "id": r.id,
+        "created_at": r.created_at.isoformat() if r.created_at else "",
+        "ruleset_id": r.ruleset_id,
+        "ruleset_version": r.ruleset_version,
+        "checked_at": r.checked_at,
+        "summary": json.loads(r.summary_json or "{}"),
+        "sections": json.loads(r.sections_json or "{}"),
+        "advice_type": r.advice_type,
+        "investment_element": r.investment_element,
+        "ongoing_service": r.ongoing_service,
+        "sr_hash": r.sr_hash,
+        "sr_len": r.sr_len,
+    }
+
     return templates.TemplateResponse(
         "run_detail.html",
-        {"request": request, "run": run},
+        {"request": request, "run": run, "user_email": user.email, "firm_id": user.firm_id},
     )
+
 
 # -----------------------------
 # HEALTH
@@ -231,4 +428,13 @@ def admin_run_detail(request: Request, run_id: str):
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "rules_path": RULES_PATH}
+    return {
+        "status": "ok",
+        "rules_path": RULES_PATH,
+    }
+
+
+# Optional: make "/" not 404 so Render health checks look nicer
+@app.get("/", response_class=PlainTextResponse)
+def root():
+    return "Assure is running. Visit /login"
