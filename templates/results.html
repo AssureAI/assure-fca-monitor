@@ -241,14 +241,14 @@
 
           <div class="label">Suggested wording / next step</div>
           <div class="suggestion">
-            {% if item.suggested_wording and item.suggested_wording|length > 0 %}
+            {% if item.suggestions and item.suggestions|length > 0 %}
               <ul>
-                {% for s in item.suggested_wording %}
+                {% for s in item.suggestions %}
                   <li>{{ s }}</li>
                 {% endfor %}
               </ul>
             {% else %}
-              <div class="small">No suggested wording for this control.</div>
+              <div class="small">Update the report to clearly evidence this control, then rerun the check.</div>
             {% endif %}
           </div>
 
