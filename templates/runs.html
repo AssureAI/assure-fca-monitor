@@ -1,48 +1,177 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8"/>
-  <title>Assure – Runs</title>
+  <title>Assure – Run history</title>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <style>
-    body{font-family:system-ui,Arial;margin:20px;background:#f5f5f5}
-    .card{background:#fff;border:1px solid #ddd;border-radius:10px;padding:16px}
-    table{width:100%;border-collapse:collapse}
-    th,td{border:1px solid #ddd;padding:8px;font-size:13px;vertical-align:top}
-    th{background:#fafafa;text-align:left}
-    a{color:#2563eb;text-decoration:none}
-    a:hover{text-decoration:underline}
-    .pill{display:inline-block;padding:2px 10px;border-radius:999px;background:#eee;font-size:12px}
+    body{
+      margin:0;
+      background:#0F172A;
+      color:#E2E8F0;
+      font-family:Inter, ui-sans-serif, system-ui, sans-serif;
+    }
+    header{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      padding:18px 34px;
+      border-bottom:1px solid #1E293B;
+    }
+    .logo-row{display:flex;align-items:center;gap:14px}
+    .logo-row span{font-size:18px;color:#94A3B8}
+    .top-actions{display:flex;gap:14px;align-items:center}
+    .link{color:#94A3B8;text-decoration:none;font-size:14px}
+    .link:hover{text-decoration:underline}
+
+    .container{
+      max-width:1100px;
+      margin:30px auto;
+      padding:0 18px;
+    }
+
+    .card{
+      background:#111827;
+      border:1px solid #1F2937;
+      border-radius:16px;
+      padding:18px;
+    }
+
+    h1{margin:0 0 6px 0;font-size:20px}
+    .sub{margin:0 0 14px 0;color:#94A3B8;font-size:13px}
+
+    table{
+      width:100%;
+      border-collapse:separate;
+      border-spacing:0;
+      overflow:hidden;
+      border-radius:12px;
+      border:1px solid #1F2937;
+      background:#0B1220;
+    }
+    th,td{
+      padding:12px 12px;
+      font-size:13px;
+      border-bottom:1px solid #1F2937;
+      vertical-align:top;
+    }
+    th{
+      text-align:left;
+      color:#CBD5E1;
+      background:#0B1220;
+      font-weight:800;
+      font-size:12px;
+      letter-spacing:.02em;
+      text-transform:uppercase;
+    }
+    tr:last-child td{border-bottom:none}
+
+    .pill{
+      display:inline-block;
+      padding:4px 10px;
+      border-radius:999px;
+      font-size:12px;
+      border:1px solid #334155;
+      background:#0F172A;
+      color:#CBD5E1;
+      margin-right:6px;
+      margin-bottom:6px;
+      white-space:nowrap;
+    }
+    .ok{border-color:rgba(34,197,94,.35); color:#86EFAC}
+    .pi{border-color:rgba(245,158,11,.35); color:#FCD34D}
+    .na{border-color:rgba(148,163,184,.35); color:#CBD5E1}
+
+    .btn{
+      display:inline-block;
+      padding:10px 12px;
+      border-radius:10px;
+      border:1px solid #334155;
+      background:transparent;
+      color:#CBD5E1;
+      text-decoration:none;
+      font-weight:800;
+      font-size:13px;
+    }
+    .btn:hover{border-color:#475569}
+    .btn-primary{
+      border:none;
+      background:#2563EB;
+      color:white;
+    }
+    .btn-primary:hover{background:#1D4ED8}
+
+    .right{ text-align:right; }
+    .muted{ color:#64748B; font-size:12px; }
   </style>
 </head>
 <body>
+
+<header>
+  <div class="logo-row">
+    <img src="/static/logo-dark.svg" width="160" alt="Assure"/>
+    <span>Demo</span>
+  </div>
+
+  <div class="top-actions">
+    <a class="link" href="/demo">New check</a>
+    <a class="link" href="/logout">Logout</a>
+  </div>
+</header>
+
+<div class="container">
   <div class="card">
-    <h1 style="margin:0 0 10px 0;">Run history</h1>
-    <p><a href="/admin/test">Run a check</a></p>
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;">
+      <div>
+        <h1>Run history</h1>
+        <p class="sub">Open a past run to show exactly what was flagged and the suggested fixes.</p>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <a class="btn btn-primary" href="/demo">Run a new check</a>
+      </div>
+    </div>
+
     <table>
       <thead>
         <tr>
-          <th>Time</th>
-          <th>Ruleset</th>
-          <th>Summary</th>
-          <th>Open</th>
+          <th style="width:22%;">Time</th>
+          <th style="width:38%;">Ruleset</th>
+          <th style="width:30%;">Summary</th>
+          <th class="right" style="width:10%;">Open</th>
         </tr>
       </thead>
       <tbody>
         {% for r in runs %}
-        <tr>
-          <td>{{ r.created_at }}</td>
-          <td>{{ r.ruleset_id }} v{{ r.ruleset_version }}</td>
-          <td>
-            <span class="pill">ok: {{ r.summary.ok or 0 }}</span>
-            <span class="pill">pi: {{ r.summary.potential_issue or 0 }}</span>
-            <span class="pill">na: {{ r.summary.not_assessed or 0 }}</span>
-          </td>
-          <td><a href="/admin/runs/{{ r.id }}">View</a></td>
-        </tr>
+          {% set ok = (r.summary.ok or 0) %}
+          {% set pi = (r.summary.potential_issue or 0) %}
+          {% set na = (r.summary.not_assessed or 0) %}
+          <tr>
+            <td>
+              <div>{{ r.created_at }}</div>
+              <div class="muted">Run ID: {{ r.id }}</div>
+            </td>
+            <td>{{ r.ruleset_id }} v{{ r.ruleset_version }}</td>
+            <td>
+              <span class="pill ok">OK: {{ ok }}</span>
+              <span class="pill pi">Needs review: {{ pi }}</span>
+              <span class="pill na">Not assessed: {{ na }}</span>
+            </td>
+            <td class="right">
+              <a class="btn" href="/admin/runs/{{ r.id }}">View</a>
+            </td>
+          </tr>
         {% endfor %}
+
+        {% if not runs or runs|length == 0 %}
+          <tr>
+            <td colspan="4" class="muted">No runs saved yet. Run a check to create your first entry.</td>
+          </tr>
+        {% endif %}
       </tbody>
     </table>
+
   </div>
+</div>
+
 </body>
 </html>
