@@ -56,10 +56,16 @@
   .headline-ok { color:#22C55E; margin:0; }
   .headline-warn { color:#F59E0B; margin:0; }
 
+  .sub {
+    color:#94A3B8;
+    font-size:13px;
+    margin:8px 0 0 0;
+  }
+
   .meta {
     color:#94A3B8;
     font-size:13px;
-    margin-top:8px;
+    margin-top:12px;
     display:flex;
     gap:12px;
     flex-wrap:wrap;
@@ -92,7 +98,7 @@
     font-size:16px;
   }
 
-  .sub {
+  .issue-meta {
     color:#94A3B8;
     font-size:13px;
     margin:0 0 12px 0;
@@ -109,6 +115,7 @@
     margin: 8px 0 0 18px;
     color:#E2E8F0;
   }
+  li { margin: 6px 0; }
 
   .evidence {
     background:#0B1220;
@@ -117,7 +124,6 @@
     padding:12px;
     margin-top: 8px;
   }
-
   .evidence li { color:#CBD5E1; }
 
   .suggestion {
@@ -132,6 +138,20 @@
     color:#64748B;
     font-size:12px;
     margin-top: 10px;
+  }
+
+  .divider {
+    height:1px;
+    background:#1F2937;
+    margin:14px 0 10px 0;
+    border:0;
+  }
+
+  .empty {
+    background:#111827;
+    border:1px solid #1F2937;
+    padding:18px;
+    border-radius:14px;
   }
 </style>
 </head>
@@ -181,7 +201,8 @@
       {% for item in action_items %}
         <div class="issue">
           <h3>{{ item.title }}</h3>
-          <p class="sub">
+
+          <p class="issue-meta">
             <span>{{ item.section }}</span>
             &nbsp;·&nbsp;
             <strong>{{ item.citation }}</strong>
@@ -191,34 +212,44 @@
           </p>
 
           <div class="label">What to fix</div>
-          <div>{{ item.issue_summary }}</div>
+          {% if item.issue_summary %}
+            <div>{{ item.issue_summary }}</div>
+          {% endif %}
 
-          {% if r.fixes and r.fixes|length > 0 %}
+          {% if item.fixes and item.fixes|length > 0 %}
             <ul>
-              {% for f in r.fixes %}
+              {% for f in item.fixes %}
                 <li>{{ f }}</li>
               {% endfor %}
             </ul>
           {% else %}
-            {# fallback only if fixes missing for any reason #}
-            {% if r.missing and r.missing|length > 0 %}
+            <div class="small">No specific fix guidance available for this control yet.</div>
+          {% endif %}
+
+          {% if item.evidence and item.evidence|length > 0 %}
+            <div class="label">Supporting excerpts</div>
+            <div class="evidence">
               <ul>
-                {% for m in r.missing %}
-                  <li>{{ m }}</li>
+                {% for e in item.evidence %}
+                  <li>{{ e }}</li>
                 {% endfor %}
               </ul>
-            {% else %}
-              <p>No changes suggested.</p>
-            {% endif %}
+            </div>
           {% endif %}
+
+          <hr class="divider"/>
 
           <div class="label">Suggested wording / next step</div>
           <div class="suggestion">
-            <ul>
-              {% for s in item.suggestions %}
-                <li>{{ s }}</li>
-              {% endfor %}
-            </ul>
+            {% if item.suggested_wording and item.suggested_wording|length > 0 %}
+              <ul>
+                {% for s in item.suggested_wording %}
+                  <li>{{ s }}</li>
+                {% endfor %}
+              </ul>
+            {% else %}
+              <div class="small">No suggested wording for this control.</div>
+            {% endif %}
           </div>
 
           <div class="small">Rule ID: {{ item.rule_id }}</div>
@@ -226,9 +257,9 @@
       {% endfor %}
     </div>
   {% else %}
-    <div class="issue">
-      <h3>Nothing flagged</h3>
-      <p class="sub">This run didn’t produce any items to review.</p>
+    <div class="empty">
+      <h3 style="margin:0 0 6px 0;">Nothing flagged</h3>
+      <p class="sub" style="margin:0 0 10px 0;">This run didn’t produce any items to review.</p>
       <a class="link" href="/demo">Run another check</a>
     </div>
   {% endif %}
