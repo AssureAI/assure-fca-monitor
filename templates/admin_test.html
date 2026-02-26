@@ -6,253 +6,594 @@
   <title>Assure – Admin Test</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
-    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; margin: 20px; background: #f5f5f5; }
-    h1 { font-size: 28px; margin: 0 0 6px 0; }
-    .sub { color: #555; margin-bottom: 18px; }
-    .card { background: white; border: 1px solid #ddd; border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+    :root{
+      --bg:#0b1020;
+      --panel:#0f172a;
+      --card:#0b1226;
+      --line:#22304a;
+      --muted:#94a3b8;
+      --text:#e5e7eb;
+      --accent:#60a5fa;
+      --ok:#22c55e;
+      --pi:#f59e0b;
+      --na:#94a3b8;
+      --btn:#111827;
+      --btn2:#0b1226;
+      --chip:#111a33;
+    }
 
-    label { display:block; font-weight: 700; margin-top: 10px; }
-    select, textarea { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 8px; font-size: 14px; }
-    textarea { min-height: 220px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+    *{box-sizing:border-box}
+    body{
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+      margin: 0;
+      background: radial-gradient(1200px 600px at 20% -10%, #1d2a56 0%, transparent 60%), var(--bg);
+      color: var(--text);
+    }
 
-    button { background: #111827; color: white; border: 0; padding: 10px 14px; border-radius: 10px; font-weight: 800; cursor: pointer; margin-top: 12px; }
-    button:hover { opacity: 0.92; }
+    .wrap{max-width:1100px;margin:0 auto;padding:18px}
+    header{
+      display:flex;align-items:center;justify-content:space-between;gap:12px;
+      padding:14px 0 10px 0;
+    }
+    h1{font-size:22px;margin:0}
+    .sub{color:var(--muted);font-size:13px;margin-top:6px;line-height:1.4}
+    .toplinks{display:flex;gap:10px;flex-wrap:wrap}
+    a{color:var(--accent);text-decoration:none}
+    a:hover{text-decoration:underline}
 
-    hr { border: 0; border-top: 1px solid #ddd; margin: 18px 0; }
+    .grid{
+      display:grid;
+      grid-template-columns: 1fr;
+      gap:14px;
+    }
+    @media(min-width: 980px){
+      .grid{
+        grid-template-columns: 460px 1fr;
+        align-items:start;
+      }
+    }
 
-    .pill { display:inline-block; padding: 3px 10px; border-radius: 999px; background: #eee; font-size: 12px; margin-left: 6px; }
-    .ok { color: #0a7a2f; font-weight: 900; }
-    .pi { color: #b45309; font-weight: 900; }
-    .na { color: #6b7280; font-weight: 900; }
+    .card{
+      background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
+      border:1px solid var(--line);
+      border-radius:14px;
+      padding:14px;
+    }
 
-    table { width: 100%; border-collapse: collapse; background: white; }
-    th, td { border: 1px solid #ddd; padding: 8px; vertical-align: top; font-size: 13px; }
-    th { background: #fafafa; text-align: left; }
+    label{display:block;font-weight:800;margin-top:10px;font-size:13px;color:#cbd5e1}
+    select, textarea{
+      width:100%;
+      padding:10px;
+      border:1px solid var(--line);
+      border-radius:12px;
+      font-size:14px;
+      background: rgba(10,16,35,0.55);
+      color: var(--text);
+      outline:none;
+    }
+    textarea{
+      min-height: 290px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      line-height: 1.35;
+    }
 
-    details summary { cursor: pointer; font-weight: 800; }
-    ul { margin: 8px 0 0 18px; }
-    .muted { color: #6b7280; font-size: 12px; }
-    .why { color: #374151; font-size: 12px; margin-top: 6px; white-space: pre-wrap; }
-    .kv { display:flex; gap:10px; flex-wrap:wrap; margin-top:6px; }
-    .kv code { background:#f3f4f6; border:1px solid #e5e7eb; padding:2px 6px; border-radius:8px; font-size:12px; }
+    .row{display:flex;gap:10px;flex-wrap:wrap}
+    .row > div{flex:1;min-width:140px}
 
-    a { color: #2563eb; text-decoration: none; }
-    a:hover { text-decoration: underline; }
+    .btnbar{
+      display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;
+      position: sticky;
+      bottom: 12px;
+      padding: 10px;
+      background: rgba(11,16,32,0.75);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      backdrop-filter: blur(8px);
+    }
 
-    pre { background:#0b1020; color:#e5e7eb; padding:12px; border-radius:10px; overflow:auto; font-size:12px; }
+    button{
+      background: var(--btn);
+      color: white;
+      border: 1px solid #1f2a44;
+      padding: 10px 12px;
+      border-radius: 12px;
+      font-weight: 900;
+      cursor: pointer;
+      font-size: 13px;
+    }
+    button.secondary{background: var(--btn2); color: var(--text)}
+    button.ghost{background: transparent}
+    button:hover{opacity:0.92}
+
+    .chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+    .chip{
+      display:inline-flex;align-items:center;gap:8px;
+      padding:6px 10px;
+      border:1px solid var(--line);
+      background: var(--chip);
+      border-radius:999px;
+      font-size:12px;
+      color:#cbd5e1;
+    }
+    .dot{width:9px;height:9px;border-radius:99px;background:var(--na)}
+    .dot.ok{background:var(--ok)}
+    .dot.pi{background:var(--pi)}
+    .dot.na{background:var(--na)}
+
+    hr{border:0;border-top:1px solid var(--line);margin:14px 0}
+
+    details summary{cursor:pointer;font-weight:900}
+    .muted{color:var(--muted);font-size:12px}
+    .why{color:#cbd5e1;font-size:12px;margin-top:6px;white-space:pre-wrap}
+
+    table{width:100%;border-collapse:collapse;background: rgba(10,16,35,0.35); border-radius: 12px; overflow:hidden}
+    th, td{border-top:1px solid var(--line);padding:10px;vertical-align:top;font-size:13px}
+    th{background: rgba(255,255,255,0.03);text-align:left;color:#cbd5e1}
+    tr:first-child th{border-top:0}
+    .status{font-weight:1000}
+    .ok{color:var(--ok)}
+    .pi{color:var(--pi)}
+    .na{color:var(--na)}
+
+    pre{
+      background:#050817;
+      color:#e5e7eb;
+      padding:12px;
+      border-radius:14px;
+      overflow:auto;
+      font-size:12px;
+      border:1px solid var(--line);
+    }
+
+    .kpis{
+      display:grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap:10px;
+      margin-top:10px;
+    }
+    .kpi{
+      padding:10px;
+      border-radius:14px;
+      border:1px solid var(--line);
+      background: rgba(10,16,35,0.45);
+    }
+    .kpi .n{font-size:22px;font-weight:1000;line-height:1}
+    .kpi .l{font-size:12px;color:var(--muted);margin-top:6px}
+
+    .tinycode{
+      display:inline-block;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size:12px;
+      padding:2px 8px;
+      border-radius:999px;
+      border:1px solid var(--line);
+      background: rgba(10,16,35,0.55);
+      color:#cbd5e1;
+    }
   </style>
 </head>
 <body>
-  <h1>Assure – Admin Test</h1>
-  <div class="sub">Deterministic check. Evidence is capped snippets (no full SR echo). This view is built for debugging.</div>
-
-  <div class="card" id="input">
-    <details {% if not result %}open{% endif %}>
-      <summary>{% if result %}Edit inputs{% else %}Inputs{% endif %}</summary>
-
-      <form method="post" action="/admin/test">
-        <label for="advice_type">Advice type</label>
-        <select name="advice_type" id="advice_type">
-          <option value="advised" {% if advice_type == "advised" %}selected{% endif %}>advised</option>
-          <option value="nonadvised" {% if advice_type == "nonadvised" %}selected{% endif %}>nonadvised</option>
-          <option value="execution_only" {% if advice_type == "execution_only" %}selected{% endif %}>execution_only</option>
-        </select>
-
-        <label for="investment_element">Investment element</label>
-        <select name="investment_element" id="investment_element">
-          <option value="true" {% if investment_element == "true" %}selected{% endif %}>true</option>
-          <option value="false" {% if investment_element == "false" %}selected{% endif %}>false</option>
-        </select>
-
-        <label for="ongoing_service">Ongoing service</label>
-        <select name="ongoing_service" id="ongoing_service">
-          <option value="false" {% if ongoing_service == "false" %}selected{% endif %}>false</option>
-          <option value="true" {% if ongoing_service == "true" %}selected{% endif %}>true</option>
-        </select>
-
-        <label for="sr_text">Suitability Report text</label>
-        <textarea name="sr_text" id="sr_text" placeholder="Paste SR text here...">{{ sr_text or "" }}</textarea>
-
-        <button type="submit">Run check</button>
-      </form>
-    </details>
-  </div>
-
-  {% if result %}
-    <div id="results" class="card">
-      <h2 style="margin:0 0 10px 0;">Results</h2>
-
-      <div class="muted">
-        <div><b>Ruleset:</b> {{ result.get("ruleset_id", "") }} v{{ result.get("ruleset_version", "") }}</div>
-        <div><b>Checked at:</b> {{ result.get("checked_at", "") }}</div>
-        <div><b>Rules file used:</b> <code>{{ result.get("rules_path_used", "") }}</code></div>
-        {% if run_id %}
-          <div><b>Saved run:</b> <a href="/admin/runs/{{ run_id }}">Open run</a></div>
-        {% endif %}
+  <div class="wrap">
+    <header>
+      <div>
+        <h1>Assure – Admin Test</h1>
+        <div class="sub">
+          Deterministic evidence check. This page is your demo cockpit: load a sample SR → run → show evidence & run history.
+        </div>
       </div>
 
-      {% set summary = result.get("summary", {}) %}
-      <div style="margin-top:10px;">
-        <b>Summary:</b>
-        <span class="pill">ok: {{ summary.get("ok", 0) }}</span>
-        <span class="pill">potential_issue: {{ summary.get("potential_issue", 0) }}</span>
-        <span class="pill">not_assessed: {{ summary.get("not_assessed", 0) }}</span>
+      <div class="toplinks">
+        <a href="/admin/runs">Run history</a>
+        <form method="post" action="/logout" style="margin:0;">
+          <button type="submit" class="secondary">Logout</button>
+        </form>
+      </div>
+    </header>
+
+    <div class="grid">
+      <!-- LEFT: INPUTS -->
+      <div class="card" id="input">
+        <details {% if not result %}open{% endif %}>
+          <summary>{% if result %}Edit inputs{% else %}Inputs{% endif %}</summary>
+
+          <div class="muted" style="margin-top:8px;">
+            Tip: Use <b>Load “Good SR”</b> for the happy path demo, then <b>Load “Bad SR”</b> to show issues.
+          </div>
+
+          <div class="chips" style="margin-top:10px;">
+            <button type="button" class="secondary" id="loadGood">Load “Good SR”</button>
+            <button type="button" class="secondary" id="loadBad">Load “Bad SR”</button>
+            <button type="button" class="secondary" id="loadMini">Load “Minimal SR”</button>
+          </div>
+
+          <form method="post" action="/admin/test" id="runForm" style="margin-top:10px;">
+            <div class="row">
+              <div>
+                <label for="advice_type">Advice type</label>
+                <select name="advice_type" id="advice_type">
+                  <option value="advised" {% if advice_type == "advised" %}selected{% endif %}>advised</option>
+                  <option value="nonadvised" {% if advice_type == "nonadvised" %}selected{% endif %}>nonadvised</option>
+                  <option value="execution_only" {% if advice_type == "execution_only" %}selected{% endif %}>execution_only</option>
+                </select>
+              </div>
+
+              <div>
+                <label for="investment_element">Investment element</label>
+                <select name="investment_element" id="investment_element">
+                  <option value="true" {% if investment_element == "true" %}selected{% endif %}>true</option>
+                  <option value="false" {% if investment_element == "false" %}selected{% endif %}>false</option>
+                </select>
+              </div>
+
+              <div>
+                <label for="ongoing_service">Ongoing service</label>
+                <select name="ongoing_service" id="ongoing_service">
+                  <option value="false" {% if ongoing_service == "false" %}selected{% endif %}>false</option>
+                  <option value="true" {% if ongoing_service == "true" %}selected{% endif %}>true</option>
+                </select>
+              </div>
+            </div>
+
+            <label for="sr_text">Suitability Report text</label>
+            <textarea name="sr_text" id="sr_text" placeholder="Paste SR text here...">{{ sr_text or "" }}</textarea>
+
+            <div class="btnbar">
+              <button type="submit">Run check</button>
+              <button type="button" class="secondary" id="clearText">Clear</button>
+              <button type="button" class="secondary" id="copyText">Copy SR</button>
+              {% if result %}
+                <button type="button" class="secondary" id="copyJson">Copy JSON</button>
+              {% endif %}
+              <a href="#results" style="align-self:center; margin-left:auto;">Jump to results ↓</a>
+            </div>
+          </form>
+        </details>
       </div>
 
-      <hr/>
+      <!-- RIGHT: RESULTS -->
+      <div>
+        {% if result %}
+          <div id="results" class="card">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+              <div>
+                <div style="font-weight:1000;font-size:16px;">Results</div>
+                <div class="muted" style="margin-top:6px;">
+                  <div><b>Ruleset:</b> {{ result.get("ruleset_id", "") }} v{{ result.get("ruleset_version", "") }}</div>
+                  <div><b>Checked at:</b> {{ result.get("checked_at", "") }}</div>
+                  <div><b>Rules file:</b> <span class="tinycode">{{ result.get("rules_path_used", "") }}</span></div>
+                  {% if run_id %}
+                    <div><b>Saved run:</b> <a href="/admin/runs/{{ run_id }}">Open run</a></div>
+                  {% endif %}
+                </div>
+              </div>
+              <div class="chips">
+                <span class="chip"><span class="dot ok"></span>OK</span>
+                <span class="chip"><span class="dot pi"></span>Potential issue</span>
+                <span class="chip"><span class="dot na"></span>Not assessed</span>
+              </div>
+            </div>
 
-      <details>
-        <summary>Raw JSON (debug)</summary>
-        <pre>{{ result | tojson(indent=2) }}</pre>
-      </details>
+            {% set summary = result.get("summary", {}) %}
+            <div class="kpis">
+              <div class="kpi">
+                <div class="n" style="color:var(--ok)">{{ summary.get("ok", 0) }}</div>
+                <div class="l">OK</div>
+              </div>
+              <div class="kpi">
+                <div class="n" style="color:var(--pi)">{{ summary.get("potential_issue", 0) }}</div>
+                <div class="l">Potential issues</div>
+              </div>
+              <div class="kpi">
+                <div class="n" style="color:var(--na)">{{ summary.get("not_assessed", 0) }}</div>
+                <div class="l">Not assessed</div>
+              </div>
+            </div>
 
-      <hr/>
+            <hr/>
 
-      {% set sections = result.get("sections", {}) %}
-      {% for sname, rules in sections.items() %}
-        {% set okc = rules | selectattr("status", "equalto", "OK") | list | length %}
-        {% set pic = rules | selectattr("status", "equalto", "POTENTIAL_ISSUE") | list | length %}
-        {% set nac = rules | selectattr("status", "equalto", "NOT_ASSESSED") | list | length %}
+            <details>
+              <summary>Raw JSON (debug)</summary>
+              <pre id="rawJson">{{ result | tojson(indent=2) }}</pre>
+            </details>
 
-        <details open style="margin-bottom:14px;">
-          <summary>
-            {{ sname }}
-            <span class="pill">OK: {{ okc }}</span>
-            <span class="pill">PI: {{ pic }}</span>
-            <span class="pill">NA: {{ nac }}</span>
-          </summary>
+            <hr/>
 
-          <div style="margin-top:10px;">
-            <table>
-              <thead>
-                <tr>
-                  <th style="width: 24%;">Rule</th>
-                  <th style="width: 12%;">Status</th>
-                  <th style="width: 22%;">Citation</th>
-                  <th>Evidence & Debug</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for r in rules %}
-                  <tr>
-                    <td>
-                      <div><b>{{ r.get("rule_id") }}</b></div>
-                      <div class="muted">{{ r.get("title", "") }}</div>
-                    </td>
+            {% set sections = result.get("sections", {}) %}
+            {% for sname, rules in sections.items() %}
+              {% set okc = rules | selectattr("status", "equalto", "OK") | list | length %}
+              {% set pic = rules | selectattr("status", "equalto", "POTENTIAL_ISSUE") | list | length %}
+              {% set nac = rules | selectattr("status", "equalto", "NOT_ASSESSED") | list | length %}
 
-                    <td>
-                      {% if r.get("status") == "OK" %}
-                        <span class="ok">OK</span>
-                      {% elif r.get("status") == "POTENTIAL_ISSUE" %}
-                        <span class="pi">POTENTIAL_ISSUE</span>
-                      {% else %}
-                        <span class="na">NOT_ASSESSED</span>
-                      {% endif %}
-                    </td>
+              <details open style="margin-bottom:14px;">
+                <summary>
+                  {{ sname }}
+                  <span class="tinycode" style="margin-left:8px;color:var(--ok)">OK {{ okc }}</span>
+                  <span class="tinycode" style="margin-left:6px;color:var(--pi)">PI {{ pic }}</span>
+                  <span class="tinycode" style="margin-left:6px;color:var(--na)">NA {{ nac }}</span>
+                </summary>
 
-                    <td>
-                      <div>{{ r.get("citation", "") }}</div>
-                      {% if r.get("source_url") %}
-                        <div><a href="{{ r.get('source_url') }}" target="_blank" rel="noopener">Source</a></div>
-                      {% endif %}
-                    </td>
+                <div style="margin-top:10px;">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th style="width: 26%;">Rule</th>
+                        <th style="width: 12%;">Status</th>
+                        <th style="width: 22%;">Citation</th>
+                        <th>Evidence & Debug</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {% for r in rules %}
+                        <tr>
+                          <td>
+                            <div style="font-weight:900">{{ r.get("rule_id") }}</div>
+                            <div class="muted">{{ r.get("title", "") }}</div>
+                          </td>
 
-                    <td>
-                      {% set ev = r.get("evidence", []) %}
-                      {% set why = r.get("why", "") %}
-                      {% set missing = r.get("missing", []) %}
-                      {% set details_list = r.get("details", []) %}
-                      {% set counts = r.get("counts", {}) %}
-                      {% set eby = r.get("evidence_by_key", {}) %}
+                          <td class="status">
+                            {% if r.get("status") == "OK" %}
+                              <span class="ok">OK</span>
+                            {% elif r.get("status") == "POTENTIAL_ISSUE" %}
+                              <span class="pi">POTENTIAL</span>
+                            {% else %}
+                              <span class="na">N/A</span>
+                            {% endif %}
+                          </td>
 
-                      <details>
-                        <summary>Open</summary>
+                          <td>
+                            <div>{{ r.get("citation", "") }}</div>
+                            {% if r.get("source_url") %}
+                              <div><a href="{{ r.get('source_url') }}" target="_blank" rel="noopener">Source</a></div>
+                            {% endif %}
+                          </td>
 
-                        <div class="why"><b>Why:</b> {{ why if why else "No reason provided." }}</div>
+                          <td>
+                            {% set ev = r.get("evidence", []) %}
+                            {% set why = r.get("why", "") %}
+                            {% set missing = r.get("missing", []) %}
+                            {% set details_list = r.get("details", []) %}
+                            {% set counts = r.get("counts", {}) %}
+                            {% set eby = r.get("evidence_by_key", {}) %}
 
-                        {% if counts and counts|length > 0 %}
-                          <div class="why" style="margin-top:8px;"><b>Counts:</b></div>
-                          <div class="kv">
-                            {% for k, v in counts.items() %}
-                              <code>{{ k }}={{ v }}</code>
-                            {% endfor %}
-                          </div>
-                        {% endif %}
+                            <details>
+                              <summary>Open</summary>
 
-                        {% if missing and missing|length > 0 %}
-                          <div class="why" style="margin-top:10px;"><b>Missing:</b></div>
-                          <ul>
-                            {% for m in missing %}
-                              <li>{{ m }}</li>
-                            {% endfor %}
-                          </ul>
-                        {% endif %}
+                              <div class="why"><b>Why:</b> {{ why if why else "No reason provided." }}</div>
 
-                        {% if details_list and details_list|length > 0 %}
-                          <div class="why" style="margin-top:10px;"><b>Details:</b></div>
-                          <ul>
-                            {% for d in details_list %}
-                              <li>{{ d }}</li>
-                            {% endfor %}
-                          </ul>
-                        {% endif %}
+                              {% if counts and counts|length > 0 %}
+                                <div class="why" style="margin-top:8px;"><b>Counts:</b></div>
+                                <div class="chips" style="margin-top:6px;">
+                                  {% for k, v in counts.items() %}
+                                    <span class="chip"><span class="tinycode">{{ k }}={{ v }}</span></span>
+                                  {% endfor %}
+                                </div>
+                              {% endif %}
 
-                        <div class="why" style="margin-top:10px;"><b>Evidence (top-level):</b></div>
-                        {% if ev and (ev | length) > 0 %}
-                          <ul>
-                            {% for e in ev %}
-                              <li>{{ e }}</li>
-                            {% endfor %}
-                          </ul>
-                        {% else %}
-                          <div class="muted">No matching snippets found.</div>
-                        {% endif %}
-
-                        {% if eby and eby|length > 0 %}
-                          <div class="why" style="margin-top:10px;"><b>Evidence by signal bucket:</b></div>
-                          {% for k, lst in eby.items() %}
-                            <details style="margin-top:6px;">
-                              <summary>{{ k }} ({{ lst|length }})</summary>
-                              {% if lst and lst|length > 0 %}
+                              {% if missing and missing|length > 0 %}
+                                <div class="why" style="margin-top:10px;"><b>Missing:</b></div>
                                 <ul>
-                                  {% for x in lst %}
-                                    <li>{{ x }}</li>
+                                  {% for m in missing %}
+                                    <li>{{ m }}</li>
+                                  {% endfor %}
+                                </ul>
+                              {% endif %}
+
+                              {% if details_list and details_list|length > 0 %}
+                                <div class="why" style="margin-top:10px;"><b>Details:</b></div>
+                                <ul>
+                                  {% for d in details_list %}
+                                    <li>{{ d }}</li>
+                                  {% endfor %}
+                                </ul>
+                              {% endif %}
+
+                              <div class="why" style="margin-top:10px;"><b>Evidence (top-level):</b></div>
+                              {% if ev and (ev | length) > 0 %}
+                                <ul>
+                                  {% for e in ev %}
+                                    <li>{{ e }}</li>
                                   {% endfor %}
                                 </ul>
                               {% else %}
-                                <div class="muted">No snippets for this bucket.</div>
+                                <div class="muted">No matching snippets found.</div>
+                              {% endif %}
+
+                              {% if eby and eby|length > 0 %}
+                                <div class="why" style="margin-top:10px;"><b>Evidence by signal bucket:</b></div>
+                                {% for k, lst in eby.items() %}
+                                  <details style="margin-top:6px;">
+                                    <summary>{{ k }} ({{ lst|length }})</summary>
+                                    {% if lst and lst|length > 0 %}
+                                      <ul>
+                                        {% for x in lst %}
+                                          <li>{{ x }}</li>
+                                        {% endfor %}
+                                      </ul>
+                                    {% else %}
+                                      <div class="muted">No snippets for this bucket.</div>
+                                    {% endif %}
+                                  </details>
+                                {% endfor %}
                               {% endif %}
                             </details>
-                          {% endfor %}
-                        {% endif %}
+                          </td>
+                        </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
+              </details>
+            {% endfor %}
 
-                      </details>
-                    </td>
-                  </tr>
-                {% endfor %}
-              </tbody>
-            </table>
+            <div style="margin-top:10px;">
+              <a href="/admin/test">Run again</a>
+              &nbsp;·&nbsp;<a href="/admin/runs">Run history</a>
+              {% if run_id %}
+                &nbsp;·&nbsp;<a href="/admin/runs/{{ run_id }}">Open saved run</a>
+              {% endif %}
+            </div>
           </div>
-        </details>
-      {% endfor %}
 
-      <div style="margin-top:10px;">
-        <a href="/admin/test">Run again</a>
-        {% if run_id %}
-          &nbsp;·&nbsp;<a href="/admin/runs/{{ run_id }}">Open saved run</a>
-          &nbsp;·&nbsp;<a href="/admin/runs">Run history</a>
+          <script>
+            (function () {
+              const el = document.getElementById("results");
+              if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+            })();
+          </script>
         {% else %}
-          &nbsp;·&nbsp;<a href="/admin/runs">Run history</a>
+          <div class="card">
+            <div style="font-weight:1000;font-size:16px;">Ready to run</div>
+            <div class="muted" style="margin-top:8px;">
+              Load a sample SR on the left, then click <b>Run check</b>.
+            </div>
+            <hr/>
+            <div class="muted">
+              Demo flow: <b>Good SR</b> → show mostly OK → open run history → open specific run → switch to <b>Bad SR</b> → show issues.
+            </div>
+          </div>
         {% endif %}
       </div>
     </div>
+  </div>
 
-    <script>
-      (function () {
-        const el = document.getElementById("results");
-        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
-      })();
-    </script>
-  {% endif %}
+  <script>
+    (function () {
+      const sr = document.getElementById("sr_text");
+      const advice = document.getElementById("advice_type");
+      const inv = document.getElementById("investment_element");
+      const ong = document.getElementById("ongoing_service");
+
+      // --- Sample SRs (keep them short-ish but hit your rule clusters) ---
+      const GOOD_SR = `SUITABILITY REPORT
+
+Client: Mr John Smith
+Date: 26 February 2026
+Adviser: David Clinton
+Firm: Consiglio Wealth
+
+Your Circumstances
+You are 61, employed, and earning £82,000 per annum. You have no outstanding high-interest debt. You maintain an emergency fund / cash buffer equivalent to six months’ expenditure. You plan to retire within the next 7 years and do not require income withdrawals at this stage.
+
+Your Investment Objectives (COBS 9.2.2R)
+Based on our discussions, your objectives and goals are:
+• Long-term capital growth and capital preservation as you approach retirement
+• Grow your pension ahead of inflation while maintaining a balanced approach
+• Maintain tax efficiency (pension / SIPP considerations)
+• Investment time horizon: over the next 7 years, until retirement
+Given your objectives and time horizon, the recommendation below is aligned with your target outcome.
+
+Knowledge & Experience
+You confirmed you have previous investing experience and are familiar with multi-asset funds, equity funds and bond funds. You understand that investing involves risk and that values can fluctuate.
+
+Attitude to Risk and Capacity for Loss (COBS 9.2.2R)
+Your attitude to risk has been assessed using our risk profiling questionnaire and the outcome places you in the Balanced / Moderate risk category. We have also assessed your capacity for loss. In a worst case scenario, if markets fall significantly during a downturn, you could tolerate a fall in portfolio value of approximately 15–20% and still meet essential expenditure without materially impacting your lifestyle or retirement plans.
+
+Recommendation (COBS 9.2.1R)
+We recommend consolidating your existing pensions into a Transact SIPP and investing into a diversified portfolio.
+
+We advise the following allocation:
+• 40% Global Equity Funds
+• 20% UK Equity Funds
+• 25% Strategic Bond Funds
+• 10% Global Infrastructure
+• 5% Cash
+This is consistent with your Balanced risk profile and is in line with your objectives and time horizon.
+
+Material Risks, Disadvantages and Drawbacks
+Risks include market movements, volatility and the risk of losses. Your capital is at risk: the value can fall and you may get back less than you invested. There is no guarantee and returns are not guaranteed.
+
+Costs and Charges (COBS 6.1ZA / 6.1ZB)
+The Transact SIPP platform charge will be 0.35% per annum. The weighted average ongoing fund charge (OCF) of the recommended portfolio is 0.60% per annum. The total ongoing charge is therefore approximately 0.95% per annum. There are no initial adviser charges for this recommendation.
+
+Alternatives Considered
+We considered alternative options including remaining with your existing providers and switching to a lower-risk / higher cash allocation. We decided against these alternatives because they are less aligned with your growth objectives and may reduce the likelihood of meeting your target retirement outcome over the next 7 years.
+
+Why This Recommendation Is Suitable (COBS 9.2.1R)
+This recommendation is suitable because it aligns with your stated investment objectives, reflects your circumstances, and matches your assessed attitude to risk and capacity for loss. Because you have 7 years until retirement, the growth allocation supports your goal of capital growth; therefore the portfolio is designed to seek attractive long-term returns while moderating volatility through bonds and diversification. As a result, you retain exposure to growth assets while reducing concentration risk.
+
+Client Understanding and Confirmation
+We discussed the recommendation, the material risks and the disadvantages. You confirmed you understand the risks involved in investing and you acknowledged that investment values can fall as well as rise.
+
+Next Steps
+Subject to your agreement, we will:
+• Arrange the transfer and consolidate existing pensions into the Transact SIPP
+• Implement the recommended portfolio allocation
+• Provide an annual review (if you take ongoing service) and update the plan as your circumstances change
+`;
+
+      const BAD_SR = `SUITABILITY REPORT
+
+This portfolio offers guaranteed returns. There is no risk. Past performance shows the fund always goes up.
+No costs are mentioned. No objectives are recorded.`;
+
+      const MINI_SR = `SUITABILITY REPORT
+Client: Mr John Smith
+Date: 26 February 2026
+
+Recommendation: consolidate to a SIPP and invest in a diversified portfolio.
+Risks: values can fall and you may get back less than you invested.
+Costs: platform 0.35% p.a., funds 0.60% p.a., total 0.95% p.a.
+`;
+
+      function setSR(text){
+        if (sr) sr.value = text;
+      }
+
+      const loadGood = document.getElementById("loadGood");
+      const loadBad = document.getElementById("loadBad");
+      const loadMini = document.getElementById("loadMini");
+      const clearText = document.getElementById("clearText");
+      const copyText = document.getElementById("copyText");
+      const copyJson = document.getElementById("copyJson");
+
+      if (loadGood) loadGood.addEventListener("click", () => {
+        if (advice) advice.value = "advised";
+        if (inv) inv.value = "true";
+        if (ong) ong.value = "false";
+        setSR(GOOD_SR);
+        sr && sr.focus();
+      });
+
+      if (loadBad) loadBad.addEventListener("click", () => {
+        if (advice) advice.value = "advised";
+        if (inv) inv.value = "true";
+        if (ong) ong.value = "false";
+        setSR(BAD_SR);
+        sr && sr.focus();
+      });
+
+      if (loadMini) loadMini.addEventListener("click", () => {
+        if (advice) advice.value = "advised";
+        if (inv) inv.value = "true";
+        if (ong) ong.value = "false";
+        setSR(MINI_SR);
+        sr && sr.focus();
+      });
+
+      if (clearText) clearText.addEventListener("click", () => setSR(""));
+
+      if (copyText) copyText.addEventListener("click", async () => {
+        try {
+          await navigator.clipboard.writeText(sr ? sr.value : "");
+          copyText.textContent = "Copied";
+          setTimeout(() => copyText.textContent = "Copy SR", 900);
+        } catch (e) {
+          alert("Clipboard blocked by browser.");
+        }
+      });
+
+      if (copyJson) copyJson.addEventListener("click", async () => {
+        const el = document.getElementById("rawJson");
+        const txt = el ? el.textContent : "";
+        try {
+          await navigator.clipboard.writeText(txt);
+          copyJson.textContent = "Copied";
+          setTimeout(() => copyJson.textContent = "Copy JSON", 900);
+        } catch (e) {
+          alert("Clipboard blocked by browser.");
+        }
+      });
+    })();
+  </script>
 </body>
 </html>
