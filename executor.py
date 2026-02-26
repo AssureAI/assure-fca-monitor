@@ -31,19 +31,8 @@ def split_sentences(text: str) -> List[str]:
 # ---------------------------------
 
 _NEGATION_TOKENS = {
-    "not",
-    "no",
-    "never",
-    "without",
-    "none",
-    "cannot",
-    "can't",
-    "isn't",
-    "aren't",
-    "won't",
-    "don't",
-    "doesn't",
-    "didn't",
+    "not", "no", "never", "without", "none", "cannot", "can't",
+    "isn't", "aren't", "won't", "don't", "doesn't", "didn't",
 }
 
 
@@ -173,7 +162,6 @@ def cluster_hits(
             for p in phrases:
                 matched.add(p)
 
-            # store per-cluster evidence (dedup, not capped aggressively)
             per_seen = set()
             per_list: List[str] = []
             for s in ev:
@@ -182,7 +170,6 @@ def cluster_hits(
                     per_seen.add(s)
             evidence_by_cluster[idx] = per_list
 
-            # merge to global evidence (capped)
             for s in ev:
                 if len(evidence) >= max_evidence:
                     break
@@ -196,7 +183,6 @@ def cluster_hits(
 # ---------------------------------
 # APPLICABILITY
 # ---------------------------------
-
 
 def applies(rule_applies_when: Any, context: Dict[str, Any]) -> bool:
     """
@@ -303,7 +289,6 @@ def _eval_require_block(
 # ---------------------------------
 
 RULE_FIXES: Dict[str, List[str]] = {
-    # COBS 4
     "COBS4_BALANCED": [
         "Add at least one clear benefit of the recommendation (why it helps meet the client’s objectives).",
         "Add at least one clear risk/disadvantage (what could go wrong, including capital at risk where relevant).",
@@ -317,7 +302,6 @@ RULE_FIXES: Dict[str, List[str]] = {
         "If you mention past performance, include the warning that it is not a reliable indicator of future performance.",
         "If you include projections/illustrations, explain key assumptions and that outcomes may differ materially.",
     ],
-    # COBS 6
     "COBS6_COSTS_DISC": [
         "State platform/product charges and ongoing fund charges (OCF) clearly.",
         "Include numeric values (e.g. percentages) rather than generic statements like “charges apply”.",
@@ -327,7 +311,6 @@ RULE_FIXES: Dict[str, List[str]] = {
         "Provide an aggregated/total ongoing cost figure (e.g. ‘total ongoing charge is ~X% p.a.’).",
         "Make it clear whether the figure includes platform + fund costs (+ adviser fee if applicable).",
     ],
-    # COBS 9
     "COBS9_ALTS": [
         "List the reasonable alternatives considered (e.g. do nothing, keep existing, lower-risk option).",
         "State why alternatives were rejected (tie it back to objectives, risk, time horizon, costs).",
@@ -374,7 +357,6 @@ RULE_FIXES: Dict[str, List[str]] = {
         "State the investment time horizon (e.g. years to retirement / intended holding period).",
         "Link time horizon to asset mix (why equities/bonds/cash proportions make sense).",
     ],
-    # Structure / good practice
     "SR_STRUCT_CLIENT_DETAILS": [
         "Include client name and key metadata (date, adviser, firm) near the top of the report.",
     ],
@@ -406,11 +388,11 @@ RULE_SUGGESTED_WORDING: Dict[str, List[str]] = {
 _BUCKET_LABELS: Dict[str, str] = {
     "benefit_clusters": "a clear benefit statement",
     "risk_clusters": "a clear risk/disadvantage statement",
-    "trigger_clusters": "a past performance reference (trigger)",
     "warning_clusters": "a past performance warning",
+    "trigger_clusters": "a past performance reference",
     "prohibited_phrases": "remove guarantee/certainty language",
     "allowed_negations": "add a ‘no guarantee’ style disclaimer",
-    "cost_clusters": "cost/charge disclosure sections",
+    "cost_clusters": "cost/charge disclosure",
     "cost_specific": "specific cost items (platform/fund/adviser fees)",
     "numeric_indicators": "numeric values (%, £, p.a., etc.)",
     "positive_clusters": "supporting wording for this control",
@@ -426,6 +408,7 @@ _BUCKET_LABELS: Dict[str, str] = {
 def _humanise_missing(missing: List[str]) -> List[str]:
     """
     Converts items like 'hard_circumstances >=1 (actual=0)' into plain-English bullets.
+    We do NOT expose the raw operator/threshold to end users.
     """
     out: List[str] = []
     for m in missing or []:
@@ -436,17 +419,22 @@ def _humanise_missing(missing: List[str]) -> List[str]:
         key = mm.split(" ", 1)[0].strip()
         label = _BUCKET_LABELS.get(key)
 
-        if label:
-            if key in ("prohibited_phrases", "negative_indicators"):
-                out.append("Remove wording that implies certainty/guarantees or otherwise breaches this control.")
-            elif key == "warning_clusters":
-                out.append("Add the standard warning alongside any past performance references.")
-            else:
-                out.append(f"Add {label} so this control is evidenced.")
-        else:
-            out.append("Add clearer wording/evidence so this control is evidenced in the report.")
+        if key in ("prohibited_phrases", "negative_indicators"):
+            out.append("Remove wording that implies certainty/guarantees or otherwise breaches this control.")
+            continue
 
-    # de-dupe while preserving order
+        if key == "warning_clusters":
+            out.append("Add the standard warning alongside any past performance references.")
+            continue
+
+        if label:
+            out.append(f"Add {label} so this control is evidenced.")
+        else:
+            if "decision_logic missing" in mm:
+                out.append("This rule cannot be assessed because the ruleset is incomplete (missing decision logic).")
+            else:
+                out.append("Add clearer wording/evidence so this control is evidenced in the report.")
+
     seen = set()
     deduped: List[str] = []
     for x in out:
@@ -459,7 +447,6 @@ def _humanise_missing(missing: List[str]) -> List[str]:
 # ---------------------------------
 # RULE EVALUATION
 # ---------------------------------
-
 
 def evaluate_rule(rule: Dict[str, Any], text: str, context: Dict[str, Any]) -> Dict[str, Any]:
     rule_id = rule.get("id", "") or ""
@@ -483,7 +470,6 @@ def evaluate_rule(rule: Dict[str, Any], text: str, context: Dict[str, Any]) -> D
                 fixes = _humanise_missing(missing)
             if not fixes:
                 fixes = ["Add clear wording/evidence so this control is evidenced in the report."]
-
             suggested_wording = list(RULE_SUGGESTED_WORDING.get(rule_id, []))
 
         return {
@@ -494,12 +480,10 @@ def evaluate_rule(rule: Dict[str, Any], text: str, context: Dict[str, Any]) -> D
             "evidence_by_key": evidence_by_key,
             "missing": missing,
             "details": details,
-            # IMPORTANT: these power the “What to fix” + “Suggested wording” UI
             "fixes": fixes,
             "suggested_wording": suggested_wording,
         }
 
-    # Applicability
     if not applies(rule.get("applies_when") or {}, context):
         return _pack(
             status="NOT_ASSESSED",
@@ -518,7 +502,6 @@ def evaluate_rule(rule: Dict[str, Any], text: str, context: Dict[str, Any]) -> D
     counts: Dict[str, int] = {}
     evidence_by_key: Dict[str, List[str]] = {}
 
-    # global evidence
     evidence_sentences: List[str] = []
     evidence_seen = set()
 
@@ -530,7 +513,7 @@ def evaluate_rule(rule: Dict[str, Any], text: str, context: Dict[str, Any]) -> D
                 evidence_sentences.append(s)
                 evidence_seen.add(s)
 
-    # 1) Build counts per evidence bucket
+    # 1) Count evidence buckets
     if isinstance(evidence_spec, dict):
         for key, spec in evidence_spec.items():
             allow_if_negated = True
@@ -541,7 +524,7 @@ def evaluate_rule(rule: Dict[str, Any], text: str, context: Dict[str, Any]) -> D
                 satisfied_n, _phrases, ev, _by_cluster = cluster_hits(
                     sentences,
                     spec,
-                    allow_if_negated=True,  # clusters treated as positive signals
+                    allow_if_negated=True,
                     max_evidence=6,
                 )
                 counts[key] = satisfied_n
@@ -557,15 +540,12 @@ def evaluate_rule(rule: Dict[str, Any], text: str, context: Dict[str, Any]) -> D
                 counts[key] = hit_n
                 evidence_by_key[key] = ev
                 _merge_global(ev, cap=6)
-    else:
-        counts = {}
-        evidence_by_key = {}
 
-    # 2) Special-case: allow_negations override for prohibited phrases
+    # 2) “No guarantees” override: if negation exists, don’t treat prohibited phrases as failing
     if counts.get("prohibited_phrases", 0) > 0 and counts.get("allowed_negations", 0) > 0:
         counts["prohibited_phrases"] = 0
 
-    # 3) Decision logic evaluation
+    # 3) Decision logic
     if not isinstance(decision, dict) or len(decision.keys()) == 0:
         return _pack(
             status="POTENTIAL_ISSUE",
@@ -596,7 +576,7 @@ def evaluate_rule(rule: Dict[str, Any], text: str, context: Dict[str, Any]) -> D
     if not ok_none:
         missing.extend(missing_none)
 
-    # Strict: if no indicators matched at all, always PI (absence != compliance)
+    # Strict: if nothing matched at all, treat as missing evidence
     total_hits = sum(int(v) for v in counts.values())
     if total_hits == 0:
         return _pack(
@@ -611,6 +591,7 @@ def evaluate_rule(rule: Dict[str, Any], text: str, context: Dict[str, Any]) -> D
 
     status = "OK" if (ok_all and ok_none) else "POTENTIAL_ISSUE"
 
+    # Must have evidence to be OK
     if status == "OK" and len(evidence_sentences) == 0:
         status = "POTENTIAL_ISSUE"
         missing.append("No evidence sentences (cannot assert OK).")
@@ -630,18 +611,11 @@ def evaluate_rule(rule: Dict[str, Any], text: str, context: Dict[str, Any]) -> D
 
 
 # ---------------------------------
-# RULESET LOAD (ENV OVERRIDE + FALLBACK)
+# RULESET LOAD
 # ---------------------------------
 
-
 def _resolve_rules_path(default_path: str) -> str:
-    """
-    1) RULES_PATH env var overrides
-    2) use provided/default if exists
-    3) fallback to v1 if missing
-    """
     path = os.environ.get("RULES_PATH", default_path)
-
     if os.path.exists(path):
         return path
 
@@ -662,7 +636,6 @@ def _load_ruleset(path: str) -> Dict[str, Any]:
 # EXECUTOR ENTRY POINT
 # ---------------------------------
 
-
 def run_rules_engine(
     document_text: str,
     context: Dict[str, Any],
@@ -682,11 +655,9 @@ def run_rules_engine(
             continue
 
         outcome = evaluate_rule(rule, document_text, context)
-
         section = rule.get("section") or "Unsorted"
         grouped.setdefault(section, [])
 
-        # IMPORTANT: include fixes + suggested_wording so UI can render "What to fix"
         grouped[section].append(
             {
                 "rule_id": rule.get("id", ""),
@@ -695,17 +666,20 @@ def run_rules_engine(
                 "citation": rule.get("citation", ""),
                 "source_url": rule.get("source_url") or "",
                 "why": outcome.get("why", ""),
-                "fixes": outcome.get("fixes", []),
-                "suggested_wording": outcome.get("suggested_wording", []),
-                "counts": outcome.get("counts", {}),
-                "missing": outcome.get("missing", []),
-                "details": outcome.get("details", []),
-                "evidence": outcome.get("evidence", []),
-                "evidence_by_key": outcome.get("evidence_by_key", {}),
+
+                # product UI fields (always present; empty lists if OK)
+                "fixes": outcome.get("fixes", []) or [],
+                "suggested_wording": outcome.get("suggested_wording", []) or [],
+
+                # keep for debugging/admin views
+                "counts": outcome.get("counts", {}) or {},
+                "missing": outcome.get("missing", []) or [],
+                "details": outcome.get("details", []) or [],
+                "evidence": outcome.get("evidence", []) or [],
+                "evidence_by_key": outcome.get("evidence_by_key", {}) or {},
             }
         )
 
-    # stable ordering
     for s in list(grouped.keys()):
         grouped[s] = sorted(grouped[s], key=lambda r: (r.get("rule_id") or ""))
 
