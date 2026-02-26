@@ -316,8 +316,9 @@ rules:
     decision_logic:
       require_none:
         prohibited_phrases: "==0"
-      allow_if_present:
-        allowed_negations: ">=1"
+      decision_logic:
+        require_none:
+          prohibited_phrases: "==0"
 
   - id: COBS4_BALANCED
     section: "COBS 4 — Communications"
