@@ -5,7 +5,7 @@ import json
 import uuid
 import hashlib
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional, List, Tuple
+from typing import Any, Dict, Optional, List
 
 from fastapi import FastAPI, Request, Form, HTTPException, Depends
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, PlainTextResponse
@@ -36,23 +36,18 @@ from database import (
 app = FastAPI(title="Assure Compliance Engine")
 templates = Jinja2Templates(directory="templates")
 
-# Static assets (put logo svg in ./static/logo-dark.svg)
+# Static assets (logo in ./static/logo-dark.svg)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 RULES_PATH = os.environ.get("RULES_PATH", "rules/cobs-mvp-v2.yaml")
 
-# Cookie name for sessions
 SESSION_COOKIE = os.environ.get("ASSURE_SESSION_COOKIE", "assure_session")
-
-# If you deploy behind HTTPS (Render), keep secure cookies on.
 COOKIE_SECURE = os.environ.get("ASSURE_COOKIE_SECURE", "true").lower() == "true"
 
-# Bootstrap (first admin user)
 BOOTSTRAP_EMAIL = os.environ.get("ASSURE_BOOTSTRAP_EMAIL", "").strip().lower()
 BOOTSTRAP_PASSWORD = os.environ.get("ASSURE_BOOTSTRAP_PASSWORD", "")
 BOOTSTRAP_FIRM = os.environ.get("ASSURE_BOOTSTRAP_FIRM", "Demo Firm")
 
-# Used to sign/validate sensitive flows later; enforced at startup
 APP_SECRET = os.environ.get("ASSURE_APP_SECRET", "")
 
 # -----------------------------
@@ -79,13 +74,6 @@ def utc_now_iso() -> str:
 def get_session_token_from_request(request: Request) -> str:
     return request.cookies.get(SESSION_COOKIE, "")
 
-def require_user(request: Request, db=Depends(get_db)) -> User:
-    token = get_session_token_from_request(request)
-    user = get_user_by_session_token(db, token)
-    if not user:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    return user
-
 def require_user_html(request: Request, db=Depends(get_db)) -> User:
     token = get_session_token_from_request(request)
     user = get_user_by_session_token(db, token)
@@ -95,7 +83,6 @@ def require_user_html(request: Request, db=Depends(get_db)) -> User:
 
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
-    # HTML redirect on auth
     if exc.status_code == 401 and exc.detail == "LOGIN_REQUIRED":
         return RedirectResponse(url="/login", status_code=303)
     return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
@@ -109,67 +96,27 @@ def compute_completeness(summary: Dict[str, Any]) -> int:
         return 0
     return int(round((ok / denom) * 100))
 
-def build_suggestions(rule_id: str) -> List[str]:
-    """
-    Lightweight demo suggestions. Keep deterministic + safe.
-    Expand later from YAML if you want.
-    """
-    suggestions_map = {
-        "COBS4_PAST_PERF": [
-            "Add a clear warning wherever you reference performance: “Past performance is not a reliable indicator of future results.”",
-            "If projections are shown, explain the assumptions and that outcomes may differ materially.",
-        ],
-        "COBS4_NO_GUAR_IMPLIED": [
-            "Remove/replace any certainty language (e.g. “guaranteed”, “will deliver”, “safe return”).",
-            "Use compliant phrasing: “Returns are not guaranteed. You may get back less than invested.”",
-        ],
-        "COBS4_BALANCED": [
-            "Add a short benefits paragraph (why recommended) AND a matching risks paragraph (what could go wrong).",
-            "Make sure risks are specific to the product/portfolio, not only generic market risk.",
-        ],
-        "COBS9_CFL": [
-            "Add a scenario sentence: “In a market fall of X%, you could tolerate a temporary drop of Y without impacting essential spending.”",
-            "State what you would do if losses exceeded tolerance (reduce risk, delay retirement, increase contributions).",
-        ],
-        "COBS9_KNOWEXP": [
-            "Include the client’s knowledge/experience and how it supports the recommendation (e.g. familiarity with equities/bonds, past investing).",
-        ],
-        "COBS9_RATIONALE": [
-            "Add explicit causal reasoning: “Because X, therefore Y is suitable… As a result…”",
-        ],
-    }
-    return suggestions_map.get(rule_id, [
-        "Add one or two explicit sentences evidencing this requirement in plain English.",
-        "Keep wording specific to the client’s situation and the recommendation.",
-    ])
-
 def summarise_issue(rule: Dict[str, Any]) -> str:
     """
-    Convert engine 'why/missing' into something human.
+    Short, user-facing summary.
+    Do NOT leak raw missing/debug expressions to end users.
     """
     why = (rule.get("why") or "").strip()
-    missing = rule.get("missing") or []
-    # Prefer missing if it exists (usually more actionable)
-    if missing:
-        # Shorten / clean obvious dev-ish text
-        cleaned = []
-        for m in missing:
-            s = str(m)
-            s = s.replace("All required signals (none matched)", "No supporting wording found in the report.")
-            cleaned.append(s)
-        return " ".join(cleaned[:2])
-    if why:
-        if why == "No indicators matched for this rule (no evidence).":
-            return "No supporting wording found in the report."
-        if why == "Conditions not met.":
-            return "The report doesn’t clearly evidence this requirement."
-        return why
-    return "The report doesn’t clearly evidence this requirement."
+    if why == "No supporting wording found in the report.":
+        return "No supporting wording found in the report."
+    if why == "Conditions not met.":
+        return "The report doesn’t clearly evidence this requirement."
+    if why == "No decision_logic provided (cannot auto-pass).":
+        return "This rule cannot be assessed due to an incomplete ruleset configuration."
+    if not why:
+        return "The report doesn’t clearly evidence this requirement."
+    return why
 
 def extract_action_items(result: Dict[str, Any]) -> List[Dict[str, Any]]:
     """
-    Build a user-facing list of only POTENTIAL_ISSUE items with:
-      - title, citation, evidence snippets, suggestion bullets
+    Build a user-facing list of POTENTIAL_ISSUE items using engine-provided:
+      - fixes
+      - suggested_wording
     """
     out: List[Dict[str, Any]] = []
     sections = result.get("sections") or {}
@@ -185,28 +132,57 @@ def extract_action_items(result: Dict[str, Any]) -> List[Dict[str, Any]]:
             if r.get("status") != "POTENTIAL_ISSUE":
                 continue
 
-            rule_id = r.get("rule_id", "")
-            title = r.get("title", "") or rule_id
-            citation = r.get("citation", "")
-            source_url = r.get("source_url", "")
+            fixes = r.get("fixes") or []
+            if not isinstance(fixes, list):
+                fixes = []
+
+            suggested = r.get("suggested_wording") or []
+            if not isinstance(suggested, list):
+                suggested = []
 
             evidence = r.get("evidence") or []
             if not isinstance(evidence, list):
                 evidence = []
 
-            item = {
-                "section": section_name,
-                "rule_id": rule_id,
-                "title": title,
-                "citation": citation,
-                "source_url": source_url,
-                "issue_summary": summarise_issue(r),
-                "evidence": evidence[:6],
-                "suggestions": build_suggestions(rule_id),
-            }
-            out.append(item)
+            out.append(
+                {
+                    "section": section_name,
+                    "rule_id": r.get("rule_id", ""),
+                    "title": r.get("title", "") or (r.get("rule_id", "") or "Issue"),
+                    "citation": r.get("citation", ""),
+                    "source_url": r.get("source_url", ""),
+                    "issue_summary": summarise_issue(r),
+                    "fixes": fixes,
+                    # keep template compatibility: it expects item.suggestions
+                    "suggestions": suggested if suggested else ["Update the report to clearly evidence this requirement, then rerun the check."],
+                    "evidence": evidence[:6],
+                }
+            )
 
     return out
+
+def persist_run(db, user: User, result: Dict[str, Any], context: Dict[str, Any], sr_text: str) -> str:
+    run_id = str(uuid.uuid4())
+    sr_hash = hashlib.sha256((sr_text or "").encode("utf-8")).hexdigest()
+
+    r = Run(
+        id=run_id,
+        firm_id=user.firm_id,
+        user_id=user.id,
+        ruleset_id=result.get("ruleset_id") or "",
+        ruleset_version=result.get("ruleset_version") or "",
+        checked_at=result.get("checked_at") or utc_now_iso(),
+        advice_type=str(context.get("advice_type") or ""),
+        investment_element="true" if bool(context.get("investment_element")) else "false",
+        ongoing_service="true" if bool(context.get("ongoing_service")) else "false",
+        sr_hash=sr_hash,
+        sr_len=len(sr_text or ""),
+        summary_json=json.dumps(result.get("summary", {}), ensure_ascii=False),
+        sections_json=json.dumps(result.get("sections", {}), ensure_ascii=False),
+    )
+    db.add(r)
+    db.commit()
+    return run_id
 
 # -----------------------------
 # BOOTSTRAP
@@ -287,29 +263,6 @@ async def check(payload: CheckRequest, request: Request, db=Depends(get_db)):
     result_out["completeness_pct"] = compute_completeness(result.get("summary", {}) or {})
     return JSONResponse(result_out)
 
-def persist_run(db, user: User, result: Dict[str, Any], context: Dict[str, Any], sr_text: str) -> str:
-    run_id = str(uuid.uuid4())
-    sr_hash = hashlib.sha256((sr_text or "").encode("utf-8")).hexdigest()
-
-    r = Run(
-        id=run_id,
-        firm_id=user.firm_id,
-        user_id=user.id,
-        ruleset_id=result.get("ruleset_id") or "",
-        ruleset_version=result.get("ruleset_version") or "",
-        checked_at=result.get("checked_at") or utc_now_iso(),
-        advice_type=str(context.get("advice_type") or ""),
-        investment_element="true" if bool(context.get("investment_element")) else "false",
-        ongoing_service="true" if bool(context.get("ongoing_service")) else "false",
-        sr_hash=sr_hash,
-        sr_len=len(sr_text or ""),
-        summary_json=json.dumps(result.get("summary", {}), ensure_ascii=False),
-        sections_json=json.dumps(result.get("sections", {}), ensure_ascii=False),
-    )
-    db.add(r)
-    db.commit()
-    return run_id
-
 # -----------------------------
 # LOGIN / LOGOUT (HTML)
 # -----------------------------
@@ -328,7 +281,11 @@ def login_post(
     email_n = (email or "").strip().lower()
     user = db.query(User).filter(User.email == email_n).first()
     if not user or not user.is_active or not verify_password(password or "", user.password_hash):
-        return templates.TemplateResponse("login.html", {"request": request, "error": "Invalid credentials"}, status_code=401)
+        return templates.TemplateResponse(
+            "login.html",
+            {"request": request, "error": "Invalid credentials"},
+            status_code=401,
+        )
 
     token = create_session(db, user.id)
     user.last_login_at = utc_now()
@@ -357,7 +314,6 @@ def logout_get(request: Request, db=Depends(get_db)):
 
 @app.post("/logout")
 def logout_post(request: Request, db=Depends(get_db)):
-    # allow POST too
     return logout_get(request, db)
 
 # -----------------------------
@@ -402,7 +358,6 @@ async def demo_run_post(
     )
 
     run_id = persist_run(db, user, result, ctx, sr_text or "")
-
     return RedirectResponse(url=f"/demo/results/{run_id}", status_code=303)
 
 @app.get("/demo/results/{run_id}", response_class=HTMLResponse)
@@ -412,21 +367,20 @@ def demo_results_get(
     user: User = Depends(require_user_html),
     db=Depends(get_db),
 ):
-    r = db.query(Run).filter(Run.id == run_id, Run.firm_id == user.firm_id).first()
-    if not r:
+    rr = db.query(Run).filter(Run.id == run_id, Run.firm_id == user.firm_id).first()
+    if not rr:
         raise HTTPException(status_code=404, detail="Run not found")
 
     result = {
-        "ruleset_id": r.ruleset_id,
-        "ruleset_version": r.ruleset_version,
-        "checked_at": r.checked_at,
-        "summary": json.loads(r.summary_json or "{}"),
-        "sections": json.loads(r.sections_json or "{}"),
+        "ruleset_id": rr.ruleset_id,
+        "ruleset_version": rr.ruleset_version,
+        "checked_at": rr.checked_at,
+        "summary": json.loads(rr.summary_json or "{}"),
+        "sections": json.loads(rr.sections_json or "{}"),
     }
 
     summary = result.get("summary") or {}
     completeness_pct = compute_completeness(summary)
-
     action_items = extract_action_items(result)
 
     return templates.TemplateResponse(
@@ -507,7 +461,7 @@ def admin_run_detail(request: Request, run_id: str, user: User = Depends(require
 def health():
     safe_db = None
     if DB_URL:
-        safe_db = DB_URL.split("@")[-1]  # hides creds
+        safe_db = DB_URL.split("@")[-1]
     return {
         "status": "ok",
         "rules_path": RULES_PATH,
