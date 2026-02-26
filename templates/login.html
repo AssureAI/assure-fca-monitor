@@ -21,51 +21,91 @@
       border-radius: 14px;
       width: 380px;
       box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+      border: 1px solid #1F2937;
     }
     .logo {
       text-align: center;
-      margin-bottom: 30px;
+      margin-bottom: 22px;
+    }
+    .sub {
+      text-align: center;
+      color: #94A3B8;
+      font-size: 13px;
+      margin-top: 8px;
+      margin-bottom: 18px;
+    }
+    .error {
+      background: rgba(239, 68, 68, 0.12);
+      border: 1px solid rgba(239, 68, 68, 0.35);
+      color: #FCA5A5;
+      padding: 10px 12px;
+      border-radius: 10px;
+      font-size: 13px;
+      margin-bottom: 14px;
+    }
+    label {
+      display:block;
+      font-size: 13px;
+      color: #CBD5E1;
+      margin-top: 12px;
     }
     input {
       width: 100%;
       padding: 12px;
       margin-top: 8px;
-      margin-bottom: 18px;
-      border-radius: 8px;
+      margin-bottom: 6px;
+      border-radius: 10px;
       border: 1px solid #334155;
-      background: #0F172A;
+      background: #0B1220;
       color: #E2E8F0;
+      outline: none;
+    }
+    input:focus {
+      border-color: #2563EB;
+      box-shadow: 0 0 0 3px rgba(37,99,235,0.25);
     }
     button {
       width: 100%;
       padding: 12px;
-      border-radius: 8px;
+      border-radius: 10px;
       border: none;
       background: #2563EB;
       color: white;
-      font-weight: 600;
+      font-weight: 700;
       cursor: pointer;
+      margin-top: 14px;
     }
-    button:hover {
-      background: #1D4ED8;
+    button:hover { background: #1D4ED8; }
+    .muted {
+      text-align:center;
+      margin-top: 16px;
+      color: #64748B;
+      font-size: 12px;
     }
   </style>
 </head>
 <body>
   <div class="card">
     <div class="logo">
-      <img src="/static/logo-dark.svg" width="220" />
+      <img src="/static/logo-dark.svg" width="220" alt="Assure"/>
+      <div class="sub">Demo login</div>
     </div>
+
+    {% if error %}
+      <div class="error">{{ error }}</div>
+    {% endif %}
 
     <form method="post" action="/login">
       <label>Email</label>
-      <input type="email" name="email" required />
+      <input type="email" name="email" autocomplete="username" required />
 
       <label>Password</label>
-      <input type="password" name="password" required />
+      <input type="password" name="password" autocomplete="current-password" required />
 
       <button type="submit">Sign in</button>
     </form>
+
+    <div class="muted">For paraplanners to sanity-check SR wording before sending.</div>
   </div>
 </body>
 </html>
