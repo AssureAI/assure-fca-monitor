@@ -92,13 +92,13 @@ rules:
       linkage_indicators:
         - ["consistent with", "aligned with", "matches", "in line with"]
       negative_indicators:
-        - ["guaranteed return", "risk-free", "no risk", "cannot lose", "certain return"]
+        - ["guaranteed return", "risk-free", "cannot lose", "certain return", "assured return"]
     decision_logic:
       require_all:
         positive_clusters: ">=2"
         linkage_indicators: ">=1"
       require_none:
-        negative_indicators: ">0"
+        negative_indicators: "==0"
 
   - id: COBS9_CFL
     section: "COBS 9 — Capacity for Loss"
@@ -315,7 +315,7 @@ rules:
         - ["not guaranteed", "no guarantee", "there is no guarantee", "returns are not guaranteed", "not assured"]
     decision_logic:
       require_none:
-        prohibited_phrases: ">0"
+        prohibited_phrases: "==0"
       allow_if_present:
         allowed_negations: ">=1"
 
