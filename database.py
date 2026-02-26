@@ -29,19 +29,13 @@ from sqlalchemy.orm import (
 # -------------------------------------------------------------------
 # DATABASE CONFIG
 # -------------------------------------------------------------------
-# Prefer a full SQLAlchemy URL if provided, else fall back to file path.
-# Examples:
-#   ASSURE_DB_URL="sqlite:///./assure.db"
-#   ASSURE_DB_PATH="/var/data/assure.db"
 DB_URL = os.environ.get("ASSURE_DB_URL")
 DB_PATH = os.environ.get("ASSURE_DB_PATH", "./assure.db")
 
 if not DB_URL:
-    # Ensure sqlite URL format. sqlite requires 3 slashes after scheme.
     if DB_PATH.startswith("sqlite:"):
         DB_URL = DB_PATH
     else:
-        # If user passes "./assure.db" or "/var/data/assure.db"
         if DB_PATH.startswith("./"):
             DB_URL = f"sqlite:///{DB_PATH[2:]}"
         elif DB_PATH.startswith("/"):
@@ -70,9 +64,6 @@ def utc_now() -> datetime:
 # -------------------------------------------------------------------
 # SECURITY HELPERS (NO EXTRA DEPENDENCIES)
 # -------------------------------------------------------------------
-# Password hashing using PBKDF2-HMAC-SHA256:
-# Stored format: "pbkdf2_sha256$<iterations>$<salt_b64>$<hash_b64>"
-
 _PBKDF2_ITERATIONS = int(os.environ.get("ASSURE_PBKDF2_ITERATIONS", "210000"))
 
 
@@ -135,10 +126,9 @@ class User(Base):
     email: Mapped[str] = mapped_column(String(320), nullable=False, unique=True, index=True)
     password_hash: Mapped[str] = mapped_column(Text, nullable=False)
 
-    # simple roles: admin | member
     role: Mapped[str] = mapped_column(String(32), nullable=False, default="member")
 
-    is_active: Mapped[int] = mapped_column(Integer, nullable=False, default=1)  # 1/0 for sqlite friendliness
+    is_active: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)
     last_login_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
@@ -157,13 +147,13 @@ class Session(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
-    user: Mapped["User"] = relationship("User", back_populates="sessions")
+    user: Mapped["User"]] = relationship("User", back_populates="sessions")
 
 
 class Run(Base):
     __tablename__ = "runs"
 
-    id: Mapped[str] = mapped_column(String(36), primary_key=True)  # UUID string from app layer
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now, index=True)
 
     firm_id: Mapped[int] = mapped_column(Integer, ForeignKey("firms.id", ondelete="CASCADE"), nullable=False, index=True)
@@ -171,19 +161,25 @@ class Run(Base):
 
     ruleset_id: Mapped[str] = mapped_column(String(200), nullable=False)
     ruleset_version: Mapped[str] = mapped_column(String(50), nullable=False)
-    checked_at: Mapped[str] = mapped_column(String(64), nullable=False)  # keep as ISO string from engine output
+    checked_at: Mapped[str] = mapped_column(String(64), nullable=False)
 
     advice_type: Mapped[str] = mapped_column(String(50), nullable=False)
-    investment_element: Mapped[str] = mapped_column(String(10), nullable=False)  # "true"/"false"
-    ongoing_service: Mapped[str] = mapped_column(String(10), nullable=False)     # "true"/"false"
+    investment_element: Mapped[str] = mapped_column(String(10), nullable=False)
+    ongoing_service: Mapped[str] = mapped_column(String(10), nullable=False)
 
     sr_hash: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     sr_len: Mapped[int] = mapped_column(Integer, nullable=False)
 
+    # MI / reporting fields (stored at write-time so MI queries are cheap)
+    ok_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    pi_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    na_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    completeness_pct: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
     summary_json: Mapped[str] = mapped_column(Text, nullable=False)
     sections_json: Mapped[str] = mapped_column(Text, nullable=False)
 
-    firm: Mapped["Firm"] = relationship("Firm", back_populates="runs")
+    firm: Mapped["Firm"]] = relationship("Firm", back_populates="runs")
     user: Mapped[Optional["User"]] = relationship("User", back_populates="runs")
 
     @staticmethod
@@ -193,6 +189,8 @@ class Run(Base):
 
 Index("ix_runs_firm_created", Run.firm_id, Run.created_at)
 Index("ix_runs_firm_srhash", Run.firm_id, Run.sr_hash)
+Index("ix_runs_firm_user_created", Run.firm_id, Run.user_id, Run.created_at)
+Index("ix_runs_firm_user_completeness", Run.firm_id, Run.user_id, Run.completeness_pct)
 
 
 # -------------------------------------------------------------------
