@@ -8,7 +8,7 @@ from typing import Dict, Optional, Any
 
 from fastapi import FastAPI, Request, Form, HTTPException, Depends
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, PlainTextResponse
-from starlette.templating import Jinja2Templates
+from fastapi.templating import Jinja2Templates
 
 from pydantic import BaseModel
 from datetime import datetime, timezone
@@ -32,8 +32,13 @@ from database import (
 # APP
 # -----------------------------
 
-app = FastAPI(title="Assure Deterministic Compliance Engine")
+app = FastAPI(title="Assure Compliance Engine")
+
 templates = Jinja2Templates(directory="templates")
+
+# Mount static files AFTER app exists
+from fastapi.staticfiles import StaticFiles
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 RULES_PATH = os.environ.get("RULES_PATH", "rules/cobs-mvp-v2.yaml")
 
