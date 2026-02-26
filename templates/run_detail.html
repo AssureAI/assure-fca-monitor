@@ -1,73 +1,427 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8"/>
   <title>Assure – Run</title>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <style>
-    body{font-family:system-ui,Arial;margin:20px;background:#f5f5f5}
-    .card{background:#fff;border:1px solid #ddd;border-radius:10px;padding:16px;margin-bottom:16px}
-    pre{background:#0b1020;color:#e5e7eb;padding:12px;border-radius:10px;overflow:auto}
-    details summary{cursor:pointer;font-weight:700}
-    .pill{display:inline-block;padding:2px 10px;border-radius:999px;background:#eee;font-size:12px}
-    table{width:100%;border-collapse:collapse}
-    th,td{border:1px solid #ddd;padding:8px;font-size:13px;vertical-align:top}
-    th{background:#fafafa;text-align:left}
+    body{
+      margin:0;
+      background:#0F172A;
+      color:#E2E8F0;
+      font-family:Inter, ui-sans-serif, system-ui, sans-serif;
+    }
+    header{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      padding:18px 34px;
+      border-bottom:1px solid #1E293B;
+    }
+    .logo-row{display:flex;align-items:center;gap:14px}
+    .logo-row span{font-size:18px;color:#94A3B8}
+    .top-actions{display:flex;gap:14px;align-items:center}
+    .link{color:#94A3B8;text-decoration:none;font-size:14px}
+    .link:hover{text-decoration:underline}
+
+    .container{
+      max-width:1100px;
+      margin:30px auto;
+      padding:0 18px 60px 18px;
+    }
+
+    .card{
+      background:#111827;
+      border:1px solid #1F2937;
+      border-radius:16px;
+      padding:18px;
+      margin-bottom:16px;
+    }
+
+    h1{margin:0;font-size:20px}
+    h2{margin:0 0 10px 0;font-size:16px}
+    h3{margin:0 0 8px 0;font-size:15px}
+    .sub{margin:6px 0 0 0;color:#94A3B8;font-size:13px}
+
+    .row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+    .spacer{flex:1}
+
+    .btn{
+      display:inline-block;
+      padding:10px 12px;
+      border-radius:10px;
+      border:1px solid #334155;
+      background:transparent;
+      color:#CBD5E1;
+      text-decoration:none;
+      font-weight:800;
+      font-size:13px;
+    }
+    .btn:hover{border-color:#475569}
+    .btn-primary{
+      border:none;
+      background:#2563EB;
+      color:white;
+    }
+    .btn-primary:hover{background:#1D4ED8}
+
+    .pill{
+      display:inline-block;
+      padding:4px 10px;
+      border-radius:999px;
+      font-size:12px;
+      border:1px solid #334155;
+      background:#0F172A;
+      color:#CBD5E1;
+      margin-right:6px;
+      margin-bottom:6px;
+      white-space:nowrap;
+    }
+    .ok{border-color:rgba(34,197,94,.35); color:#86EFAC}
+    .pi{border-color:rgba(245,158,11,.35); color:#FCD34D}
+    .na{border-color:rgba(148,163,184,.35); color:#CBD5E1}
+
+    .grid{
+      display:grid;
+      grid-template-columns: 1.2fr 1fr;
+      gap:12px;
+    }
+    @media (max-width: 920px){
+      .grid{grid-template-columns:1fr}
+    }
+
+    .kvs{display:flex;gap:16px;flex-wrap:wrap;color:#94A3B8;font-size:13px}
+    .kvs b{color:#E2E8F0}
+
+    .bar-wrap{
+      background:#0B1220;
+      border:1px solid #1F2937;
+      border-radius:999px;
+      height:10px;
+      overflow:hidden;
+      margin-top:10px;
+    }
+    .bar{
+      height:100%;
+      background:#22C55E;
+      width:0%;
+    }
+
+    .section{
+      background:#0B1220;
+      border:1px solid #1F2937;
+      border-radius:14px;
+      padding:16px;
+      margin-bottom:12px;
+    }
+    .muted{color:#94A3B8;font-size:13px}
+    .tiny{color:#64748B;font-size:12px}
+
+    ul{margin:8px 0 0 18px}
+    li{margin:6px 0}
+
+    details summary{
+      cursor:pointer;
+      font-weight:900;
+      color:#E2E8F0;
+      list-style:none;
+    }
+    details summary::-webkit-details-marker{display:none}
+
+    .divider{border-top:1px solid #1F2937; margin:14px 0}
+    .suggestion{
+      background:#1E293B;
+      border:1px solid #334155;
+      padding:14px;
+      border-radius:12px;
+      margin-top:12px;
+    }
+    code{
+      background:#0B1220;
+      border:1px solid #1F2937;
+      padding:2px 6px;
+      border-radius:8px;
+      font-size:12px;
+      color:#CBD5E1;
+    }
+    a.source{
+      color:#93C5FD;
+      text-decoration:none;
+      font-weight:800;
+    }
+    a.source:hover{text-decoration:underline}
+
+    table{
+      width:100%;
+      border-collapse:separate;
+      border-spacing:0;
+      overflow:hidden;
+      border-radius:12px;
+      border:1px solid #1F2937;
+      background:#0B1220;
+      margin-top:10px;
+    }
+    th,td{
+      padding:12px 12px;
+      font-size:13px;
+      border-bottom:1px solid #1F2937;
+      vertical-align:top;
+    }
+    th{
+      text-align:left;
+      color:#CBD5E1;
+      background:#0B1220;
+      font-weight:900;
+      font-size:12px;
+      letter-spacing:.02em;
+      text-transform:uppercase;
+    }
+    tr:last-child td{border-bottom:none}
+    .right{text-align:right}
   </style>
 </head>
 <body>
+
+<header>
+  <div class="logo-row">
+    <img src="/static/logo-dark.svg" width="160" alt="Assure"/>
+    <span>Demo</span>
+  </div>
+
+  <div class="top-actions">
+    <a class="link" href="/admin/runs">Run history</a>
+    <a class="link" href="/demo">New check</a>
+    <a class="link" href="/logout">Logout</a>
+  </div>
+</header>
+
+<div class="container">
+
+  {% set ok = (run.summary.ok or 0) %}
+  {% set pi = (run.summary.potential_issue or 0) %}
+  {% set na = (run.summary.not_assessed or 0) %}
+  {% set total = ok + pi + na %}
+  {% set assessed = ok + pi %}
+  {% set completeness = ( (assessed * 100) / total ) if total > 0 else 0 %}
+  {% set ready = (pi == 0) %}
+
   <div class="card">
-    <h1 style="margin:0;">Run</h1>
-    <p>
-      <a href="/admin/runs">Back to runs</a> · <a href="/admin/test">Run another</a>
-    </p>
-    <div><b>Created:</b> {{ run.created_at }}</div>
-    <div><b>Ruleset:</b> {{ run.ruleset_id }} v{{ run.ruleset_version }}</div>
-    <div><b>Checked at:</b> {{ run.checked_at }}</div>
-    <div style="margin-top:10px;">
-      <span class="pill">ok: {{ run.summary.ok or 0 }}</span>
-      <span class="pill">pi: {{ run.summary.potential_issue or 0 }}</span>
-      <span class="pill">na: {{ run.summary.not_assessed or 0 }}</span>
+    <div class="row">
+      <div>
+        <h1>Results</h1>
+        <p class="sub">
+          {% if ready %}
+            ✔ Ready to send (no items flagged)
+          {% else %}
+            ⚠ {{ pi }} item{% if pi != 1 %}s{% endif %} to review before sending
+          {% endif %}
+        </p>
+      </div>
+      <div class="spacer"></div>
+      <div class="row">
+        <a class="btn" href="/admin/runs">Back</a>
+        <a class="btn btn-primary" href="/demo">New check</a>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="grid">
+      <div>
+        <div class="kvs">
+          <div><b>Created:</b> {{ run.created_at }}</div>
+          <div><b>Ruleset:</b> {{ run.ruleset_id }} v{{ run.ruleset_version }}</div>
+          <div><b>Checked at:</b> {{ run.checked_at }}</div>
+        </div>
+
+        <div style="margin-top:12px;">
+          <span class="pill ok">OK: {{ ok }}</span>
+          <span class="pill pi">Needs review: {{ pi }}</span>
+          <span class="pill na">Not assessed: {{ na }}</span>
+        </div>
+
+        <div style="margin-top:10px;">
+          <div class="muted"><b>Completeness</b> — {{ completeness|round(0) }}%</div>
+          <div class="bar-wrap" aria-label="Completeness">
+            <div class="bar" style="width: {{ completeness }}%;"></div>
+          </div>
+          <div class="tiny" style="margin-top:6px;">
+            Completeness reflects checks that are either OK or flagged (not “not assessed”).
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="section">
+          <div style="font-weight:900;">Context</div>
+          <div class="muted" style="margin-top:8px;">
+            Advice type: <code>{{ run.advice_type }}</code><br/>
+            Investment element: <code>{{ run.investment_element }}</code><br/>
+            Ongoing service: <code>{{ run.ongoing_service }}</code>
+          </div>
+        </div>
+
+        <div class="section">
+          <div style="font-weight:900;">What to do next</div>
+          <div class="muted" style="margin-top:8px;">
+            {% if ready %}
+              Nothing flagged. If needed, open “All checks” below to show the evidence excerpts per control.
+            {% else %}
+              Review the flagged items below, apply the suggested wording, then re-run the check.
+            {% endif %}
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
-  <div class="card">
-    <h2 style="margin:0 0 10px 0;">Context</h2>
-    <pre>{{ run.context }}</pre>
-  </div>
+  {# -------------------------
+     Flagged items (PI) first
+     ------------------------- #}
+
+  {% set ns = namespace(flagged=[]) %}
+  {% for sname, rules in run.sections.items() %}
+    {% for r in rules %}
+      {% if r.status == "POTENTIAL_ISSUE" %}
+        {% set _ = ns.flagged.append((sname, r)) %}
+      {% endif %}
+    {% endfor %}
+  {% endfor %}
 
   <div class="card">
-    <h2 style="margin:0 0 10px 0;">Sections</h2>
-    {% for sname, rules in run.sections.items() %}
-      <details open style="margin-bottom:12px;">
-        <summary>{{ sname }} ({{ rules|length }})</summary>
-        <table style="margin-top:10px;">
-          <thead>
-            <tr><th>Rule</th><th>Status</th><th>Citation</th><th>Evidence</th></tr>
-          </thead>
-          <tbody>
-            {% for r in rules %}
-            <tr>
-              <td><b>{{ r.rule_id }}</b><div style="color:#6b7280;font-size:12px">{{ r.title }}</div></td>
-              <td>{{ r.status }}</td>
-              <td>{{ r.citation }}</td>
-              <td>
-                {% if r.evidence and r.evidence|length > 0 %}
-                  <ul>
-                    {% for e in r.evidence %}
-                      <li>{{ e }}</li>
-                    {% endfor %}
-                  </ul>
-                {% else %}
-                  <div style="color:#6b7280">No evidence.</div>
-                {% endif %}
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </details>
-    {% endfor %}
+    <h2>Items to review</h2>
+    <div class="sub">These are the only items a paraplanner should focus on before sending.</div>
+
+    {% if ns.flagged|length == 0 %}
+      <div class="section">
+        <div style="font-weight:900;color:#86EFAC;">No issues flagged</div>
+        <div class="muted" style="margin-top:6px;">
+          You can share this screen as evidence that the key controls were found in the report.
+        </div>
+      </div>
+    {% else %}
+      {% for sname, r in ns.flagged %}
+        <div class="section">
+          <div class="row">
+            <div style="font-weight:900;">{{ r.title }}</div>
+            <div class="spacer"></div>
+            <span class="pill pi">Needs review</span>
+          </div>
+
+          <div class="muted" style="margin-top:6px;">
+            <b>Section:</b> {{ sname }} &nbsp;·&nbsp;
+            <b>Citation:</b> {{ r.citation }}
+            {% if r.source_url %}
+              &nbsp;·&nbsp;<a class="source" href="{{ r.source_url }}" target="_blank" rel="noopener">Source</a>
+            {% endif %}
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="muted">
+            <b>Why it was flagged</b><br/>
+            {{ r.why }}
+          </div>
+
+          {% if r.evidence and r.evidence|length > 0 %}
+            <div class="divider"></div>
+            <div class="muted"><b>Supporting excerpts</b></div>
+            <ul>
+              {% for e in r.evidence %}
+                <li>{{ e }}</li>
+              {% endfor %}
+            </ul>
+          {% endif %}
+
+          <div class="suggestion">
+            <div style="font-weight:900;">Suggested wording</div>
+            <div class="muted" style="margin-top:6px;">
+              {% if r.rule_id == "COBS4_PAST_PERF" %}
+                Past performance is not a reliable indicator of future performance.
+              {% elif r.rule_id == "COBS4_NO_GUAR_IMPLIED" %}
+                Investment returns are not guaranteed and your capital is at risk.
+              {% elif r.rule_id == "COBS4_BALANCED" %}
+                Ensure benefits and risks are presented side-by-side, with clear risk language adjacent to the benefit statements.
+              {% elif r.rule_id == "COBS6_COSTS_DISC" %}
+                Include platform charge, fund charge (OCF), and a total ongoing figure, all stated numerically (e.g., % p.a.).
+              {% elif r.rule_id == "COBS9_CFL" %}
+                Add a short “worst case” scenario statement quantifying an acceptable drawdown and the client impact.
+              {% else %}
+                Add a short sentence that clearly evidences this control in line with {{ r.citation }}.
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      {% endfor %}
+    {% endif %}
   </div>
+
+  {# -------------------------
+     All checks (optional)
+     ------------------------- #}
+
+  <div class="card">
+    <details>
+      <summary>All checks (optional)</summary>
+      <div class="sub" style="margin-top:8px;">
+        Use this if someone asks “what else did it check?”. Otherwise, ignore it in the demo.
+      </div>
+
+      {% for sname, rules in run.sections.items() %}
+        <details style="margin-top:14px;">
+          <summary>{{ sname }}</summary>
+
+          <table>
+            <thead>
+              <tr>
+                <th style="width:38%;">Rule</th>
+                <th style="width:14%;">Status</th>
+                <th style="width:22%;">Citation</th>
+                <th>Evidence</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for r in rules %}
+                <tr>
+                  <td>
+                    <div style="font-weight:900;">{{ r.title }}</div>
+                    <div class="tiny">{{ r.rule_id }}</div>
+                  </td>
+                  <td>
+                    {% if r.status == "OK" %}
+                      <span class="pill ok">OK</span>
+                    {% elif r.status == "POTENTIAL_ISSUE" %}
+                      <span class="pill pi">Needs review</span>
+                    {% else %}
+                      <span class="pill na">Not assessed</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    <div>{{ r.citation }}</div>
+                    {% if r.source_url %}
+                      <div><a class="source" href="{{ r.source_url }}" target="_blank" rel="noopener">Source</a></div>
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if r.evidence and r.evidence|length > 0 %}
+                      <ul>
+                        {% for e in r.evidence %}
+                          <li>{{ e }}</li>
+                        {% endfor %}
+                      </ul>
+                    {% else %}
+                      <div class="tiny">No supporting excerpts.</div>
+                    {% endif %}
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </details>
+      {% endfor %}
+    </details>
+  </div>
+
+</div>
 </body>
 </html>
