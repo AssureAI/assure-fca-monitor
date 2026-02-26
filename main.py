@@ -428,9 +428,12 @@ def admin_run_detail(request: Request, run_id: str, user: User = Depends(require
 
 @app.get("/health")
 def health():
+    from database import DB_URL
     return {
         "status": "ok",
         "rules_path": RULES_PATH,
+        "db": DB_URL.split("@")[-1] if DB_URL else None,  # hides creds
+        "db_driver": "sqlite" if (DB_URL or "").startswith("sqlite") else "postgres",
     }
 
 
