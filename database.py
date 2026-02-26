@@ -52,6 +52,10 @@ if not DB_URL:
 engine = create_engine(
     DB_URL,
     connect_args={"check_same_thread": False} if DB_URL.startswith("sqlite") else {},
+    pool_pre_ping=True,
+    pool_size=5,
+    max_overflow=10,
+    pool_recycle=300,
     future=True,
 )
 
