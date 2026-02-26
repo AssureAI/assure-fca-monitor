@@ -404,6 +404,60 @@ def demo_results_get(
         },
     )
 
+@app.get("/demo/results/{run_id}/pdf")
+def download_pdf(run_id: str, user: User = Depends(require_user_html), db=Depends(get_db)):
+
+    rr = db.query(Run).filter(Run.id == run_id, Run.firm_id == user.firm_id).first()
+    if not rr:
+        raise HTTPException(status_code=404, detail="Run not found")
+
+    result = {
+        "summary": json.loads(rr.summary_json or "{}"),
+        "sections": json.loads(rr.sections_json or "{}"),
+    }
+
+    action_items = extract_action_items(result)
+
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer)
+    elements = []
+
+    styles = getSampleStyleSheet()
+    normal = styles["Normal"]
+    heading = styles["Heading1"]
+
+    elements.append(Paragraph("Assure Compliance Report", heading))
+    elements.append(Spacer(1, 0.3 * inch))
+
+    summary = result.get("summary", {})
+    elements.append(Paragraph(f"OK: {summary.get('ok',0)}", normal))
+    elements.append(Paragraph(f"Issues: {summary.get('potential_issue',0)}", normal))
+    elements.append(Spacer(1, 0.3 * inch))
+
+    for item in action_items:
+        elements.append(Paragraph(item["title"], styles["Heading2"]))
+        elements.append(Spacer(1, 0.1 * inch))
+
+        elements.append(Paragraph("What to fix:", styles["Heading3"]))
+        fixes = [ListItem(Paragraph(f, normal)) for f in item["fixes"]]
+        elements.append(ListFlowable(fixes, bulletType="bullet"))
+
+        if item["suggestions"]:
+            elements.append(Spacer(1, 0.1 * inch))
+            elements.append(Paragraph("Suggested wording:", styles["Heading3"]))
+            sug = [ListItem(Paragraph(s, normal)) for s in item["suggestions"]]
+            elements.append(ListFlowable(sug, bulletType="bullet"))
+
+        elements.append(Spacer(1, 0.4 * inch))
+
+    doc.build(elements)
+
+    buffer.seek(0)
+    return StreamingResponse(
+        buffer,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename=assure-run-{run_id}.pdf"}
+    )
 # -----------------------------
 # ADMIN RUN HISTORY (AUTHED)
 # -----------------------------
