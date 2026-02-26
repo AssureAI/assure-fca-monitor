@@ -9,13 +9,13 @@
       margin: 0;
       background: #0F172A;
       color: #E2E8F0;
-      font-family: Inter, sans-serif;
+      font-family: Inter, ui-sans-serif, system-ui, sans-serif;
     }
     header {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 20px 40px;
+      padding: 18px 34px;
       border-bottom: 1px solid #1E293B;
     }
     .logo-row {
@@ -28,80 +28,234 @@
       font-size: 18px;
       color: #94A3B8;
     }
-    .container {
-      max-width: 900px;
-      margin: 40px auto;
-      padding: 0 20px;
+    .top-actions {
+      display:flex;
+      gap: 14px;
+      align-items:center;
     }
-    textarea {
-      width: 100%;
-      height: 320px;
-      background: #111827;
-      border: 1px solid #334155;
-      border-radius: 12px;
-      padding: 16px;
-      color: #E2E8F0;
+    .link {
+      color:#94A3B8;
+      text-decoration:none;
       font-size: 14px;
     }
-    select {
-      background: #111827;
-      border: 1px solid #334155;
-      border-radius: 8px;
-      padding: 10px;
-      color: #E2E8F0;
+    .link:hover { text-decoration: underline; }
+
+    .container {
+      max-width: 980px;
+      margin: 34px auto;
+      padding: 0 18px;
     }
+
+    .card {
+      background: #111827;
+      border: 1px solid #1F2937;
+      border-radius: 16px;
+      padding: 18px;
+    }
+
     .row {
       display: flex;
-      gap: 16px;
-      margin-bottom: 20px;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
     }
-    button {
-      margin-top: 20px;
-      padding: 12px 20px;
-      border-radius: 8px;
+
+    select {
+      background: #0B1220;
+      border: 1px solid #334155;
+      border-radius: 10px;
+      padding: 10px 12px;
+      color: #E2E8F0;
+      min-width: 220px;
+      outline: none;
+    }
+    select:focus {
+      border-color: #2563EB;
+      box-shadow: 0 0 0 3px rgba(37,99,235,0.22);
+    }
+
+    textarea {
+      width: 100%;
+      height: 360px;
+      background: #0B1220;
+      border: 1px solid #334155;
+      border-radius: 14px;
+      padding: 14px;
+      color: #E2E8F0;
+      font-size: 14px;
+      line-height: 1.4;
+      outline: none;
+      resize: vertical;
+    }
+    textarea:focus {
+      border-color: #2563EB;
+      box-shadow: 0 0 0 3px rgba(37,99,235,0.22);
+    }
+
+    .btn-row {
+      display:flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 14px;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .btn {
+      padding: 12px 16px;
+      border-radius: 10px;
       border: none;
       background: #2563EB;
       color: white;
-      font-weight: 600;
+      font-weight: 700;
       cursor: pointer;
+    }
+    .btn:hover { background:#1D4ED8; }
+
+    .btn-ghost {
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid #334155;
+      background: transparent;
+      color: #CBD5E1;
+      cursor: pointer;
+      font-weight: 700;
+    }
+    .btn-ghost:hover { border-color: #475569; }
+
+    .hint {
+      color:#94A3B8;
+      font-size: 13px;
+      margin: 0 0 14px 0;
+    }
+
+    .small {
+      color:#64748B;
+      font-size: 12px;
+      margin-top: 10px;
     }
   </style>
 </head>
 <body>
   <header>
     <div class="logo-row">
-      <img src="/static/logo-dark.svg" width="160"/>
+      <img src="/static/logo-dark.svg" width="160" alt="Assure"/>
       <span>Demo</span>
     </div>
-    <div><a href="/logout" style="color:#94A3B8;text-decoration:none;">Logout</a></div>
+
+    <div class="top-actions">
+      <a class="link" href="/admin/runs">Run history</a>
+      <a class="link" href="/logout">Logout</a>
+    </div>
   </header>
 
   <div class="container">
-    <h2>Check suitability report</h2>
+    <p class="hint">Paste a suitability report draft → run → fix the few items flagged → rerun.</p>
 
-    <form method="post" action="/demo/run">
-      <div class="row">
-        <select name="advice_type">
-          <option value="advised">Advised</option>
-          <option value="nonadvised">Non-advised</option>
-          <option value="execution_only">Execution only</option>
-        </select>
+    <div class="card">
+      <form method="post" action="/demo/run" id="runForm">
+        <div class="row">
+          <select name="advice_type">
+            <option value="advised" {% if defaults and defaults.advice_type == "advised" %}selected{% endif %}>Advised</option>
+            <option value="nonadvised" {% if defaults and defaults.advice_type == "nonadvised" %}selected{% endif %}>Non-advised</option>
+            <option value="execution_only" {% if defaults and defaults.advice_type == "execution_only" %}selected{% endif %}>Execution only</option>
+          </select>
 
-        <select name="investment_element">
-          <option value="true">Investment element: Yes</option>
-          <option value="false">Investment element: No</option>
-        </select>
+          <select name="investment_element">
+            <option value="true" {% if defaults and defaults.investment_element == "true" %}selected{% endif %}>Investment element: Yes</option>
+            <option value="false" {% if defaults and defaults.investment_element == "false" %}selected{% endif %}>Investment element: No</option>
+          </select>
 
-        <select name="ongoing_service">
-          <option value="false">Ongoing service: No</option>
-          <option value="true">Ongoing service: Yes</option>
-        </select>
-      </div>
+          <select name="ongoing_service">
+            <option value="false" {% if defaults and defaults.ongoing_service == "false" %}selected{% endif %}>Ongoing service: No</option>
+            <option value="true" {% if defaults and defaults.ongoing_service == "true" %}selected{% endif %}>Ongoing service: Yes</option>
+          </select>
+        </div>
 
-      <textarea name="sr_text" placeholder="Paste suitability report text here..."></textarea>
+        <textarea name="sr_text" id="sr_text" placeholder="Paste suitability report text here..."></textarea>
 
-      <button type="submit">Run check</button>
-    </form>
+        <div class="btn-row">
+          <div style="display:flex;gap:10px;flex-wrap:wrap;">
+            <button type="button" class="btn-ghost" onclick="loadSample('good')">Load “Good SR”</button>
+            <button type="button" class="btn-ghost" onclick="loadSample('bad')">Load “Bad SR”</button>
+            <button type="button" class="btn-ghost" onclick="loadSample('minimal')">Load “Minimal SR”</button>
+          </div>
+          <button type="submit" class="btn">Run check</button>
+        </div>
+
+        <div class="small">Tip: for the demo, run “Good SR” first (mostly green), then “Bad SR” (clear issues + suggested wording).</div>
+      </form>
+    </div>
   </div>
+
+  <script>
+    const SAMPLES = {
+      good: `SUITABILITY REPORT
+
+Client: Mr John Smith
+Date: 26 February 2026
+Adviser: David Clinton
+Firm: Consiglio Wealth
+
+Your Circumstances
+You are 61, employed, and earning £82,000 per annum. You have reviewed your monthly expenditure and outgoings. You have no outstanding high-interest debt and maintain an emergency fund equivalent to six months’ expenditure. You plan to retire within the next 7 years and do not require withdrawals at this stage.
+
+Knowledge & Experience
+You confirmed you have previous investing experience and are familiar with equity funds, bond funds and diversified portfolios. You understand that investing involves risk and values can fluctuate.
+
+Your Investment Objectives (COBS 9.2.2R)
+Your objectives are long-term capital growth and preserving value as you approach retirement, aiming to grow your pension ahead of inflation while maintaining a balanced approach. Time horizon: 7 years.
+
+Attitude to Risk and Capacity for Loss (COBS 9.2.2R)
+Your risk profile is Balanced / Moderate. In a worst case scenario you could tolerate a fall of approximately 15–20% without materially impacting essential expenditure, acknowledging values can fall as well as rise.
+
+Recommendation (COBS 9.2.1R)
+We recommend consolidating existing pensions into a Transact SIPP and investing into a diversified portfolio:
+• 40% Global Equity Funds
+• 20% UK Equity Funds
+• 25% Strategic Bond Funds
+• 10% Global Infrastructure
+• 5% Cash
+
+Why This Recommendation Is Suitable (COBS 9.2.1R)
+This recommendation is suitable because it aligns with your objectives and time horizon and matches your assessed attitude to risk and capacity for loss. Because you have 7 years until retirement, the growth allocation supports capital growth; therefore the portfolio seeks long-term returns while moderating volatility through bonds and diversification. As a result, you retain exposure to growth assets while reducing concentration risk.
+
+Alternatives Considered
+We considered remaining with existing providers and moving to a lower-risk, higher-cash allocation. We decided against these because they are less aligned with your growth objectives and may reduce the likelihood of meeting your target outcome.
+
+Material Risks, Disadvantages and Drawbacks
+Your capital is at risk: values can fall and you may get back less than you invest. Risks include market movements, volatility, inflation risk and sequencing risk approaching retirement. There is no guarantee and returns are not guaranteed.
+
+Costs and Charges (COBS 6.1ZA / 6.1ZB)
+Platform: 0.35% p.a.  OCF: 0.60% p.a.  Total ongoing charge: approx. 0.95% p.a.
+There are no initial adviser charges for this recommendation. Any ongoing advice fee (if agreed) would be stated separately.
+
+Next Steps
+Subject to your agreement, we will transfer and consolidate pensions into the Transact SIPP and implement the recommended allocation. We can provide an annual review if you take ongoing service.`,
+      bad: `SUITABILITY REPORT
+
+We recommend moving into our model portfolio. This portfolio offers guaranteed returns and will protect your capital.
+It has delivered strong performance historically and should continue to do so.
+
+Recommendation
+Move all assets into the portfolio.
+
+Costs
+Fees apply.`,
+      minimal: `SUITABILITY REPORT
+
+Recommendation
+We recommend a portfolio.
+
+Risks
+Investments can go down.`
+    };
+
+    function loadSample(which) {
+      const ta = document.getElementById("sr_text");
+      ta.value = SAMPLES[which] || "";
+      ta.focus();
+    }
+  </script>
 </body>
 </html>
