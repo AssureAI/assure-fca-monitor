@@ -5,115 +5,225 @@
 <title>Assure – Results</title>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <style>
-body {
-  margin: 0;
-  background: #0F172A;
-  color: #E2E8F0;
-  font-family: Inter, sans-serif;
-}
-header {
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  padding:20px 40px;
-  border-bottom:1px solid #1E293B;
-}
-.logo-row {
-  display:flex;
-  align-items:center;
-  gap:14px;
-}
-.logo-row span {
-  font-size:18px;
-  color:#94A3B8;
-}
-.container {
-  max-width:1000px;
-  margin:40px auto;
-  padding:0 20px;
-}
-.summary {
-  background:#111827;
-  padding:24px;
-  border-radius:14px;
-  margin-bottom:30px;
-}
-.badge-ok { color:#22C55E; }
-.badge-warn { color:#F59E0B; }
-.section {
-  background:#111827;
-  padding:20px;
-  border-radius:12px;
-  margin-bottom:20px;
-}
-.suggestion {
-  background:#1E293B;
-  padding:16px;
-  border-radius:8px;
-  margin-top:14px;
-}
+  body {
+    margin: 0;
+    background: #0F172A;
+    color: #E2E8F0;
+    font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  }
+  header {
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding:18px 34px;
+    border-bottom:1px solid #1E293B;
+  }
+  .logo-row {
+    display:flex;
+    align-items:center;
+    gap:14px;
+  }
+  .logo-row span {
+    font-size:18px;
+    color:#94A3B8;
+  }
+  .top-actions {
+    display:flex;
+    gap: 14px;
+    align-items:center;
+  }
+  .link {
+    color:#94A3B8;
+    text-decoration:none;
+    font-size:14px;
+  }
+  .link:hover { text-decoration: underline; }
+
+  .container {
+    max-width:1100px;
+    margin:30px auto;
+    padding:0 18px;
+  }
+
+  .summary {
+    background:#111827;
+    border:1px solid #1F2937;
+    padding:22px;
+    border-radius:16px;
+    margin-bottom:18px;
+  }
+
+  .headline-ok { color:#22C55E; margin:0; }
+  .headline-warn { color:#F59E0B; margin:0; }
+
+  .meta {
+    color:#94A3B8;
+    font-size:13px;
+    margin-top:8px;
+    display:flex;
+    gap:12px;
+    flex-wrap:wrap;
+    align-items:center;
+  }
+  .pill {
+    background:#0B1220;
+    border:1px solid #334155;
+    padding:4px 10px;
+    border-radius:999px;
+    font-size:12px;
+    color:#CBD5E1;
+  }
+
+  .grid {
+    display:grid;
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  .issue {
+    background:#111827;
+    border:1px solid #1F2937;
+    padding:18px;
+    border-radius:14px;
+  }
+
+  .issue h3 {
+    margin:0 0 8px 0;
+    font-size:16px;
+  }
+
+  .sub {
+    color:#94A3B8;
+    font-size:13px;
+    margin:0 0 12px 0;
+  }
+
+  .label {
+    font-weight:800;
+    font-size:12px;
+    color:#CBD5E1;
+    margin-top: 10px;
+  }
+
+  ul {
+    margin: 8px 0 0 18px;
+    color:#E2E8F0;
+  }
+
+  .evidence {
+    background:#0B1220;
+    border:1px solid #334155;
+    border-radius:12px;
+    padding:12px;
+    margin-top: 8px;
+  }
+
+  .evidence li { color:#CBD5E1; }
+
+  .suggestion {
+    background:#1E293B;
+    border:1px solid #334155;
+    border-radius:12px;
+    padding:12px;
+    margin-top: 10px;
+  }
+
+  .small {
+    color:#64748B;
+    font-size:12px;
+    margin-top: 10px;
+  }
 </style>
 </head>
 <body>
 
 <header>
   <div class="logo-row">
-    <img src="/static/logo-dark.svg" width="160"/>
+    <img src="/static/logo-dark.svg" width="160" alt="Assure"/>
     <span>Demo</span>
   </div>
-  <div>
-    <a href="/demo" style="color:#94A3B8;text-decoration:none;">New check</a>
+  <div class="top-actions">
+    <a class="link" href="/demo">New check</a>
+    <a class="link" href="/admin/runs">Run history</a>
+    <a class="link" href="/logout">Logout</a>
   </div>
 </header>
 
 <div class="container">
 
-  {% set summary = result.summary %}
   <div class="summary">
-    {% if summary.potential_issue == 0 %}
-      <h2 class="badge-ok">✔ Ready to send</h2>
-      <p>{{ summary.ok }} controls evidenced.</p>
+    {% set ok = summary.get("ok", 0) %}
+    {% set pi = summary.get("potential_issue", 0) %}
+    {% set na = summary.get("not_assessed", 0) %}
+
+    {% if pi == 0 %}
+      <h2 class="headline-ok">✔ Ready to send</h2>
+      <div class="sub">No outstanding issues flagged by the checker.</div>
     {% else %}
-      <h2 class="badge-warn">⚠ {{ summary.potential_issue }} item to review</h2>
-      <p>{{ summary.ok }} controls evidenced.</p>
+      <h2 class="headline-warn">⚠ {{ pi }} item{% if pi != 1 %}s{% endif %} to review</h2>
+      <div class="sub">Fix the items below, rerun, then save the clean output for your file.</div>
     {% endif %}
+
+    <div class="meta">
+      <span class="pill">Completeness: {{ completeness_pct }}%</span>
+      <span class="pill">OK: {{ ok }}</span>
+      <span class="pill">Needs review: {{ pi }}</span>
+      <span class="pill">Not assessed: {{ na }}</span>
+      <span class="pill">Ruleset: {{ result.get("ruleset_id","") }} v{{ result.get("ruleset_version","") }}</span>
+      <span class="pill">Run: {{ run_id }}</span>
+    </div>
+
+    <div class="small">Completeness excludes “Not assessed” controls. It’s a rough guide, not a compliance guarantee.</div>
   </div>
 
-  {% for section, rules in result.sections.items() %}
-    {% for r in rules %}
-      {% if r.status == "POTENTIAL_ISSUE" %}
-        <div class="section">
-          <h3>{{ r.title }}</h3>
-          <p><strong>Citation:</strong> {{ r.citation }}</p>
+  {% if action_items and action_items|length > 0 %}
+    <div class="grid">
+      {% for item in action_items %}
+        <div class="issue">
+          <h3>{{ item.title }}</h3>
+          <p class="sub">
+            <span>{{ item.section }}</span>
+            &nbsp;·&nbsp;
+            <strong>{{ item.citation }}</strong>
+            {% if item.source_url %}
+              &nbsp;·&nbsp;<a class="link" href="{{ item.source_url }}" target="_blank" rel="noopener">Source</a>
+            {% endif %}
+          </p>
 
-          <p><strong>Control gap identified</strong></p>
-          <p>{{ r.why }}</p>
+          <div class="label">What to fix</div>
+          <div>{{ item.issue_summary }}</div>
 
-          {% if r.evidence and r.evidence|length > 0 %}
-            <p><strong>Supporting excerpts</strong></p>
-            <ul>
-              {% for e in r.evidence %}
-                <li>{{ e }}</li>
-              {% endfor %}
-            </ul>
+          {% if item.evidence and item.evidence|length > 0 %}
+            <div class="label">Supporting excerpts</div>
+            <div class="evidence">
+              <ul>
+                {% for e in item.evidence %}
+                  <li>{{ e }}</li>
+                {% endfor %}
+              </ul>
+            </div>
           {% endif %}
 
+          <div class="label">Suggested wording / next step</div>
           <div class="suggestion">
-            <strong>Suggested wording</strong>
-            <p>
-              {% if r.rule_id == "COBS4_PAST_PERF" %}
-                “Past performance is not a reliable indicator of future performance.”
-              {% elif r.rule_id == "COBS4_NO_GUAR_IMPLIED" %}
-                “Investment returns are not guaranteed and capital is at risk.”
-              {% else %}
-                Consider including clear language to evidence this control in line with {{ r.citation }}.
-              {% endif %}
-            </p>
+            <ul>
+              {% for s in item.suggestions %}
+                <li>{{ s }}</li>
+              {% endfor %}
+            </ul>
           </div>
+
+          <div class="small">Rule ID: {{ item.rule_id }}</div>
         </div>
-      {% endif %}
-    {% endfor %}
-  {% endfor %}
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="issue">
+      <h3>Nothing flagged</h3>
+      <p class="sub">This run didn’t produce any items to review.</p>
+      <a class="link" href="/demo">Run another check</a>
+    </div>
+  {% endif %}
 
 </div>
 </body>
