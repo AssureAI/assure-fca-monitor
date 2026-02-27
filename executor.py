@@ -1,487 +1,699 @@
-ruleset_id: assure-cobs-mvp-sr-checker
-version: "1.0"
-status: active
-reviewed_by: Assure
-reviewed_at: 2026-02-25
+# executor.py
+import os
+import re
+import yaml
+from datetime import datetime
+from typing import Any, Dict, List, Tuple, Optional
 
-global:
-  interpretation:
-    - Absence of evidence never implies compliance
-    - OK requires multiple independent signals where applicable
-    - Inference is not permitted
-  output:
-    evidence_cap_sentences: 6
 
-rules:
-  # -----------------------------
-  # COBS 9 — SUITABILITY (ADVISED)
-  # -----------------------------
+# ---------------------------------
+# NORMALISATION + SENTENCE SPLIT
+# ---------------------------------
 
-  - id: COBS9_OBJ
-    section: "COBS 9 — Objectives"
-    title: "Client investment objectives obtained and considered"
-    citation: "COBS 9.2.2R"
-    source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
-    applies_when:
-      advice_type: [advised]
-    evidence:
-      positive_clusters:
-        - ["objectives", "goals", "aims", "investment objective", "target outcome"]
-        - ["income", "growth", "capital growth", "capital preservation", "preserve capital"]
-        - ["tax", "tax efficiency", "isa", "gia", "pension", "sipp"]
-        - ["time horizon", "investment term", "over the next", "years", "short term", "long term"]
-      linkage_indicators:
-        - ["based on", "in line with", "aligned with", "reflecting", "given your"]
-    decision_logic:
+_WS_RE = re.compile(r"\s+")
+_SENT_RE = re.compile(r"(?<=[.!?])\s+")
+
+
+def normalise(text: str) -> str:
+    return _WS_RE.sub(" ", (text or "").strip())
+
+
+def split_sentences(text: str) -> List[str]:
+    t = (text or "").strip()
+    if not t:
+        return []
+    parts = _SENT_RE.split(t)
+    return [p.strip() for p in parts if p and p.strip()]
+
+
+# ---------------------------------
+# MATCHING HELPERS (DETERMINISTIC)
+# ---------------------------------
+
+_NEGATION_TOKENS = {
+    "not", "no", "never", "without", "none", "cannot", "can't",
+    "isn't", "aren't", "won't", "don't", "doesn't", "didn't",
+}
+
+
+def _tokenise(s: str) -> List[str]:
+    return re.findall(r"[a-zA-Z']+", (s or "").lower())
+
+
+def _is_negated(sentence: str, phrase: str, window_tokens: int = 4) -> bool:
+    """
+    True if phrase appears and a negation token appears within N tokens immediately before it.
+    Prevents false flags like "there are no guaranteed returns".
+    """
+    s_low = (sentence or "").lower()
+    p_low = (phrase or "").lower().strip()
+    if not p_low or p_low not in s_low:
+        return False
+
+    tokens = _tokenise(sentence)
+    p_tokens = _tokenise(phrase)
+    if not p_tokens:
+        return False
+
+    for i in range(len(tokens) - len(p_tokens) + 1):
+        if tokens[i : i + len(p_tokens)] == p_tokens:
+            start = max(0, i - window_tokens)
+            prior = tokens[start:i]
+            if any(t in _NEGATION_TOKENS for t in prior):
+                return True
+    return False
+
+
+def _flatten_phrases(phrases: Any) -> List[str]:
+    """
+    Allow phrases to be list[str] or accidentally list[list[str]].
+    Ignore non-strings deterministically.
+    """
+    flat: List[str] = []
+    if isinstance(phrases, list):
+        for p in phrases:
+            if isinstance(p, str):
+                flat.append(p)
+            elif isinstance(p, list):
+                for pp in p:
+                    if isinstance(pp, str):
+                        flat.append(pp)
+    elif isinstance(phrases, str):
+        flat.append(phrases)
+    return flat
+
+
+def phrase_hits(
+    sentences: List[str],
+    phrases: Any,
+    *,
+    allow_if_negated: bool,
+    max_evidence: int = 6,
+) -> Tuple[int, List[str], List[str], List[Tuple[str, str]]]:
+    """
+    Returns:
+      hit_count (dedup phrase count),
+      matched_phrases (sorted),
+      evidence_sentences (dedup, capped),
+      hit_pairs: list of (phrase, sentence) for mapping/debug (uncapped)
+    """
+    matched = set()
+    evidence: List[str] = []
+    seen = set()
+    hit_pairs: List[Tuple[str, str]] = []
+
+    flat = _flatten_phrases(phrases)
+
+    for sent in sentences:
+        s_low = sent.lower()
+        for p in flat:
+            p_low = p.lower().strip()
+            if not p_low:
+                continue
+            if p_low in s_low:
+                if (not allow_if_negated) and _is_negated(sent, p):
+                    continue
+                matched.add(p)
+                hit_pairs.append((p, sent))
+                if len(evidence) < max_evidence and sent not in seen:
+                    evidence.append(sent)
+                    seen.add(sent)
+
+    return len(matched), sorted(matched), evidence, hit_pairs
+
+
+def cluster_hits(
+    sentences: List[str],
+    clusters: Any,
+    *,
+    allow_if_negated: bool,
+    max_evidence: int = 6,
+) -> Tuple[int, List[str], List[str], Dict[int, List[str]]]:
+    """
+    A cluster is satisfied if ANY phrase in that cluster hits.
+    Returns:
+      satisfied_cluster_count,
+      matched_phrases (dedup),
+      evidence_sentences (dedup; capped),
+      evidence_by_cluster_index (uncapped per cluster, dedup per cluster)
+    """
+    if not isinstance(clusters, list):
+        return 0, [], [], {}
+
+    satisfied = 0
+    matched = set()
+    evidence: List[str] = []
+    seen_global = set()
+    evidence_by_cluster: Dict[int, List[str]] = {}
+
+    for idx, cluster in enumerate(clusters):
+        if not isinstance(cluster, list):
+            continue
+
+        hit_n, phrases, ev, _pairs = phrase_hits(
+            sentences,
+            cluster,
+            allow_if_negated=allow_if_negated,
+            max_evidence=max_evidence,
+        )
+
+        if hit_n > 0:
+            satisfied += 1
+            for p in phrases:
+                matched.add(p)
+
+            per_seen = set()
+            per_list: List[str] = []
+            for s in ev:
+                if s not in per_seen:
+                    per_list.append(s)
+                    per_seen.add(s)
+            evidence_by_cluster[idx] = per_list
+
+            for s in ev:
+                if len(evidence) >= max_evidence:
+                    break
+                if s not in seen_global:
+                    evidence.append(s)
+                    seen_global.add(s)
+
+    return satisfied, sorted(matched), evidence, evidence_by_cluster
+
+
+# ---------------------------------
+# APPLICABILITY
+# ---------------------------------
+
+def applies(rule_applies_when: Any, context: Dict[str, Any]) -> bool:
+    """
+    applies_when supports scalar or list:
+      advice_type: advised OR [advised, nonadvised]
+      investment_element: true/false (bools in ctx)
+      ongoing_service: true/false (bools in ctx)
+    """
+    if not rule_applies_when:
+        return True
+    if not isinstance(rule_applies_when, dict):
+        return False
+
+    for key, expected in rule_applies_when.items():
+        actual = context.get(key)
+        if isinstance(expected, list):
+            if actual not in expected:
+                return False
+        else:
+            if actual != expected:
+                return False
+
+    return True
+
+
+# ---------------------------------
+# DECISION LOGIC
+# ---------------------------------
+
+_THRESH_RE = re.compile(r"^\s*(>=|==|<=|>|<)\s*(\d+)\s*$")
+
+
+def _parse_threshold(expr: Any) -> Optional[Tuple[str, int]]:
+    """
+    Accepts: ">=2", "==0", "<=1"
+    """
+    if not isinstance(expr, str):
+        return None
+    m = _THRESH_RE.match(expr.strip())
+    if not m:
+        return None
+    return m.group(1), int(m.group(2))
+
+
+def _cmp(op: str, actual: int, target: int) -> bool:
+    if op == ">=":
+        return actual >= target
+    if op == "==":
+        return actual == target
+    if op == "<=":
+        return actual <= target
+    if op == ">":
+        return actual > target
+    if op == "<":
+        return actual < target
+    return False
+
+
+def _eval_require_block(
+    counts: Dict[str, int],
+    block: Any,
+    *,
+    block_name: str,
+) -> Tuple[bool, List[str], List[str]]:
+    """
+    block like:
       require_all:
         positive_clusters: ">=2"
         linkage_indicators: ">=1"
+    returns:
+      ok, missing_list, details_list
+    """
+    if not block:
+        return True, [], [f"{block_name} empty (no requirements)."]
+    if not isinstance(block, dict):
+        return False, ["Invalid decision logic block shape"], [f"{block_name} must be a dict."]
 
-  - id: COBS9_CIRC
-    section: "COBS 9 — Circumstances"
-    title: "Personal and financial circumstances considered"
-    citation: "COBS 9.2.2R"
-    source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
-    applies_when:
-      advice_type: [advised]
-    evidence:
-      hard_circumstances:
-        - ["income", "salary", "net income", "gross income", "take home pay", "payslip"]
-        - ["expenditure", "outgoings", "monthly spending", "budget", "disposable income"]
-        - ["mortgage", "loan", "credit card", "debt", "repayment", "liability", "borrowings"]
-        - ["dependant", "dependants", "children", "childcare", "spouse", "partner", "family"]
-        - ["employed", "self-employed", "contractor", "unemployed", "retired"]
-        - ["basic rate", "higher rate", "additional rate", "tax band", "tax rate"]
-      supporting_circumstances:
-        - ["assets", "savings", "isa", "gia", "pension", "pensions", "sipp", "property"]
-        - ["emergency fund", "cash reserve", "cash buffer", "liquid assets"]
-        - ["portfolio value", "investable assets", "assets under management", "aum"]
-    decision_logic:
-      require_all:
-        hard_circumstances: ">=1"
-        supporting_circumstances: ">=1"
+    missing: List[str] = []
+    details: List[str] = []
 
-  - id: COBS9_KNOWEXP
-    section: "COBS 9 — Knowledge & Experience"
-    title: "Knowledge and experience referenced where relevant"
-    citation: "COBS 9.2.2R"
-    source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
-    applies_when:
-      advice_type: [advised]
-    evidence:
-      positive_clusters:
-        - ["knowledge", "experience", "familiar", "understanding", "investing experience"]
-        - ["previously invested", "past investments", "existing investments", "investment history"]
-    decision_logic:
-      require_all:
-        positive_clusters: ">=1"
+    ok = True
+    for key, expr in block.items():
+        th = _parse_threshold(expr)
+        if not th:
+            ok = False
+            missing.append(f"{key} {expr} (invalid threshold)")
+            details.append(f"{block_name} invalid threshold for {key}: {expr}")
+            continue
+        op, target = th
+        actual = int(counts.get(key, 0))
+        passed = _cmp(op, actual, target)
+        if not passed:
+            ok = False
+            missing.append(f"{key} {op}{target} (actual={actual})")
+            details.append(f"{block_name} failed: {key} {op}{target} (actual={actual})")
+        else:
+            details.append(f"{block_name} satisfied: {key} {op}{target} (actual={actual})")
 
-  - id: COBS9_RISK
-    section: "COBS 9 — Risk"
-    title: "Attitude to risk assessed and linked to recommendation"
-    citation: "COBS 9.2.2R"
-    source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
-    applies_when:
-      advice_type: [advised]
-    evidence:
-      positive_clusters:
-        - ["attitude to risk", "risk profile", "risk tolerance", "risk appetite"]
-        - ["cautious", "balanced", "moderate", "adventurous", "aggressive"]
-        - ["risk questionnaire", "risk assessment", "risk profiling", "risk tool"]
-      linkage_indicators:
-        - ["consistent with", "aligned with", "matches", "in line with"]
-      negative_indicators:
-        - ["guaranteed return", "risk-free", "cannot lose", "certain return", "assured return"]
-    decision_logic:
-      require_all:
-        positive_clusters: ">=2"
-        linkage_indicators: ">=1"
-      require_none:
-        negative_indicators: "==0"
+    return ok, missing, details
 
-  - id: COBS9_CFL
-    section: "COBS 9 — Capacity for Loss"
-    title: "Capacity for loss assessed with scenario framing"
-    citation: "COBS 9.2.2R"
-    source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
-    applies_when:
-      advice_type: [advised]
-    evidence:
-      positive_clusters:
-        - ["capacity for loss", "loss capacity"]
-        - ["afford to lose", "could tolerate a fall", "financially resilient", "absorb losses"]
-        - ["would not impact lifestyle", "no material impact", "won't affect your lifestyle", "does not affect plans"]
-      contextual_indicators:
-        - ["worst case", "if markets fall", "market falls", "scenario", "stress test", "in a downturn"]
-    decision_logic:
-      require_all:
-        positive_clusters: ">=1"
-        contextual_indicators: ">=1"
 
-  - id: COBS9_TIME
-    section: "COBS 9 — Time Horizon"
-    title: "Investment time horizon referenced"
-    citation: "COBS 9.2.2R"
-    source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
-    applies_when:
-      advice_type: [advised]
-    evidence:
-      positive_clusters:
-        - ["time horizon", "investment term", "over the next", "years", "until retirement", "long term", "short term"]
-    decision_logic:
-      require_all:
-        positive_clusters: ">=1"
+# ---------------------------------
+# HUMAN "WHAT TO FIX" + SUGGESTED WORDING
+# ---------------------------------
 
-  - id: COBS9_RECO
-    section: "COBS 9 — Recommendation"
-    title: "Clear personal recommendation provided"
-    citation: "COBS 9.2.1R"
-    source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
-    applies_when:
-      advice_type: [advised]
-    evidence:
-      positive_clusters:
-        - ["we recommend", "our recommendation", "we advise", "we propose"]
-        - ["invest", "allocate", "switch", "transfer", "consolidate", "contribute", "top up"]
-    decision_logic:
-      require_all:
-        positive_clusters: ">=1"
+RULE_FIXES: Dict[str, List[str]] = {
+    "COBS4_BALANCED": [
+        "Add at least one clear benefit of the recommendation (why it helps meet the client’s objectives).",
+        "Add at least one clear risk/disadvantage (what could go wrong, including capital at risk where relevant).",
+        "Keep benefits and risks close together so the narrative reads balanced.",
+    ],
+    "COBS4_NO_GUAR_IMPLIED": [
+        "Remove any wording that implies certainty (e.g. “guaranteed”, “will”, “risk-free”).",
+        "Add a clear statement that returns are not guaranteed and capital may be at risk.",
+    ],
+    "COBS4_PAST_PERF": [
+        "If you mention past performance, include the warning that it is not a reliable indicator of future performance.",
+        "If you include projections/illustrations, explain key assumptions and that outcomes may differ materially.",
+    ],
+    "COBS6_COSTS_DISC": [
+        "State platform/product charges and ongoing fund charges (OCF) clearly.",
+        "Include numeric values (e.g. percentages) rather than generic statements like “charges apply”.",
+        "If relevant, show adviser initial/ongoing fees separately.",
+    ],
+    "COBS6_COSTS_TOTAL": [
+        "Provide an aggregated/total ongoing cost figure (e.g. ‘total ongoing charge is ~X% p.a.’).",
+        "Make it clear whether the figure includes platform + fund costs (+ adviser fee if applicable).",
+    ],
+    "COBS9_ALTS": [
+        "List the reasonable alternatives considered (e.g. do nothing, keep existing, lower-risk option).",
+        "State why alternatives were rejected (tie it back to objectives, risk, time horizon, costs).",
+    ],
+    "COBS9_CFL": [
+        "Explain capacity for loss using a scenario (e.g. ‘in a downturn you could tolerate ~15–20% fall…’).",
+        "Link the scenario to essentials/lifestyle/retirement plan impact.",
+    ],
+    "COBS9_CIRC": [
+        "Add key personal/financial circumstances (income, assets, debts, dependants, emergency fund, retirement timing).",
+        "Include enough context to show you considered the client’s situation, not just a risk score.",
+    ],
+    "COBS9_CHANGES": [
+        "Record explicit client understanding/confirmation (e.g. confirms they understand risks and volatility).",
+    ],
+    "COBS9_DOWNSIDES": [
+        "Include disadvantages/drawbacks that are specific to the recommendation (not only generic market-risk text).",
+    ],
+    "COBS9_KNOWEXP": [
+        "Reference the client’s knowledge/experience where relevant (previous investing, familiarity with products).",
+        "If experience is limited, acknowledge it and show how the recommendation remains appropriate.",
+    ],
+    "COBS9_RISKS": [
+        "Explain material risks in plain English (market risk, volatility, concentration, liquidity, inflation).",
+        "Include ‘capital at risk’ language where appropriate.",
+    ],
+    "COBS9_OBJ": [
+        "State the client’s objectives clearly (what they want to achieve and by when).",
+        "Show how the recommendation links to those objectives (not just restating them).",
+    ],
+    "COBS9_RECO": [
+        "Make the recommendation explicit (what to do, where, and what allocation/portfolio).",
+    ],
+    "COBS9_RISK": [
+        "State the assessed attitude to risk.",
+        "Explain how the recommended portfolio matches that risk profile (link risk → allocation).",
+        "Avoid any certainty/guarantee language.",
+    ],
+    "COBS9_RATIONALE": [
+        "Explain the rationale using ‘because… therefore…’ (why this is suitable for this client).",
+        "Tie the rationale to objectives, time horizon, risk profile, costs, and circumstances.",
+    ],
+    "COBS9_TIME": [
+        "State the investment time horizon (e.g. years to retirement / intended holding period).",
+        "Link time horizon to asset mix (why equities/bonds/cash proportions make sense).",
+    ],
+    "SR_STRUCT_CLIENT_DETAILS": [
+        "Include client name and key metadata (date, adviser, firm) near the top of the report.",
+    ],
+    "SR_STRUCT_NEXT_STEPS": [
+        "Add clear next steps (transfer/implementation steps, what happens after sign-off, review if applicable).",
+    ],
+}
 
-  - id: COBS9_RATIONALE
-    section: "COBS 9 — Suitability Rationale"
-    title: "Suitability explained with causal reasoning"
-    citation: "COBS 9.2.1R"
-    source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
-    applies_when:
-      advice_type: [advised]
-    evidence:
-      positive_clusters:
-        - ["this is suitable because", "this meets your objectives", "this aligns with your objectives"]
-        - ["given your objectives", "in light of your circumstances", "reflecting your circumstances"]
-      causal_language:
-        - ["because", "therefore", "as a result", "so that", "which means"]
-    decision_logic:
-      require_all:
-        positive_clusters: ">=1"
-        causal_language: ">=1"
+RULE_SUGGESTED_WORDING: Dict[str, List[str]] = {
+    "COBS4_PAST_PERF": [
+        "Past performance is not a reliable indicator of future performance.",
+        "If projections are shown, they are based on assumptions and actual outcomes may differ materially.",
+    ],
+    "COBS4_NO_GUAR_IMPLIED": [
+        "Investment returns are not guaranteed and the value of investments can fall as well as rise.",
+        "You may get back less than you invested.",
+    ],
+    "COBS6_COSTS_TOTAL": [
+        "The total ongoing charge is therefore approximately X% per annum (platform + fund costs).",
+    ],
+    "COBS9_CFL": [
+        "In a severe market downturn you could tolerate an approximate X% fall in value without materially affecting essential expenditure or retirement plans.",
+    ],
+    "COBS9_RATIONALE": [
+        "Because you have a time horizon of X years and a Balanced risk profile, the recommended allocation aims to support long-term growth while moderating volatility through diversification.",
+    ],
+}
 
-  - id: COBS9_RISKS
-    section: "COBS 9 — Material Risks"
-    title: "Material risks explained"
-    citation: "COBS 9.2.1R"
-    source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
-    applies_when:
-      advice_type: [advised]
-    evidence:
-      positive_clusters:
-        - ["risk", "risks", "volatility", "market movements", "downturn"]
-        - ["capital at risk", "value can fall", "you may get back less", "losses"]
-        - ["no guarantee", "not guaranteed", "returns are not guaranteed", "not assured"]
-    decision_logic:
-      require_all:
-        positive_clusters: ">=2"
+_BUCKET_LABELS: Dict[str, str] = {
+    "benefit_clusters": "a clear benefit statement",
+    "risk_clusters": "a clear risk/disadvantage statement",
+    "warning_clusters": "a past performance warning",
+    "trigger_clusters": "a past performance reference",
+    "prohibited_phrases": "remove guarantee/certainty language",
+    "allowed_negations": "add a ‘no guarantee’ style disclaimer",
+    "cost_clusters": "cost/charge disclosure",
+    "cost_specific": "specific cost items (platform/fund/adviser fees)",
+    "numeric_indicators": "numeric values (%, £, p.a., etc.)",
+    "positive_clusters": "supporting wording for this control",
+    "linkage_indicators": "explicit linkage between client facts and recommendation",
+    "negative_indicators": "remove problematic/negative wording for this control",
+    "contextual_indicators": "scenario framing / context explanation",
+    "hard_circumstances": "core circumstances (income/assets/debts/dependants/emergency fund)",
+    "supporting_circumstances": "supporting circumstances (existing arrangements, goals, retirement timing)",
+    "causal_language": "causal rationale (‘because/therefore/as a result’)",
+}
 
-  - id: COBS9_DOWNSIDES
-    section: "COBS 9 — Disadvantages"
-    title: "Disadvantages / drawbacks discussed"
-    citation: "COBS 9.2.1R"
-    source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
-    applies_when:
-      advice_type: [advised]
-    evidence:
-      positive_clusters:
-        - ["drawbacks", "disadvantages", "downsides", "limitations", "trade-off", "trade off"]
-        - ["could fall", "may fall", "risk of loss", "may get back less", "not suitable if"]
-    decision_logic:
-      require_all:
-        positive_clusters: ">=1"
 
-  - id: COBS9_ALTS
-    section: "COBS 9 — Alternatives"
-    title: "Reasonable alternatives considered"
-    citation: "COBS 9.2.1R"
-    source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
-    applies_when:
-      advice_type: [advised]
-    evidence:
-      positive_clusters:
-        - ["alternative", "other options", "considered alternatives", "we considered"]
-        - ["decided against", "discounted", "ruled out", "not selected because"]
-    decision_logic:
-      require_all:
-        positive_clusters: ">=1"
+def _humanise_missing(missing: List[str]) -> List[str]:
+    """
+    Converts items like 'hard_circumstances >=1 (actual=0)' into plain-English bullets.
+    We do NOT expose the raw operator/threshold to end users.
+    """
+    out: List[str] = []
+    for m in missing or []:
+        mm = (m or "").strip()
+        if not mm:
+            continue
 
-  - id: COBS9_CHANGES
-    section: "COBS 9 — Client Understanding"
-    title: "Client understanding / confirmation recorded"
-    citation: "COBS 9.2.1R"
-    source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
-    applies_when:
-      advice_type: [advised]
-    evidence:
-      positive_clusters:
-        - ["you confirmed", "you understand", "you acknowledged", "you agreed", "you are aware"]
-        - ["we discussed", "we explained", "we talked through", "we highlighted"]
-    decision_logic:
-      require_all:
-        positive_clusters: ">=1"
+        key = mm.split(" ", 1)[0].strip()
+        label = _BUCKET_LABELS.get(key)
 
-  - id: COBS9_ONGOING
-    section: "COBS 9 — Ongoing Service"
-    title: "Ongoing service described when provided"
-    citation: "COBS 9.2.1R"
-    source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
-    applies_when:
-      ongoing_service: [true]
-    evidence:
-      positive_clusters:
-        - ["ongoing service", "ongoing advice", "ongoing review", "service proposition"]
-        - ["review", "annual review", "regular review", "quarterly", "six monthly"]
-    decision_logic:
-      require_all:
-        positive_clusters: ">=1"
+        if key in ("prohibited_phrases", "negative_indicators"):
+            out.append("Remove wording that implies certainty/guarantees or otherwise breaches this control.")
+            continue
 
-  - id: COBS9_REVIEW_FREQ
-    section: "COBS 9 — Ongoing Service"
-    title: "Review frequency stated when ongoing service applies"
-    citation: "COBS 9.2.1R"
-    source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
-    applies_when:
-      ongoing_service: [true]
-    evidence:
-      positive_clusters:
-        - ["annual", "annually", "six monthly", "quarterly", "every 12 months", "each year", "review frequency"]
-    decision_logic:
-      require_all:
-        positive_clusters: ">=1"
+        if key == "warning_clusters":
+            out.append("Add the standard warning alongside any past performance references.")
+            continue
 
-  # -----------------------------
-  # COBS 6 — COSTS & CHARGES (WHEN INVESTMENT ELEMENT)
-  # -----------------------------
+        if label:
+            out.append(f"Add {label} so this control is evidenced.")
+        else:
+            if "decision_logic missing" in mm:
+                out.append("This rule cannot be assessed because the ruleset is incomplete (missing decision logic).")
+            else:
+                out.append("Add clearer wording/evidence so this control is evidenced in the report.")
 
-  - id: COBS6_COSTS_DISC
-    section: "COBS 6 — Costs & Charges"
-    title: "Costs and charges disclosed (with numerical detail)"
-    citation: "COBS 6.1ZA / COBS 6.1ZB"
-    source_url: "https://handbook.fca.org.uk/handbook/COBS/6/1ZA.html"
-    applies_when:
-      investment_element: [true]
-    evidence:
-      cost_clusters:
-        - ["cost", "costs", "charge", "charges", "fee", "fees"]
-        - ["ongoing charge", "ocf", "platform charge", "product charge", "fund charge"]
-        - ["initial charge", "adviser charge", "ongoing advice fee", "service fee"]
-      numeric_indicators:
-        - ["%", "per annum", "p.a.", "pa"]
-      cost_specific:
-        - ["fee", "fees", "charge", "charges", "ocf", "platform charge", "adviser charge", "service fee"]
-    decision_logic:
-      require_all:
-        cost_clusters: ">=2"
-        cost_specific: ">=1"
-        numeric_indicators: ">=1"
+    seen = set()
+    deduped: List[str] = []
+    for x in out:
+        if x not in seen:
+            deduped.append(x)
+            seen.add(x)
+    return deduped
 
-  - id: COBS6_COSTS_TOTAL
-    section: "COBS 6 — Costs & Charges"
-    title: "Total / aggregated cost communicated"
-    citation: "COBS 6.1ZA / COBS 6.1ZB"
-    source_url: "https://handbook.fca.org.uk/handbook/COBS/6/1ZA.html"
-    applies_when:
-      investment_element: [true]
-    evidence:
-      positive_clusters:
-        - ["total ongoing charge", "total cost", "total charges", "overall cost", "in total"]
-        - ["therefore approximately", "overall will be", "combined charge"]
-    decision_logic:
-      require_all:
-        positive_clusters: ">=1"
 
-  # -----------------------------
-  # COBS 4 — FAIR, CLEAR, NOT MISLEADING (COMMS)
-  # -----------------------------
+# ---------------------------------
+# RULE EVALUATION
+# ---------------------------------
 
-  - id: COBS4_NO_GUAR_IMPLIED
-    section: "COBS 4 — Communications"
-    title: "No inappropriate certainty / guarantees implied"
-    citation: "COBS 4.2.1R"
-    source_url: "https://handbook.fca.org.uk/handbook/COBS/4/2.html"
-    applies_when:
-      investment_element: [true]
-    evidence:
-      prohibited_phrases:
-        - ["guaranteed return", "guaranteed growth", "risk-free", "risk free", "cannot lose", "certain return", "assured return"]
-      allowed_negations:
-        - ["not guaranteed", "no guarantee", "there is no guarantee", "returns are not guaranteed", "not assured"]
-    decision_logic:
-      require_none:
-        prohibited_phrases: "==0"
+def evaluate_rule(rule: Dict[str, Any], text: str, context: Dict[str, Any]) -> Dict[str, Any]:
+    rule_id = rule.get("id", "") or ""
 
-  - id: COBS4_BALANCED
-    section: "COBS 4 — Communications"
-    title: "Benefits and risks presented in a balanced way"
-    citation: "COBS 4.2.1R"
-    source_url: "https://handbook.fca.org.uk/handbook/COBS/4/2.html"
-    applies_when:
-      investment_element: [true]
-    evidence:
-      benefit_clusters:
-        - ["benefits", "advantages", "pros", "potential benefit", "opportunity"]
-      risk_clusters:
-        - ["risks", "drawbacks", "downsides", "limitations", "volatility", "capital at risk"]
-    decision_logic:
-      require_all:
-        benefit_clusters: ">=1"
-        risk_clusters: ">=1"
+    def _pack(
+        *,
+        status: str,
+        why: str,
+        counts: Dict[str, int],
+        evidence: List[str],
+        evidence_by_key: Dict[str, List[str]],
+        missing: List[str],
+        details: List[str],
+    ) -> Dict[str, Any]:
+        fixes: List[str] = []
+        suggested_wording: List[str] = []
 
-  - id: COBS4_PAST_PERF
-    section: "COBS 4 — Communications"
-    title: "Past performance not presented as a reliable indicator without warning"
-    citation: "COBS 4.2.1R"
-    source_url: "https://handbook.fca.org.uk/handbook/COBS/4/2.html"
-    applies_when:
-      investment_element: [true]
-    evidence:
-      trigger_clusters:
-        - ["past performance", "historic performance", "previous performance", "track record"]
-      warning_clusters:
-        - ["is not a reliable indicator", "not a guide to future returns", "not indicative of future performance"]
-    decision_logic:
-      require_all:
-        trigger_clusters: ">=1"
-        warning_clusters: ">=1"
+        if status != "OK":
+            fixes = list(RULE_FIXES.get(rule_id, []))
+            if not fixes:
+                fixes = _humanise_missing(missing)
+            if not fixes:
+                fixes = ["Add clear wording/evidence so this control is evidenced in the report."]
+            suggested_wording = list(RULE_SUGGESTED_WORDING.get(rule_id, []))
 
-  # -----------------------------
-  # COBS 10 — APPROPRIATENESS (NON-ADVISED / EXECUTION-ONLY)
-  # -----------------------------
+        return {
+            "status": status,
+            "why": why,
+            "counts": counts,
+            "evidence": evidence[:6],
+            "evidence_by_key": evidence_by_key,
+            "missing": missing,
+            "details": details,
+            "fixes": fixes,
+            "suggested_wording": suggested_wording,
+        }
 
-  - id: COBS10_APP_NONADVISED
-    section: "COBS 10 — Appropriateness"
-    title: "Appropriateness assessment evidenced for non-advised"
-    citation: "COBS 10"
-    source_url: "https://handbook.fca.org.uk/handbook/COBS/10/"
-    applies_when:
-      advice_type: [nonadvised]
-    evidence:
-      assessment_clusters:
-        - ["appropriateness", "appropriateness assessment", "we assessed", "knowledge and experience"]
-        - ["you have confirmed your understanding", "you understand the risks", "you are aware of the risks"]
-      product_complexity:
-        - ["derivative", "structured product", "complex", "leverage", "cfd"]
-    decision_logic:
-      require_all:
-        assessment_clusters: ">=1"
+    if not applies(rule.get("applies_when") or {}, context):
+        return _pack(
+            status="NOT_ASSESSED",
+            why="Rule not applicable for current context.",
+            counts={},
+            evidence=[],
+            evidence_by_key={},
+            missing=[],
+            details=[],
+        )
 
-  - id: COBS10_WARN_EXEC_ONLY
-    section: "COBS 10 — Appropriateness"
-    title: "Execution-only includes appropriate warnings where no assessment"
-    citation: "COBS 10"
-    source_url: "https://handbook.fca.org.uk/handbook/COBS/10/"
-    applies_when:
-      advice_type: [execution_only]
-    evidence:
-      warning_clusters:
-        - ["we have not assessed", "no assessment has been made", "we have not provided advice", "execution-only", "execution only"]
-        - ["you may be exposed to risks", "you could lose money", "may not be appropriate", "you may get back less"]
-    decision_logic:
-      require_all:
-        warning_clusters: ">=1"
+    sentences = split_sentences(text)
+    evidence_spec = rule.get("evidence") or {}
+    decision = rule.get("decision_logic") or {}
 
-  # -----------------------------
-  # GENERAL — DOCUMENT HYGIENE (SR QUALITY SIGNALS)
-  # -----------------------------
+    counts: Dict[str, int] = {}
+    evidence_by_key: Dict[str, List[str]] = {}
 
-  - id: SR_STRUCT_NEXT_STEPS
-    section: "SR — Structure"
-    title: "Next steps / implementation steps present"
-    citation: "Good practice (supports audit trail)"
-    source_url: null
-    applies_when:
-      advice_type: [advised, nonadvised, execution_only]
-    evidence:
-      positive_clusters:
-        - ["next steps", "subject to your agreement", "we will", "implement", "arrange transfer", "open", "submit", "complete forms"]
-    decision_logic:
-      require_all:
-        positive_clusters: ">=1"
+    evidence_sentences: List[str] = []
+    evidence_seen = set()
 
-  - id: SR_STRUCT_CLIENT_DETAILS
-    section: "SR — Structure"
-    title: "Client and adviser details present"
-    citation: "Good practice (supports audit trail)"
-    source_url: null
-    applies_when:
-      advice_type: [advised, nonadvised, execution_only]
-    evidence:
-      positive_clusters:
-        - ["client:", "adviser:", "date:", "firm:", "report date", "prepared by"]
-    decision_logic:
-      require_all:
-        positive_clusters: ">=1"
+    def _merge_global(ev_sents: List[str], cap: int = 6) -> None:
+        for s in ev_sents:
+            if len(evidence_sentences) >= cap:
+                break
+            if s not in evidence_seen:
+                evidence_sentences.append(s)
+                evidence_seen.add(s)
 
-  # -----------------------------
-  # CONSUMER DUTY + SPECIALIST CHECKS
-  # -----------------------------
+    # 1) Count evidence buckets
+    if isinstance(evidence_spec, dict):
+        for key, spec in evidence_spec.items():
+            allow_if_negated = True
+            if key in ("negative_indicators", "prohibited_phrases", "must_not_contain"):
+                allow_if_negated = False
 
-  - id: CD_UNDERSTANDING_JARGON_BRIDGE
-    section: "Consumer Duty — Understanding (Outcome 3)"
-    title: "High-complexity terminology is explained in plain English"
-    citation: "Consumer Duty (Outcome 3)"
-    source_url: null
-    applies_when:
-      advice_type: [advised, nonadvised, execution_only]
-    evidence:
-      prohibited_phrases:
-        - ["alpha", "beta", "idiosyncratic", "standard deviation", "ex-ante", "volatility clustering", "fiscal drag"]
-      allowed_negations:
-        - ["which means", "in simple terms", "essentially", "to put this in context", "this is a measure of"]
-    decision_logic:
-      require_none:
-        prohibited_phrases: "==0"
+            if key.endswith("_clusters"):
+                satisfied_n, _phrases, ev, _by_cluster = cluster_hits(
+                    sentences,
+                    spec,
+                    allow_if_negated=True,
+                    max_evidence=6,
+                )
+                counts[key] = satisfied_n
+                evidence_by_key[key] = ev
+                _merge_global(ev, cap=6)
+            else:
+                hit_n, _phrases, ev, _pairs = phrase_hits(
+                    sentences,
+                    spec,
+                    allow_if_negated=allow_if_negated,
+                    max_evidence=6,
+                )
+                counts[key] = hit_n
+                evidence_by_key[key] = ev
+                _merge_global(ev, cap=6)
 
-  - id: CD_VULNERABILITY_SUPPORT_MEASURE
-    section: "Consumer Duty — Cross-Cutting (Vulnerability)"
-    title: "Vulnerability trigger recorded with a documented support measure"
-    citation: "Consumer Duty (Cross-cutting)"
-    source_url: null
-    applies_when:
-      advice_type: [advised, nonadvised, execution_only]
-    evidence:
-      prohibited_phrases:
-        - ["bereavement", "divorce", "health", "illness", "memory", "digital exclusion", "caring responsibilities"]
-      allowed_negations:
-        - ["large print", "braille", "third party present", "longer meeting", "paused for questions", "translator"]
-    decision_logic:
-      require_none:
-        prohibited_phrases: "==0"
+    # 2) “No guarantees” override: if negation exists, don’t treat prohibited phrases as failing
+    if counts.get("prohibited_phrases", 0) > 0 and counts.get("allowed_negations", 0) > 0:
+        counts["prohibited_phrases"] = 0
 
-  - id: PENSION_IHT_2027
-    section: "Pension — IHT (April 2027)"
-    title: "72+ pension advice addresses April 2027 IHT treatment of unused pensions"
-    citation: "April 2027 pension IHT change"
-    source_url: null
-    applies_when:
-      advice_type: [pension]
-      client_age_72_plus: [true]
-    evidence:
-      trigger_clusters:
-        - ["april 2027"]
-        - ["inheritance tax on pensions"]
-        - ["death benefits"]
-        - ["unused funds in estate", "unused pension funds in estate", "pension funds in estate"]
-    decision_logic:
-      require_all:
-        trigger_clusters: ">=1"
+    # 3) Decision logic
+    if not isinstance(decision, dict) or len(decision.keys()) == 0:
+        return _pack(
+            status="POTENTIAL_ISSUE",
+            why="No decision_logic provided (cannot auto-pass).",
+            counts=counts,
+            evidence=evidence_sentences,
+            evidence_by_key=evidence_by_key,
+            missing=["decision_logic missing"],
+            details=[],
+        )
 
-  - id: CD_SLUDGE_FRICTION
-    section: "Consumer Duty — Support (Outcome 4)"
-    title: "No unreasonable friction / sludge language"
-    citation: "Consumer Duty (Outcome 4)"
-    source_url: null
-    applies_when:
-      advice_type: [advised, nonadvised, execution_only]
-    evidence:
-      prohibited_phrases:
-        - ["exit fee", "notice period", "penalty", "termination charge", "hard to cancel", "only via phone"]
-    decision_logic:
-      require_none:
-        prohibited_phrases: "==0"
+    require_all = decision.get("require_all")
+    require_none = decision.get("require_none")
+    allow_if_present = decision.get("allow_if_present")
+
+    ok_all, missing_all, details_all = _eval_require_block(counts, require_all, block_name="require_all")
+    ok_none, missing_none, details_none = _eval_require_block(counts, require_none, block_name="require_none")
+    _ok_allow, _missing_allow, details_allow = _eval_require_block(counts, allow_if_present, block_name="allow_if_present")
+
+    details: List[str] = []
+    details.extend(details_all)
+    details.extend(details_none)
+    details.extend(details_allow)
+
+    missing: List[str] = []
+    if not ok_all:
+        missing.extend(missing_all)
+    if not ok_none:
+        missing.extend(missing_none)
+
+    # Strict: if nothing matched at all, treat as missing evidence
+    total_hits = sum(int(v) for v in counts.values())
+    if total_hits == 0:
+        return _pack(
+            status="POTENTIAL_ISSUE",
+            why="No supporting wording found in the report.",
+            counts=counts,
+            evidence=[],
+            evidence_by_key=evidence_by_key,
+            missing=["All required signals (none matched)"],
+            details=[],
+        )
+
+    status = "OK" if (ok_all and ok_none) else "POTENTIAL_ISSUE"
+
+    # Must have evidence to be OK
+    if status == "OK" and len(evidence_sentences) == 0:
+        status = "POTENTIAL_ISSUE"
+        missing.append("No evidence sentences (cannot assert OK).")
+        details.append("Downgraded: decision passed but evidence list empty.")
+
+    why = "OK" if status == "OK" else "Conditions not met."
+
+    return _pack(
+        status=status,
+        why=why,
+        counts=counts,
+        evidence=evidence_sentences,
+        evidence_by_key=evidence_by_key,
+        missing=missing,
+        details=details,
+    )
+
+
+# ---------------------------------
+# RULESET LOAD
+# ---------------------------------
+
+def _resolve_rules_path(default_path: str) -> str:
+    path = os.environ.get("RULES_PATH", default_path)
+    if os.path.exists(path):
+        return path
+
+    fallback = "rules/cobs-suitability-v1.yaml"
+    if os.path.exists(fallback):
+        return fallback
+
+    raise FileNotFoundError(f"Rules file not found: {path} (and fallback missing: {fallback})")
+
+
+def _load_ruleset(path: str) -> Dict[str, Any]:
+    with open(path, "r", encoding="utf-8") as f:
+        data = yaml.safe_load(f)
+    return data if isinstance(data, dict) else {}
+
+
+# ---------------------------------
+# EXECUTOR ENTRY POINT
+# ---------------------------------
+
+def run_rules_engine(
+    document_text: str,
+    context: Dict[str, Any],
+    rules_path: str = "rules/cobs-suitability-v1.yaml",
+) -> Dict[str, Any]:
+    resolved_path = _resolve_rules_path(rules_path)
+    ruleset = _load_ruleset(resolved_path)
+
+    rules = ruleset.get("rules", [])
+    if not isinstance(rules, list):
+        rules = []
+
+    grouped: Dict[str, List[Dict[str, Any]]] = {}
+
+    for rule in rules:
+        if not isinstance(rule, dict):
+            continue
+
+        outcome = evaluate_rule(rule, document_text, context)
+        section = rule.get("section") or "Unsorted"
+        grouped.setdefault(section, [])
+
+        grouped[section].append(
+            {
+                "rule_id": rule.get("id", ""),
+                "title": rule.get("title", ""),
+                "status": outcome.get("status", "POTENTIAL_ISSUE"),
+                "citation": rule.get("citation", ""),
+                "source_url": rule.get("source_url") or "",
+                "why": outcome.get("why", ""),
+
+                # product UI fields (always present; empty lists if OK)
+                "fixes": outcome.get("fixes", []) or [],
+                "suggested_wording": outcome.get("suggested_wording", []) or [],
+
+                # keep for debugging/admin views
+                "counts": outcome.get("counts", {}) or {},
+                "missing": outcome.get("missing", []) or [],
+                "details": outcome.get("details", []) or [],
+                "evidence": outcome.get("evidence", []) or [],
+                "evidence_by_key": outcome.get("evidence_by_key", {}) or {},
+            }
+        )
+
+    for s in list(grouped.keys()):
+        grouped[s] = sorted(grouped[s], key=lambda r: (r.get("rule_id") or ""))
+
+    summary = {
+        "ok": sum(1 for sec in grouped.values() for r in sec if r.get("status") == "OK"),
+        "potential_issue": sum(1 for sec in grouped.values() for r in sec if r.get("status") == "POTENTIAL_ISSUE"),
+        "not_assessed": sum(1 for sec in grouped.values() for r in sec if r.get("status") == "NOT_ASSESSED"),
+    }
+
+    return {
+        "ruleset_id": ruleset.get("ruleset_id", "unknown-ruleset"),
+        "ruleset_version": ruleset.get("version", "0.0"),
+        "checked_at": datetime.utcnow().isoformat() + "Z",
+        "summary": summary,
+        "sections": grouped,
+        "rules_path_used": resolved_path,
+    }
