@@ -421,3 +421,75 @@ rules:
     decision_logic:
       require_all:
         positive_clusters: ">=1"
+
+  # -----------------------------
+  # CONSUMER DUTY + SPECIALIST CHECKS
+  # -----------------------------
+
+  - id: CD_UNDERSTANDING_JARGON_BRIDGE
+    section: "Consumer Duty — Understanding (Outcome 3)"
+    title: "High-complexity terminology is explained in plain English"
+    citation: "Consumer Duty (Outcome 3)"
+    source_url: null
+    applies_when:
+      advice_type: [advised, nonadvised, execution_only]
+    evidence:
+      # Uses the executor’s prohibited_phrases vs allowed_negations override as a logic gate:
+      # if jargon appears AND no bridge appears => fail
+      prohibited_phrases:
+        - ["alpha", "beta", "idiosyncratic", "standard deviation", "ex-ante", "volatility clustering", "fiscal drag"]
+      allowed_negations:
+        - ["which means", "in simple terms", "essentially", "to put this in context", "this is a measure of"]
+    decision_logic:
+      require_none:
+        prohibited_phrases: "==0"
+
+  - id: CD_VULNERABILITY_SUPPORT_MEASURE
+    section: "Consumer Duty — Cross-Cutting (Vulnerability)"
+    title: "Vulnerability trigger recorded with a documented support measure"
+    citation: "Consumer Duty (Cross-cutting)"
+    source_url: null
+    applies_when:
+      advice_type: [advised, nonadvised, execution_only]
+    evidence:
+      # Logic gate:
+      # if trigger appears AND no support measure appears => fail
+      prohibited_phrases:
+        - ["bereavement", "divorce", "health", "illness", "memory", "digital exclusion", "caring responsibilities"]
+      allowed_negations:
+        - ["large print", "braille", "third party present", "longer meeting", "paused for questions", "translator"]
+    decision_logic:
+      require_none:
+        prohibited_phrases: "==0"
+
+  - id: PENSION_IHT_2027
+    section: "Pension — IHT (April 2027)"
+    title: "72+ pension advice addresses April 2027 IHT treatment of unused pensions"
+    citation: "April 2027 pension IHT change"
+    source_url: null
+    applies_when:
+      advice_type: [pension]
+      client_age_72_plus: [true]
+    evidence:
+      trigger_clusters:
+        - ["april 2027"]
+        - ["inheritance tax on pensions"]
+        - ["death benefits"]
+        - ["unused funds in estate", "unused pension funds in estate", "pension funds in estate"]
+    decision_logic:
+      require_all:
+        trigger_clusters: ">=1"
+
+  - id: CD_SLUDGE_FRICTION
+    section: "Consumer Duty — Support (Outcome 4)"
+    title: "No unreasonable friction / sludge language"
+    citation: "Consumer Duty (Outcome 4)"
+    source_url: null
+    applies_when:
+      advice_type: [advised, nonadvised, execution_only]
+    evidence:
+      prohibited_phrases:
+        - ["exit fee", "notice period", "penalty", "termination charge", "hard to cancel", "only via phone"]
+    decision_logic:
+      require_none:
+        prohibited_phrases: "==0"
