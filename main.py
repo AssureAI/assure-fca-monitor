@@ -148,6 +148,47 @@ def extract_action_items(result: Dict[str, Any]) -> List[Dict[str, Any]]:
 
     return out
 
+def build_ai_summary(result: Dict[str, Any], action_items: List[Dict[str, Any]]) -> str:
+    summary = (result or {}).get("summary") or {}
+    ok = int(summary.get("ok", 0) or 0)
+    pi = int(summary.get("potential_issue", 0) or 0)
+    na = int(summary.get("not_assessed", 0) or 0)
+
+    # Pick up to 3 items to highlight
+    highlights = []
+    for it in (action_items or [])[:3]:
+        title = (it.get("title") or "").strip()
+        rid = (it.get("rule_id") or "").strip()
+        if title:
+            highlights.append(f"{title} ({rid})" if rid else title)
+
+    # Lightweight tone flags based on rule_ids present in the action items
+    rule_ids = {str(it.get("rule_id") or "") for it in (action_items or [])}
+    consumer_duty_flag = any(rid.startswith("CD_") for rid in rule_ids) or any("CONSUMER" in rid for rid in rule_ids)
+
+    # Structure compliment if SR_STRUCT_* are OK (we can infer from missing action items for those IDs)
+    well_structured = not any(rid.startswith("SR_STRUCT_") for rid in rule_ids)
+
+    parts: List[str] = []
+
+    if well_structured:
+        parts.append("This SR is well structured and readable.")
+    else:
+        parts.append("This SR is broadly workable, but the structure could be tightened.")
+
+    parts.append(f"It hits {ok} controls cleanly, with {pi} item{'s' if pi != 1 else ''} to review (and {na} not assessed).")
+
+    if highlights:
+        parts.append("You should prioritise:")
+        for h in highlights:
+            parts.append(f"- {h}")
+
+    if consumer_duty_flag:
+        parts.append("Be mindful of Consumer Duty: sophisticated terminology appears without enough plain-English bridging in places.")
+
+    parts.append("For more detail, see the results breakdown below.")
+
+    return "\n".join(parts)
 
 def persist_run(db, user: User, result: Dict[str, Any], context: Dict[str, Any], sr_text: str) -> str:
     run_id = str(uuid.uuid4())
