@@ -26,8 +26,8 @@ from sqlalchemy.orm import (
     relationship,
 )
 
-DB_URL = os.environ.get("ASSURE_DB_URL")
-DB_PATH = os.environ.get("ASSURE_DB_PATH", "./assure.db")
+DB_URL = os.environ.get("RULEGRID_DB_URL")
+DB_PATH = os.environ.get("RULEGRID_DB_PATH", "./rulegrid.db")
 
 if DB_URL:
     # Render often provides postgres:// but SQLAlchemy expects postgresql://
@@ -62,7 +62,7 @@ def utc_now() -> datetime:
     return datetime.now(timezone.utc).replace(microsecond=0)
 
 
-_PBKDF2_ITERATIONS = int(os.environ.get("ASSURE_PBKDF2_ITERATIONS", "210000"))
+_PBKDF2_ITERATIONS = int(os.environ.get("RULEGRID_PBKDF2_ITERATIONS", "210000"))
 
 
 def _b64e(b: bytes) -> str:
@@ -188,7 +188,7 @@ Index("ix_runs_firm_user_created", Run.firm_id, Run.user_id, Run.created_at)
 Index("ix_runs_firm_user_completeness", Run.firm_id, Run.user_id, Run.completeness_pct)
 
 
-_DEFAULT_SESSION_DAYS = int(os.environ.get("ASSURE_SESSION_DAYS", "14"))
+_DEFAULT_SESSION_DAYS = int(os.environ.get("RULEGRID_SESSION_DAYS", "14"))
 
 
 def create_session(db, user_id: int, *, days: int = _DEFAULT_SESSION_DAYS) -> str:
