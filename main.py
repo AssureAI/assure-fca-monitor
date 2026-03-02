@@ -1,3 +1,4 @@
+# main.py
 from __future__ import annotations
 
 import os
@@ -34,19 +35,35 @@ from database import (
     DB_URL,
 )
 
-app = FastAPI(title="RuleGrid Compliance Engine")
+# -----------------------------
+# APP
+# -----------------------------
+
+app = FastAPI(title="Rulegrid Compliance Engine")
 templates = Jinja2Templates(directory="templates")
-app.mount("/static", StaticFiles(directory="static"), name="static")
 
+# Static assets
+if os.path.isdir("static"):
+    app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# Rules path
 RULES_PATH = os.environ.get("RULES_PATH", "rules/cobs-mvp-v2.yaml")
-SESSION_COOKIE = os.environ.get("RULEGRID_SESSION_COOKIE", "rulegrid_session")
-COOKIE_SECURE = os.environ.get("RULEGRID_COOKIE_SECURE", "true").lower() == "true"
 
-BOOTSTRAP_EMAIL = os.environ.get("RULEGRID_BOOTSTRAP_EMAIL", "").strip().lower()
-BOOTSTRAP_PASSWORD = os.environ.get("RULEGRID_BOOTSTRAP_PASSWORD", "")
-BOOTSTRAP_FIRM = os.environ.get("RULEGRID_BOOTSTRAP_FIRM", "Demo Firm")
-APP_SECRET = os.environ.get("RULEGRID_APP_SECRET", "")
+# Cookies
+SESSION_COOKIE = os.environ.get("RULEGRID_SESSION_COOKIE", os.environ.get("ASSURE_SESSION_COOKIE", "rulegrid_session"))
+COOKIE_SECURE = os.environ.get("RULEGRID_COOKIE_SECURE", os.environ.get("ASSURE_COOKIE_SECURE", "true")).lower() == "true"
 
+# Bootstrap admin
+BOOTSTRAP_EMAIL = os.environ.get("RULEGRID_BOOTSTRAP_EMAIL", os.environ.get("ASSURE_BOOTSTRAP_EMAIL", "")).strip().lower()
+BOOTSTRAP_PASSWORD = os.environ.get("RULEGRID_BOOTSTRAP_PASSWORD", os.environ.get("ASSURE_BOOTSTRAP_PASSWORD", ""))
+BOOTSTRAP_FIRM = os.environ.get("RULEGRID_BOOTSTRAP_FIRM", os.environ.get("ASSURE_BOOTSTRAP_FIRM", "Demo Firm"))
+
+# App secret (required)
+APP_SECRET = os.environ.get("RULEGRID_APP_SECRET", os.environ.get("ASSURE_APP_SECRET", "")).strip()
+
+# -----------------------------
+# DB DEPENDENCY
+# -----------------------------
 
 def get_db():
     db = SessionLocal()
@@ -55,18 +72,18 @@ def get_db():
     finally:
         db.close()
 
+# -----------------------------
+# HELPERS
+# -----------------------------
 
 def utc_now() -> datetime:
     return datetime.now(timezone.utc).replace(microsecond=0)
 
-
 def utc_now_iso() -> str:
     return utc_now().isoformat()
 
-
 def get_session_token_from_request(request: Request) -> str:
-    return request.cookies.get(SESSION_COOKIE, "")
-
+    return request.cookies.get(SESSION_COOKIE, "") or ""
 
 def require_user_html(request: Request, db=Depends(get_db)) -> User:
     token = get_session_token_from_request(request)
@@ -75,22 +92,20 @@ def require_user_html(request: Request, db=Depends(get_db)) -> User:
         raise HTTPException(status_code=401, detail="LOGIN_REQUIRED")
     return user
 
-
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
     if exc.status_code == 401 and exc.detail == "LOGIN_REQUIRED":
         return RedirectResponse(url="/login", status_code=303)
     return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
 
-
 def compute_completeness(summary: Dict[str, Any]) -> int:
+    """Completeness % = OK / (OK + POTENTIAL_ISSUE). NOT_ASSESSED excluded."""
     ok = int(summary.get("ok", 0) or 0)
     pi = int(summary.get("potential_issue", 0) or 0)
     denom = ok + pi
     if denom <= 0:
         return 0
     return int(round((ok / denom) * 100))
-
 
 def summarise_issue(rule: Dict[str, Any]) -> str:
     why = (rule.get("why") or "").strip()
@@ -104,74 +119,11 @@ def summarise_issue(rule: Dict[str, Any]) -> str:
         return "The report doesn’t clearly evidence this requirement."
     return why
 
-
 def extract_action_items(result: Dict[str, Any]) -> List[Dict[str, Any]]:
     out: List[Dict[str, Any]] = []
     sections = result.get("sections") or {}
     if not isinstance(sections, dict):
         return out
-
-def generate_ai_summary(
-    *,
-    summary: Dict[str, Any],
-    completeness_pct: int,
-    action_items: List[Dict[str, Any]],
-) -> str:
-    """
-    Deterministic "AI-style" narrative summary (no external LLM).
-    Rendered with a typewriter effect in the UI.
-    """
-    ok = int(summary.get("ok", 0) or 0)
-    pi = int(summary.get("potential_issue", 0) or 0)
-    na = int(summary.get("not_assessed", 0) or 0)
-    total_assessed = ok + pi
-
-    lines: List[str] = []
-
-    if total_assessed == 0:
-        return "I couldn’t assess any rules against this document. Check the context inputs and ruleset configuration, then rerun."
-
-    if pi == 0:
-        lines.append(f"This suitability report is in good shape. It evidences {ok} out of {total_assessed} assessed controls.")
-    else:
-        lines.append(f"This suitability report evidences {ok} out of {total_assessed} assessed controls ({completeness_pct}% completeness).")
-
-    # Call out the top 2–3 issues
-    if pi > 0:
-        top = action_items[:3]
-        if top:
-            lines.append("The main things to tighten up are:")
-            for item in top:
-                rid = (item.get("rule_id") or "").strip()
-                title = (item.get("title") or "").strip()
-                if rid:
-                    lines.append(f"- {rid}: {title}")
-                else:
-                    lines.append(f"- {title}")
-
-    # Consumer Duty nudges (based on rule IDs present in action_items)
-    ids = {str(i.get("rule_id") or "") for i in action_items}
-    duty_notes: List[str] = []
-    if "CD_UNDERSTANDING_JARGON_BRIDGE" in ids:
-        duty_notes.append("Be mindful of Consumer Duty ‘Understanding’: sophisticated language appears without clear plain-English explanation.")
-    if "CD_SLUDGE_FRICTION" in ids:
-        duty_notes.append("Be mindful of Consumer Duty ‘Support’: potential friction/‘sludge’ language appears and should be justified or clarified.")
-    if "CD_VULNERABILITY_SUPPORT_MEASURE" in ids:
-        duty_notes.append("A potential vulnerability indicator is present — make sure a specific support adjustment is documented.")
-
-    if duty_notes:
-        lines.append("")
-        lines.extend(duty_notes)
-
-    if na > 0:
-        lines.append("")
-        lines.append(f"Note: {na} controls were not assessed due to the context provided for this run.")
-
-    lines.append("")
-    lines.append("For more detail, see the results breakdown below.")
-
-    return "\n".join(lines)
-
 
     for section_name, rules in sections.items():
         if not isinstance(rules, list):
@@ -208,49 +160,14 @@ def generate_ai_summary(
                 }
             )
 
+    # deterministic “top” ordering: by section then rule id
+    out = sorted(out, key=lambda x: ((x.get("section") or ""), (x.get("rule_id") or "")))
     return out
 
-def build_ai_summary(result: Dict[str, Any], action_items: List[Dict[str, Any]]) -> str:
-    summary = (result or {}).get("summary") or {}
-    ok = int(summary.get("ok", 0) or 0)
-    pi = int(summary.get("potential_issue", 0) or 0)
-    na = int(summary.get("not_assessed", 0) or 0)
-
-    # Pick up to 3 items to highlight
-    highlights = []
-    for it in (action_items or [])[:3]:
-        title = (it.get("title") or "").strip()
-        rid = (it.get("rule_id") or "").strip()
-        if title:
-            highlights.append(f"{title} ({rid})" if rid else title)
-
-    # Lightweight tone flags based on rule_ids present in the action items
-    rule_ids = {str(it.get("rule_id") or "") for it in (action_items or [])}
-    consumer_duty_flag = any(rid.startswith("CD_") for rid in rule_ids) or any("CONSUMER" in rid for rid in rule_ids)
-
-    # Structure compliment if SR_STRUCT_* are OK (we can infer from missing action items for those IDs)
-    well_structured = not any(rid.startswith("SR_STRUCT_") for rid in rule_ids)
-
-    parts: List[str] = []
-
-    if well_structured:
-        parts.append("This SR is well structured and readable.")
-    else:
-        parts.append("This SR is broadly workable, but the structure could be tightened.")
-
-    parts.append(f"It hits {ok} controls cleanly, with {pi} item{'s' if pi != 1 else ''} to review (and {na} not assessed).")
-
-    if highlights:
-        parts.append("You should prioritise:")
-        for h in highlights:
-            parts.append(f"- {h}")
-
-    if consumer_duty_flag:
-        parts.append("Be mindful of Consumer Duty: sophisticated terminology appears without enough plain-English bridging in places.")
-
-    parts.append("For more detail, see the results breakdown below.")
-
-    return "\n".join(parts)
+def _safe_split_first(s: str, sep: str = "@") -> str:
+    if sep in s:
+        return s.split(sep, 1)[-1]
+    return s
 
 def persist_run(db, user: User, result: Dict[str, Any], context: Dict[str, Any], sr_text: str) -> str:
     run_id = str(uuid.uuid4())
@@ -275,42 +192,70 @@ def persist_run(db, user: User, result: Dict[str, Any], context: Dict[str, Any],
     db.commit()
     return run_id
 
-
-def _to_int_or_none(v: Any) -> Optional[int]:
-    if v is None:
-        return None
-    if isinstance(v, int):
-        return v
-    s = str(v).strip()
-    if not s:
-        return None
-    try:
-        return int(s)
-    except Exception:
-        return None
-
-
-def _build_context(
+def generate_exec_summary(
     *,
-    advice_type: str,
-    investment_element: Any,
-    ongoing_service: Any,
-    client_age: Optional[int],
-    product_type: Optional[str],
-) -> Dict[str, Any]:
-    at = (advice_type or "").strip().lower() or "advised"
-    pt = (product_type or "").strip().lower() or ""
+    result: Dict[str, Any],
+    summary: Dict[str, Any],
+    completeness_pct: int,
+    action_items: List[Dict[str, Any]],
+) -> str:
+    ok = int(summary.get("ok", 0) or 0)
+    pi = int(summary.get("potential_issue", 0) or 0)
 
-    age_72_plus = bool(client_age is not None and client_age >= 72)
+    sections = result.get("sections") or {}
+    sr_structure = sections.get("SR — Structure") or []
+    struct_ok = {r.get("rule_id") for r in sr_structure if r.get("status") == "OK"}
 
-    return {
-        "advice_type": at,
-        "investment_element": bool(investment_element),
-        "ongoing_service": bool(ongoing_service),
-        "client_age_72_plus": age_72_plus,
-        "product_type": pt,
-    }
+    structured_signals: List[str] = []
+    if "SR_STRUCT_CLIENT_DETAILS" in struct_ok:
+        structured_signals.append("client/adviser details are clearly captured")
+    if "SR_STRUCT_NEXT_STEPS" in struct_ok:
+        structured_signals.append("next steps are explicit")
 
+    if structured_signals:
+        structure_line = "This suitability report is well structured — " + " and ".join(structured_signals) + "."
+    else:
+        structure_line = "This suitability report is reasonably structured, but there are a few documentation gaps worth tightening."
+
+    # Consumer Duty signals by rule id prefix
+    consumer_duty_flags = {((a.get("rule_id") or "").strip()) for a in action_items if (a.get("rule_id") or "").startswith("CD_")}
+
+    cd_lines: List[str] = []
+    if "CD_UNDERSTANDING_JARGON_BRIDGE" in consumer_duty_flags:
+        cd_lines.append("Be mindful of Consumer Duty ‘Consumer Understanding’: sophisticated terminology appears without enough plain-English bridging in places.")
+    if "CD_VULNERABILITY_SUPPORT_MEASURE" in consumer_duty_flags:
+        cd_lines.append("Consumer Duty vulnerability handling: vulnerability indicators appear, but the file doesn’t consistently document the specific support adjustments made.")
+    if "CD_SLUDGE_FRICTION" in consumer_duty_flags:
+        cd_lines.append("Consumer Duty ‘Support’: potential friction/‘sludge’ wording is present — this needs a quick manual check for fairness and balance.")
+
+    assessed = max(1, ok + pi)
+    if completeness_pct >= 85:
+        score_line = f"It hits {ok} of {assessed} assessed checks, with a completeness score of {completeness_pct}%."
+    elif completeness_pct >= 65:
+        score_line = f"It hits {ok} of {assessed} assessed checks (completeness {completeness_pct}%). Solid base, but a few points need tightening."
+    else:
+        score_line = f"It hits {ok} of {assessed} assessed checks (completeness {completeness_pct}%). This needs a cleanup pass before it’s audit-ready."
+
+    top = action_items[:3]
+    if top:
+        bullets = "\n".join([f"- {t.get('title') or t.get('rule_id') or 'Issue'}" for t in top])
+    else:
+        bullets = "- No material issues detected by the ruleset."
+
+    cd_block = ("\n\n" + "\n".join(cd_lines)) if cd_lines else ""
+
+    return (
+        f"{structure_line}\n\n"
+        f"{score_line}\n\n"
+        f"You might want to focus on:\n"
+        f"{bullets}\n\n"
+        f"For more detail, see the breakdown below."
+        f"{cd_block}"
+    )
+
+# -----------------------------
+# BOOTSTRAP
+# -----------------------------
 
 def ensure_bootstrap_admin(db) -> None:
     if not APP_SECRET:
@@ -321,7 +266,9 @@ def ensure_bootstrap_admin(db) -> None:
         return
 
     if not BOOTSTRAP_EMAIL or not BOOTSTRAP_PASSWORD:
-        raise RuntimeError("No users exist yet. Set RULEGRID_BOOTSTRAP_EMAIL and RULEGRID_BOOTSTRAP_PASSWORD to create the first admin.")
+        raise RuntimeError(
+            "No users exist yet. Set RULEGRID_BOOTSTRAP_EMAIL and RULEGRID_BOOTSTRAP_PASSWORD to create the first admin."
+        )
 
     firm = Firm(name=BOOTSTRAP_FIRM)
     db.add(firm)
@@ -338,7 +285,6 @@ def ensure_bootstrap_admin(db) -> None:
     db.add(admin)
     db.commit()
 
-
 @app.on_event("startup")
 def _startup():
     init_db()
@@ -348,15 +294,19 @@ def _startup():
     finally:
         db.close()
 
+# -----------------------------
+# API MODEL
+# -----------------------------
 
 class CheckRequest(BaseModel):
     advice_type: str
     document_text: str
     investment_element: Optional[bool] = True
     ongoing_service: Optional[bool] = False
-    client_age: Optional[int] = None
-    product_type: Optional[str] = None
 
+# -----------------------------
+# CORE API (AUTHED)
+# -----------------------------
 
 @app.post("/check")
 async def check(payload: CheckRequest, request: Request, db=Depends(get_db)):
@@ -364,32 +314,38 @@ async def check(payload: CheckRequest, request: Request, db=Depends(get_db)):
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
 
-    ctx = _build_context(
-        advice_type=payload.advice_type,
-        investment_element=bool(payload.investment_element),
-        ongoing_service=bool(payload.ongoing_service),
-        client_age=_to_int_or_none(payload.client_age),
-        product_type=payload.product_type,
-    )
+    context: Dict[str, Any] = {
+        "advice_type": payload.advice_type,
+        "investment_element": bool(payload.investment_element),
+        "ongoing_service": bool(payload.ongoing_service),
+    }
 
-    result = run_rules_engine(
-        document_text=payload.document_text,
-        context=ctx,
-        rules_path=RULES_PATH,
-    )
+    try:
+        result = run_rules_engine(
+            document_text=payload.document_text,
+            context=context,
+            rules_path=RULES_PATH,
+        )
+    except Exception as e:
+        # Don’t 500 with no clue.
+        return JSONResponse(
+            {"detail": "RULES_ENGINE_ERROR", "error": str(e), "rules_path": RULES_PATH},
+            status_code=500,
+        )
 
-    run_id = persist_run(db, user, result, ctx, payload.document_text or "")
+    run_id = persist_run(db, user, result, context, payload.document_text or "")
     result_out = dict(result)
     result_out["run_id"] = run_id
     result_out["completeness_pct"] = compute_completeness(result.get("summary", {}) or {})
-    result_out["ai_summary_text"] = generate_ai_summary(summary=result.get("summary", {}) or {}, completeness_pct=result_out["completeness_pct"], action_items=extract_action_items(result))
     return JSONResponse(result_out)
 
+# -----------------------------
+# LOGIN / LOGOUT (HTML)
+# -----------------------------
 
 @app.get("/login", response_class=HTMLResponse)
 def login_get(request: Request):
     return templates.TemplateResponse("login.html", {"request": request, "error": None})
-
 
 @app.post("/login", response_class=HTMLResponse)
 def login_post(
@@ -419,7 +375,6 @@ def login_post(
     )
     return resp
 
-
 @app.get("/logout")
 def logout_get(request: Request, db=Depends(get_db)):
     token = get_session_token_from_request(request)
@@ -429,11 +384,13 @@ def logout_get(request: Request, db=Depends(get_db)):
     resp.delete_cookie(SESSION_COOKIE, path="/")
     return resp
 
-
 @app.post("/logout")
 def logout_post(request: Request, db=Depends(get_db)):
     return logout_get(request, db)
 
+# -----------------------------
+# DEMO UI (AUTHED)
+# -----------------------------
 
 @app.get("/demo", response_class=HTMLResponse)
 def demo_get(request: Request, user: User = Depends(require_user_html)):
@@ -442,16 +399,9 @@ def demo_get(request: Request, user: User = Depends(require_user_html)):
         {
             "request": request,
             "user_email": user.email,
-            "defaults": {
-                "advice_type": "advised",
-                "investment_element": "true",
-                "ongoing_service": "false",
-                "client_age": "",
-                "product_type": "",
-            },
+            "defaults": {"advice_type": "advised", "investment_element": "true", "ongoing_service": "false"},
         },
     )
-
 
 @app.post("/demo/run", response_class=HTMLResponse)
 async def demo_run_post(
@@ -459,29 +409,43 @@ async def demo_run_post(
     advice_type: str = Form(...),
     investment_element: str = Form("true"),
     ongoing_service: str = Form("false"),
-    client_age: str = Form(""),
-    product_type: str = Form(""),
     sr_text: str = Form(""),
     user: User = Depends(require_user_html),
     db=Depends(get_db),
 ):
-    ctx = _build_context(
-        advice_type=advice_type,
-        investment_element=(investment_element or "").lower() == "true",
-        ongoing_service=(ongoing_service or "").lower() == "true",
-        client_age=_to_int_or_none(client_age),
-        product_type=product_type,
-    )
+    ctx = {
+        "advice_type": advice_type,
+        "investment_element": (investment_element or "").lower() == "true",
+        "ongoing_service": (ongoing_service or "").lower() == "true",
+    }
 
-    result = run_rules_engine(
-        document_text=sr_text or "",
-        context=ctx,
-        rules_path=RULES_PATH,
-    )
+    try:
+        result = run_rules_engine(
+            document_text=sr_text or "",
+            context=ctx,
+            rules_path=RULES_PATH,
+        )
+    except Exception as e:
+        # This is almost certainly your “Internal Server Error”.
+        # We render the error on-screen so you can fix fast.
+        return templates.TemplateResponse(
+            "results.html",
+            {
+                "request": request,
+                "run_id": "",
+                "result": {"sections": {}, "summary": {"ok": 0, "potential_issue": 0, "not_assessed": 0}},
+                "summary": {"ok": 0, "potential_issue": 0, "not_assessed": 0},
+                "completeness_pct": 0,
+                "action_items": [],
+                "exec_summary": "The rules engine failed to run. See error details below.",
+                "engine_error": f"{type(e).__name__}: {e}",
+                "rules_path_used": RULES_PATH,
+            },
+            status_code=500,
+        )
 
     run_id = persist_run(db, user, result, ctx, sr_text or "")
     return RedirectResponse(url=f"/demo/results/{run_id}", status_code=303)
-
 
 @app.get("/demo/results/{run_id}", response_class=HTMLResponse)
 def demo_results_get(
@@ -505,7 +469,13 @@ def demo_results_get(
     summary = result.get("summary") or {}
     completeness_pct = compute_completeness(summary)
     action_items = extract_action_items(result)
-    ai_summary_text = generate_ai_summary(summary=summary, completeness_pct=completeness_pct, action_items=action_items)
+
+    exec_summary = generate_exec_summary(
+        result=result,
+        summary=summary,
+        completeness_pct=completeness_pct,
+        action_items=action_items,
+    )
 
     return templates.TemplateResponse(
         "results.html",
@@ -516,10 +486,11 @@ def demo_results_get(
             "summary": summary,
             "completeness_pct": completeness_pct,
             "action_items": action_items,
-            "ai_summary_text": ai_summary_text,
+            "exec_summary": exec_summary,
+            "engine_error": None,
+            "rules_path_used": RULES_PATH,
         },
     )
-
 
 @app.get("/demo/results/{run_id}/pdf")
 def download_pdf(run_id: str, user: User = Depends(require_user_html), db=Depends(get_db)):
@@ -531,54 +502,52 @@ def download_pdf(run_id: str, user: User = Depends(require_user_html), db=Depend
         "summary": json.loads(rr.summary_json or "{}"),
         "sections": json.loads(rr.sections_json or "{}"),
     }
-
-    action_items = extract_action_items(result)
+    action_items = extract_action_items({"sections": result.get("sections", {})})
 
     buffer = BytesIO()
     doc = SimpleDocTemplate(buffer)
-    elements: List[Any] = []
-
+    elements = []
     styles = getSampleStyleSheet()
     normal = styles["Normal"]
-    h1 = styles["Heading1"]
-    h2 = styles["Heading2"]
-    h3 = styles["Heading3"]
+    heading = styles["Heading1"]
 
-    elements.append(Paragraph("RuleGrid Compliance Report", h1))
+    elements.append(Paragraph("Rulegrid Compliance Report", heading))
     elements.append(Spacer(1, 0.3 * inch))
 
     summary = result.get("summary", {})
-    elements.append(Paragraph(f"OK: {summary.get('ok', 0)}", normal))
-    elements.append(Paragraph(f"Issues: {summary.get('potential_issue', 0)}", normal))
+    elements.append(Paragraph(f"OK: {summary.get('ok',0)}", normal))
+    elements.append(Paragraph(f"Issues: {summary.get('potential_issue',0)}", normal))
     elements.append(Spacer(1, 0.3 * inch))
 
     for item in action_items:
-        elements.append(Paragraph(item.get("title", "Issue"), h2))
+        elements.append(Paragraph(item["title"], styles["Heading2"]))
         elements.append(Spacer(1, 0.1 * inch))
 
-        elements.append(Paragraph("What to fix:", h3))
-        fixes = [ListItem(Paragraph(str(f), normal)) for f in (item.get("fixes") or [])]
+        elements.append(Paragraph("What to fix:", styles["Heading3"]))
+        fixes = [ListItem(Paragraph(f, normal)) for f in (item.get("fixes") or [])]
         if fixes:
             elements.append(ListFlowable(fixes, bulletType="bullet"))
 
         suggestions = item.get("suggestions") or []
         if suggestions:
             elements.append(Spacer(1, 0.1 * inch))
-            elements.append(Paragraph("Suggested wording:", h3))
-            sug = [ListItem(Paragraph(str(s), normal)) for s in suggestions]
+            elements.append(Paragraph("Suggested wording:", styles["Heading3"]))
+            sug = [ListItem(Paragraph(s, normal)) for s in suggestions]
             elements.append(ListFlowable(sug, bulletType="bullet"))
 
-        elements.append(Spacer(1, 0.4 * inch))
+        elements.append(Spacer(1, 0.35 * inch))
 
     doc.build(elements)
     buffer.seek(0)
-
     return StreamingResponse(
         buffer,
         media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename=rulegrid-run-{run_id}.pdf"},
     )
 
+# -----------------------------
+# ADMIN RUN HISTORY (AUTHED)
+# -----------------------------
 
 @app.get("/admin/runs", response_class=HTMLResponse)
 def admin_runs(request: Request, user: User = Depends(require_user_html), db=Depends(get_db)):
@@ -605,7 +574,6 @@ def admin_runs(request: Request, user: User = Depends(require_user_html), db=Dep
 
     return templates.TemplateResponse("runs.html", {"request": request, "runs": runs, "user_email": user.email})
 
-
 @app.get("/admin/runs/{run_id}", response_class=HTMLResponse)
 def admin_run_detail(request: Request, run_id: str, user: User = Depends(require_user_html), db=Depends(get_db)):
     rr = db.query(Run).filter(Run.id == run_id, Run.firm_id == user.firm_id).first()
@@ -629,7 +597,6 @@ def admin_run_detail(request: Request, run_id: str, user: User = Depends(require
 
     return templates.TemplateResponse("run_detail.html", {"request": request, "run": run, "user_email": user.email})
 
-
 @app.get("/admin/users", response_class=HTMLResponse)
 def manage_users(request: Request, user: User = Depends(require_user_html), db=Depends(get_db)):
     if user.role != "admin":
@@ -637,7 +604,6 @@ def manage_users(request: Request, user: User = Depends(require_user_html), db=D
 
     users = db.query(User).filter(User.firm_id == user.firm_id).all()
     return templates.TemplateResponse("users.html", {"request": request, "users": users})
-
 
 @app.post("/admin/users/create", response_class=HTMLResponse)
 def create_user(
@@ -652,16 +618,15 @@ def create_user(
         raise HTTPException(status_code=403, detail="Admin only")
 
     email_clean = (email or "").strip().lower()
+
+    existing = (
+        db.query(User)
+        .filter(User.email == email_clean, User.firm_id == user.firm_id)
+        .first()
+    )
+
     users = db.query(User).filter(User.firm_id == user.firm_id).all()
 
-    if not email_clean:
-        return templates.TemplateResponse(
-            "users.html",
-            {"request": request, "users": users, "error": "Email is required"},
-            status_code=400,
-        )
-
-    existing = db.query(User).filter(User.email == email_clean, User.firm_id == user.firm_id).first()
     if existing:
         return templates.TemplateResponse(
             "users.html",
@@ -676,6 +641,7 @@ def create_user(
         role=role,
         is_active=1,
     )
+
     db.add(new_user)
     db.commit()
 
@@ -685,12 +651,15 @@ def create_user(
         {"request": request, "users": users, "success": "User created successfully"},
     )
 
+# -----------------------------
+# HEALTH / ROOT
+# -----------------------------
 
 @app.get("/health")
 def health():
     safe_db = None
     if DB_URL:
-        safe_db = DB_URL.split("@")[-1]
+        safe_db = _safe_split_first(DB_URL, "@")
     return {
         "status": "ok",
         "rules_path": RULES_PATH,
@@ -698,7 +667,6 @@ def health():
         "db_driver": "sqlite" if (DB_URL or "").startswith("sqlite") else "postgres",
     }
 
-
 @app.get("/", response_class=PlainTextResponse)
 def root():
-    return "RuleGrid is running. Visit /login"
+    return "Rulegrid is running. Visit /login"
