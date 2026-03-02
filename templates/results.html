@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Assure – Results</title>
+<title>RuleGrid – Results</title>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <style>
   body {
@@ -153,13 +153,36 @@
     padding:18px;
     border-radius:14px;
   }
+
+  .ai-summary{
+    margin-top: 18px;
+    padding: 14px 16px;
+    border: 1px solid rgba(148,163,184,.22);
+    border-radius: 14px;
+    background: rgba(2,6,23,.35);
+  }
+  .ai-summary__label{
+    font-size: 12px;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: rgba(226,232,240,.75);
+    margin-bottom: 8px;
+  }
+  .ai-summary__text{
+    margin: 0;
+    white-space: pre-wrap;
+    font-size: 14px;
+    line-height: 1.5;
+    color: #E2E8F0;
+  }
+
 </style>
 </head>
 <body>
 
 <header>
   <div class="logo-row">
-    <img src="/static/logo-dark.svg" width="160" alt="Assure"/>
+    <img src="/static/logo-dark.svg" width="160" alt="RuleGrid"/>
     <span>Demo</span>
   </div>
   <div class="top-actions">
@@ -193,6 +216,13 @@
       <span class="pill">Ruleset: {{ result.get("ruleset_id","") }} v{{ result.get("ruleset_version","") }}</span>
       <span class="pill">Run: {{ run_id }}</span>
     </div>
+
+    <div class="ai-summary">
+      <div class="ai-summary__label">Summary</div>
+      <pre id="aiSummary" class="ai-summary__text" aria-live="polite"></pre>
+      <div id="aiSummarySource" style="display:none;">{{ ai_summary_text }}</div>
+    </div>
+
 
     <div class="small">Completeness excludes “Not assessed” controls. It’s a rough guide, not a compliance guarantee.</div>
   </div>
@@ -266,5 +296,43 @@
   {% endif %}
 
 </div>
+
+<script>
+(function() {
+  const srcEl = document.getElementById("aiSummarySource");
+  const outEl = document.getElementById("aiSummary");
+  if (!srcEl || !outEl) return;
+
+  const text = (srcEl.textContent || "").trim();
+  if (!text) return;
+
+  let i = 0;
+  const min = 8;   // ms
+  const max = 28;  // ms
+  const pausePunct = 240;
+
+  function randDelay() {
+    return Math.floor(min + Math.random() * (max - min));
+  }
+
+  function tick() {
+    const ch = text[i];
+    outEl.textContent += ch;
+    i += 1;
+
+    if (i >= text.length) return;
+
+    // Slight pauses on punctuation/newlines to feel "written"
+    if (ch === "\n") return setTimeout(tick, 160);
+    if (".!?".includes(ch)) return setTimeout(tick, pausePunct);
+    if (",;:".includes(ch)) return setTimeout(tick, 120);
+
+    setTimeout(tick, randDelay());
+  }
+
+  tick();
+})();
+</script>
+
 </body>
 </html>
