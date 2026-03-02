@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Assure – Demo</title>
+  <title>RuleGrid – Demo</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
     body {
@@ -139,7 +139,7 @@
 <body>
   <header>
     <div class="logo-row">
-      <img src="/static/logo-dark.svg" width="160" alt="Assure"/>
+      <img src="/static/logo-dark.svg" width="160" alt="RuleGrid"/>
       <span>Demo</span>
     </div>
 
@@ -170,6 +170,23 @@
             <option value="false" {% if defaults and defaults.ongoing_service == "false" %}selected{% endif %}>Ongoing service: No</option>
             <option value="true" {% if defaults and defaults.ongoing_service == "true" %}selected{% endif %}>Ongoing service: Yes</option>
           </select>
+        </div>
+
+
+        <div class="row">
+          <label for="product_type">Product type (optional)</label>
+          <select name="product_type" id="product_type">
+            <option value="" {% if defaults and (defaults.product_type or "") == "" %}selected{% endif %}>Not specified</option>
+            <option value="pension" {% if defaults and defaults.product_type == "pension" %}selected{% endif %}>Pension</option>
+            <option value="isa" {% if defaults and defaults.product_type == "isa" %}selected{% endif %}>ISA</option>
+            <option value="gia" {% if defaults and defaults.product_type == "gia" %}selected{% endif %}>GIA</option>
+            <option value="other" {% if defaults and defaults.product_type == "other" %}selected{% endif %}>Other</option>
+          </select>
+        </div>
+
+        <div class="row">
+          <label for="client_age">Client age (optional)</label>
+          <input type="number" name="client_age" id="client_age" min="0" max="120" value="{{ defaults.client_age if defaults and defaults.client_age is not none else '' }}">
         </div>
 
         <textarea name="sr_text" id="sr_text" placeholder="Paste suitability report text here..."></textarea>
