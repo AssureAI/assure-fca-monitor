@@ -1,495 +1,756 @@
-ruleset_id: assure-cobs-mvp-sr-checker
-version: "1.0"
+ruleset_id: rulegrid-cobs-mvp-sr-checker
+version: '1.0'
 status: active
-reviewed_by: Assure
+reviewed_by: RuleGrid
 reviewed_at: 2026-02-25
-
 global:
   interpretation:
-    - Absence of evidence never implies compliance
-    - OK requires multiple independent signals where applicable
-    - Inference is not permitted
+  - Absence of evidence never implies compliance
+  - OK requires multiple independent signals where applicable
+  - Inference is not permitted
   output:
     evidence_cap_sentences: 6
-
 rules:
-  # -----------------------------
-  # COBS 9 — SUITABILITY (ADVISED)
-  # -----------------------------
-
-  - id: COBS9_OBJ
-    section: "COBS 9 — Objectives"
-    title: "Client investment objectives obtained and considered"
-    citation: "COBS 9.2.2R"
-    source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
-    applies_when:
-      advice_type: [advised]
-    evidence:
-      positive_clusters:
-        - ["objectives", "goals", "aims", "investment objective", "target outcome"]
-        - ["income", "growth", "capital growth", "capital preservation", "preserve capital"]
-        - ["tax", "tax efficiency", "isa", "gia", "pension", "sipp"]
-        - ["time horizon", "investment term", "over the next", "years", "short term", "long term"]
-      linkage_indicators:
-        - ["based on", "in line with", "aligned with", "reflecting", "given your"]
+- id: COBS9_OBJ
+  section: COBS 9 — Objectives
+  title: Client investment objectives obtained and considered
+  citation: COBS 9.2.2R
+  source_url: https://handbook.fca.org.uk/handbook/COBS/9/2.html
+  applies_when:
+    advice_type:
+    - advised
+  evidence:
+    positive_clusters:
+    - - objectives
+      - goals
+      - aims
+      - investment objective
+      - target outcome
+    - - income
+      - growth
+      - capital growth
+      - capital preservation
+      - preserve capital
+    - - tax
+      - tax efficiency
+      - isa
+      - gia
+      - pension
+      - sipp
+    - - time horizon
+      - investment term
+      - over the next
+      - years
+      - short term
+      - long term
+    linkage_indicators:
+    - - based on
+      - in line with
+      - aligned with
+      - reflecting
+      - given your
+  decision_logic:
+    require_all:
+      positive_clusters: '>=2'
+      linkage_indicators: '>=1'
+- id: COBS9_CIRC
+  section: COBS 9 — Circumstances
+  title: Personal and financial circumstances considered
+  citation: COBS 9.2.2R
+  source_url: https://handbook.fca.org.uk/handbook/COBS/9/2.html
+  applies_when:
+    advice_type:
+    - advised
+  evidence:
+    hard_circumstances:
+    - - income
+      - salary
+      - net income
+      - gross income
+      - take home pay
+      - payslip
+    - - expenditure
+      - outgoings
+      - monthly spending
+      - budget
+      - disposable income
+    - - mortgage
+      - loan
+      - credit card
+      - debt
+      - repayment
+      - liability
+      - borrowings
+    - - dependant
+      - dependants
+      - children
+      - childcare
+      - spouse
+      - partner
+      - family
+    - - employed
+      - self-employed
+      - contractor
+      - unemployed
+      - retired
+    - - basic rate
+      - higher rate
+      - additional rate
+      - tax band
+      - tax rate
+    supporting_circumstances:
+    - - assets
+      - savings
+      - isa
+      - gia
+      - pension
+      - pensions
+      - sipp
+      - property
+    - - emergency fund
+      - cash reserve
+      - cash buffer
+      - liquid assets
+    - - portfolio value
+      - investable assets
+      - assets under management
+      - aum
+  decision_logic:
+    require_all:
+      hard_circumstances: '>=1'
+      supporting_circumstances: '>=1'
+- id: COBS9_KNOWEXP
+  section: COBS 9 — Knowledge & Experience
+  title: Knowledge and experience referenced where relevant
+  citation: COBS 9.2.2R
+  source_url: https://handbook.fca.org.uk/handbook/COBS/9/2.html
+  applies_when:
+    advice_type:
+    - advised
+  evidence:
+    positive_clusters:
+    - - knowledge
+      - experience
+      - familiar
+      - understanding
+      - investing experience
+    - - previously invested
+      - past investments
+      - existing investments
+      - investment history
+  decision_logic:
+    require_all:
+      positive_clusters: '>=1'
+- id: COBS9_RISK
+  section: COBS 9 — Risk
+  title: Attitude to risk assessed and linked to recommendation
+  citation: COBS 9.2.2R
+  source_url: https://handbook.fca.org.uk/handbook/COBS/9/2.html
+  applies_when:
+    advice_type:
+    - advised
+  evidence:
+    positive_clusters:
+    - - attitude to risk
+      - risk profile
+      - risk tolerance
+      - risk appetite
+    - - cautious
+      - balanced
+      - moderate
+      - adventurous
+      - aggressive
+    - - risk questionnaire
+      - risk assessment
+      - risk profiling
+      - risk tool
+    linkage_indicators:
+    - - consistent with
+      - aligned with
+      - matches
+      - in line with
+    negative_indicators:
+    - - guaranteed return
+      - risk-free
+      - cannot lose
+      - certain return
+      - assured return
+  decision_logic:
+    require_all:
+      positive_clusters: '>=2'
+      linkage_indicators: '>=1'
+    require_none:
+      negative_indicators: ==0
+- id: COBS9_CFL
+  section: COBS 9 — Capacity for Loss
+  title: Capacity for loss assessed with scenario framing
+  citation: COBS 9.2.2R
+  source_url: https://handbook.fca.org.uk/handbook/COBS/9/2.html
+  applies_when:
+    advice_type:
+    - advised
+  evidence:
+    positive_clusters:
+    - - capacity for loss
+      - loss capacity
+    - - afford to lose
+      - could tolerate a fall
+      - financially resilient
+      - absorb losses
+    - - would not impact lifestyle
+      - no material impact
+      - won't affect your lifestyle
+      - does not affect plans
+    contextual_indicators:
+    - - worst case
+      - if markets fall
+      - market falls
+      - scenario
+      - stress test
+      - in a downturn
+  decision_logic:
+    require_all:
+      positive_clusters: '>=1'
+      contextual_indicators: '>=1'
+- id: COBS9_TIME
+  section: COBS 9 — Time Horizon
+  title: Investment time horizon referenced
+  citation: COBS 9.2.2R
+  source_url: https://handbook.fca.org.uk/handbook/COBS/9/2.html
+  applies_when:
+    advice_type:
+    - advised
+  evidence:
+    positive_clusters:
+    - - time horizon
+      - investment term
+      - over the next
+      - years
+      - until retirement
+      - long term
+      - short term
+  decision_logic:
+    require_all:
+      positive_clusters: '>=1'
+- id: COBS9_RECO
+  section: COBS 9 — Recommendation
+  title: Clear personal recommendation provided
+  citation: COBS 9.2.1R
+  source_url: https://handbook.fca.org.uk/handbook/COBS/9/2.html
+  applies_when:
+    advice_type:
+    - advised
+  evidence:
+    positive_clusters:
+    - - we recommend
+      - our recommendation
+      - we advise
+      - we propose
+    - - invest
+      - allocate
+      - switch
+      - transfer
+      - consolidate
+      - contribute
+      - top up
+  decision_logic:
+    require_all:
+      positive_clusters: '>=1'
+- id: COBS9_RATIONALE
+  section: COBS 9 — Suitability Rationale
+  title: Suitability explained with causal reasoning
+  citation: COBS 9.2.1R
+  source_url: https://handbook.fca.org.uk/handbook/COBS/9/2.html
+  applies_when:
+    advice_type:
+    - advised
+  evidence:
+    positive_clusters:
+    - - this is suitable because
+      - this meets your objectives
+      - this aligns with your objectives
+    - - given your objectives
+      - in light of your circumstances
+      - reflecting your circumstances
+    causal_language:
+    - - because
+      - therefore
+      - as a result
+      - so that
+      - which means
+  decision_logic:
+    require_all:
+      positive_clusters: '>=1'
+      causal_language: '>=1'
+- id: COBS9_RISKS
+  section: COBS 9 — Material Risks
+  title: Material risks explained
+  citation: COBS 9.2.1R
+  source_url: https://handbook.fca.org.uk/handbook/COBS/9/2.html
+  applies_when:
+    advice_type:
+    - advised
+  evidence:
+    positive_clusters:
+    - - risk
+      - risks
+      - volatility
+      - market movements
+      - downturn
+    - - capital at risk
+      - value can fall
+      - you may get back less
+      - losses
+    - - no guarantee
+      - not guaranteed
+      - returns are not guaranteed
+      - not assured
+  decision_logic:
+    require_all:
+      positive_clusters: '>=2'
+- id: COBS9_DOWNSIDES
+  section: COBS 9 — Disadvantages
+  title: Disadvantages / drawbacks discussed
+  citation: COBS 9.2.1R
+  source_url: https://handbook.fca.org.uk/handbook/COBS/9/2.html
+  applies_when:
+    advice_type:
+    - advised
+  evidence:
+    positive_clusters:
+    - - drawbacks
+      - disadvantages
+      - downsides
+      - limitations
+      - trade-off
+      - trade off
+    - - could fall
+      - may fall
+      - risk of loss
+      - may get back less
+      - not suitable if
+  decision_logic:
+    require_all:
+      positive_clusters: '>=1'
+- id: COBS9_ALTS
+  section: COBS 9 — Alternatives
+  title: Reasonable alternatives considered
+  citation: COBS 9.2.1R
+  source_url: https://handbook.fca.org.uk/handbook/COBS/9/2.html
+  applies_when:
+    advice_type:
+    - advised
+  evidence:
+    positive_clusters:
+    - - alternative
+      - other options
+      - considered alternatives
+      - we considered
+    - - decided against
+      - discounted
+      - ruled out
+      - not selected because
+  decision_logic:
+    require_all:
+      positive_clusters: '>=1'
+- id: COBS9_CHANGES
+  section: COBS 9 — Client Understanding
+  title: Client understanding / confirmation recorded
+  citation: COBS 9.2.1R
+  source_url: https://handbook.fca.org.uk/handbook/COBS/9/2.html
+  applies_when:
+    advice_type:
+    - advised
+  evidence:
+    positive_clusters:
+    - - you confirmed
+      - you understand
+      - you acknowledged
+      - you agreed
+      - you are aware
+    - - we discussed
+      - we explained
+      - we talked through
+      - we highlighted
+  decision_logic:
+    require_all:
+      positive_clusters: '>=1'
+- id: COBS9_ONGOING
+  section: COBS 9 — Ongoing Service
+  title: Ongoing service described when provided
+  citation: COBS 9.2.1R
+  source_url: https://handbook.fca.org.uk/handbook/COBS/9/2.html
+  applies_when:
+    ongoing_service:
+    - true
+  evidence:
+    positive_clusters:
+    - - ongoing service
+      - ongoing advice
+      - ongoing review
+      - service proposition
+    - - review
+      - annual review
+      - regular review
+      - quarterly
+      - six monthly
+  decision_logic:
+    require_all:
+      positive_clusters: '>=1'
+- id: COBS9_REVIEW_FREQ
+  section: COBS 9 — Ongoing Service
+  title: Review frequency stated when ongoing service applies
+  citation: COBS 9.2.1R
+  source_url: https://handbook.fca.org.uk/handbook/COBS/9/2.html
+  applies_when:
+    ongoing_service:
+    - true
+  evidence:
+    positive_clusters:
+    - - annual
+      - annually
+      - six monthly
+      - quarterly
+      - every 12 months
+      - each year
+      - review frequency
+  decision_logic:
+    require_all:
+      positive_clusters: '>=1'
+- id: COBS6_COSTS_DISC
+  section: COBS 6 — Costs & Charges
+  title: Costs and charges disclosed (with numerical detail)
+  citation: COBS 6.1ZA / COBS 6.1ZB
+  source_url: https://handbook.fca.org.uk/handbook/COBS/6/1ZA.html
+  applies_when:
+    investment_element:
+    - true
+  evidence:
+    cost_clusters:
+    - - cost
+      - costs
+      - charge
+      - charges
+      - fee
+      - fees
+    - - ongoing charge
+      - ocf
+      - platform charge
+      - product charge
+      - fund charge
+    - - initial charge
+      - adviser charge
+      - ongoing advice fee
+      - service fee
+    numeric_indicators:
+    - - '%'
+      - per annum
+      - p.a.
+      - pa
+    cost_specific:
+    - - fee
+      - fees
+      - charge
+      - charges
+      - ocf
+      - platform charge
+      - adviser charge
+      - service fee
+  decision_logic:
+    require_all:
+      cost_clusters: '>=2'
+      cost_specific: '>=1'
+      numeric_indicators: '>=1'
+- id: COBS6_COSTS_TOTAL
+  section: COBS 6 — Costs & Charges
+  title: Total / aggregated cost communicated
+  citation: COBS 6.1ZA / COBS 6.1ZB
+  source_url: https://handbook.fca.org.uk/handbook/COBS/6/1ZA.html
+  applies_when:
+    investment_element:
+    - true
+  evidence:
+    positive_clusters:
+    - - total ongoing charge
+      - total cost
+      - total charges
+      - overall cost
+      - in total
+    - - therefore approximately
+      - overall will be
+      - combined charge
+  decision_logic:
+    require_all:
+      positive_clusters: '>=1'
+- id: COBS4_NO_GUAR_IMPLIED
+  section: COBS 4 — Communications
+  title: No inappropriate certainty / guarantees implied
+  citation: COBS 4.2.1R
+  source_url: https://handbook.fca.org.uk/handbook/COBS/4/2.html
+  applies_when:
+    investment_element:
+    - true
+  evidence:
+    prohibited_phrases:
+    - - guaranteed return
+      - guaranteed growth
+      - risk-free
+      - risk free
+      - cannot lose
+      - certain return
+      - assured return
+    allowed_negations:
+    - - not guaranteed
+      - no guarantee
+      - there is no guarantee
+      - returns are not guaranteed
+      - not assured
+  decision_logic:
+    require_none:
+      prohibited_phrases: ==0
     decision_logic:
-      require_all:
-        positive_clusters: ">=2"
-        linkage_indicators: ">=1"
-
-  - id: COBS9_CIRC
-    section: "COBS 9 — Circumstances"
-    title: "Personal and financial circumstances considered"
-    citation: "COBS 9.2.2R"
-    source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
-    applies_when:
-      advice_type: [advised]
-    evidence:
-      hard_circumstances:
-        - ["income", "salary", "net income", "gross income", "take home pay", "payslip"]
-        - ["expenditure", "outgoings", "monthly spending", "budget", "disposable income"]
-        - ["mortgage", "loan", "credit card", "debt", "repayment", "liability", "borrowings"]
-        - ["dependant", "dependants", "children", "childcare", "spouse", "partner", "family"]
-        # employment / status words
-        - ["employed", "self-employed", "contractor", "unemployed", "retired"]
-        - ["basic rate", "higher rate", "additional rate", "tax band", "tax rate"]
-      supporting_circumstances:
-        - ["assets", "savings", "isa", "gia", "pension", "pensions", "sipp", "property"]
-        - ["emergency fund", "cash reserve", "cash buffer", "liquid assets"]
-        - ["portfolio value", "investable assets", "assets under management", "aum"]
-    decision_logic:
-      require_all:
-        hard_circumstances: ">=1"
-        supporting_circumstances: ">=1"
-  
-  - id: COBS9_KNOWEXP
-    section: "COBS 9 — Knowledge & Experience"
-    title: "Knowledge and experience referenced where relevant"
-    citation: "COBS 9.2.2R"
-    source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
-    applies_when:
-      advice_type: [advised]
-    evidence:
-      positive_clusters:
-        - ["knowledge", "experience", "familiar", "understanding", "investing experience"]
-        - ["previously invested", "past investments", "existing investments", "investment history"]
-    decision_logic:
-      require_all:
-        positive_clusters: ">=1"
-
-  - id: COBS9_RISK
-    section: "COBS 9 — Risk"
-    title: "Attitude to risk assessed and linked to recommendation"
-    citation: "COBS 9.2.2R"
-    source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
-    applies_when:
-      advice_type: [advised]
-    evidence:
-      positive_clusters:
-        - ["attitude to risk", "risk profile", "risk tolerance", "risk appetite"]
-        - ["cautious", "balanced", "moderate", "adventurous", "aggressive"]
-        - ["risk questionnaire", "risk assessment", "risk profiling", "risk tool"]
-      linkage_indicators:
-        - ["consistent with", "aligned with", "matches", "in line with"]
-      negative_indicators:
-        - ["guaranteed return", "risk-free", "cannot lose", "certain return", "assured return"]
-    decision_logic:
-      require_all:
-        positive_clusters: ">=2"
-        linkage_indicators: ">=1"
       require_none:
-        negative_indicators: "==0"
-
-  - id: COBS9_CFL
-    section: "COBS 9 — Capacity for Loss"
-    title: "Capacity for loss assessed with scenario framing"
-    citation: "COBS 9.2.2R"
-    source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
-    applies_when:
-      advice_type: [advised]
-    evidence:
-      positive_clusters:
-        - ["capacity for loss", "loss capacity"]
-        - ["afford to lose", "could tolerate a fall", "financially resilient", "absorb losses"]
-        - ["would not impact lifestyle", "no material impact", "won't affect your lifestyle", "does not affect plans"]
-      contextual_indicators:
-        - ["worst case", "if markets fall", "market falls", "scenario", "stress test", "in a downturn"]
-    decision_logic:
-      require_all:
-        positive_clusters: ">=1"
-        contextual_indicators: ">=1"
-
-  - id: COBS9_TIME
-    section: "COBS 9 — Time Horizon"
-    title: "Investment time horizon referenced"
-    citation: "COBS 9.2.2R"
-    source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
-    applies_when:
-      advice_type: [advised]
-    evidence:
-      positive_clusters:
-        - ["time horizon", "investment term", "over the next", "years", "until retirement", "long term", "short term"]
-    decision_logic:
-      require_all:
-        positive_clusters: ">=1"
-
-  - id: COBS9_RECO
-    section: "COBS 9 — Recommendation"
-    title: "Clear personal recommendation provided"
-    citation: "COBS 9.2.1R"
-    source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
-    applies_when:
-      advice_type: [advised]
-    evidence:
-      positive_clusters:
-        - ["we recommend", "our recommendation", "we advise", "we propose"]
-        - ["invest", "allocate", "switch", "transfer", "consolidate", "contribute", "top up"]
-    decision_logic:
-      require_all:
-        positive_clusters: ">=1"
-
-  - id: COBS9_RATIONALE
-    section: "COBS 9 — Suitability Rationale"
-    title: "Suitability explained with causal reasoning"
-    citation: "COBS 9.2.1R"
-    source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
-    applies_when:
-      advice_type: [advised]
-    evidence:
-      positive_clusters:
-        - ["this is suitable because", "this meets your objectives", "this aligns with your objectives"]
-        - ["given your objectives", "in light of your circumstances", "reflecting your circumstances"]
-      causal_language:
-        - ["because", "therefore", "as a result", "so that", "which means"]
-    decision_logic:
-      require_all:
-        positive_clusters: ">=1"
-        causal_language: ">=1"
-
-  - id: COBS9_RISKS
-    section: "COBS 9 — Material Risks"
-    title: "Material risks explained"
-    citation: "COBS 9.2.1R"
-    source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
-    applies_when:
-      advice_type: [advised]
-    evidence:
-      positive_clusters:
-        - ["risk", "risks", "volatility", "market movements", "downturn"]
-        - ["capital at risk", "value can fall", "you may get back less", "losses"]
-        - ["no guarantee", "not guaranteed", "returns are not guaranteed", "not assured"]
-    decision_logic:
-      require_all:
-        positive_clusters: ">=2"
-
-  - id: COBS9_DOWNSIDES
-    section: "COBS 9 — Disadvantages"
-    title: "Disadvantages / drawbacks discussed"
-    citation: "COBS 9.2.1R"
-    source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
-    applies_when:
-      advice_type: [advised]
-    evidence:
-      positive_clusters:
-        - ["drawbacks", "disadvantages", "downsides", "limitations", "trade-off", "trade off"]
-        - ["could fall", "may fall", "risk of loss", "may get back less", "not suitable if"]
-    decision_logic:
-      require_all:
-        positive_clusters: ">=1"
-
-  - id: COBS9_ALTS
-    section: "COBS 9 — Alternatives"
-    title: "Reasonable alternatives considered"
-    citation: "COBS 9.2.1R"
-    source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
-    applies_when:
-      advice_type: [advised]
-    evidence:
-      positive_clusters:
-        - ["alternative", "other options", "considered alternatives", "we considered"]
-        - ["decided against", "discounted", "ruled out", "not selected because"]
-    decision_logic:
-      require_all:
-        positive_clusters: ">=1"
-
-  - id: COBS9_CHANGES
-    section: "COBS 9 — Client Understanding"
-    title: "Client understanding / confirmation recorded"
-    citation: "COBS 9.2.1R"
-    source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
-    applies_when:
-      advice_type: [advised]
-    evidence:
-      positive_clusters:
-        - ["you confirmed", "you understand", "you acknowledged", "you agreed", "you are aware"]
-        - ["we discussed", "we explained", "we talked through", "we highlighted"]
-    decision_logic:
-      require_all:
-        positive_clusters: ">=1"
-
-  - id: COBS9_ONGOING
-    section: "COBS 9 — Ongoing Service"
-    title: "Ongoing service described when provided"
-    citation: "COBS 9.2.1R"
-    source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
-    applies_when:
-      ongoing_service: [true]
-    evidence:
-      positive_clusters:
-        - ["ongoing service", "ongoing advice", "ongoing review", "service proposition"]
-        - ["review", "annual review", "regular review", "quarterly", "six monthly"]
-    decision_logic:
-      require_all:
-        positive_clusters: ">=1"
-
-  - id: COBS9_REVIEW_FREQ
-    section: "COBS 9 — Ongoing Service"
-    title: "Review frequency stated when ongoing service applies"
-    citation: "COBS 9.2.1R"
-    source_url: "https://handbook.fca.org.uk/handbook/COBS/9/2.html"
-    applies_when:
-      ongoing_service: [true]
-    evidence:
-      positive_clusters:
-        - ["annual", "annually", "six monthly", "quarterly", "every 12 months", "each year", "review frequency"]
-    decision_logic:
-      require_all:
-        positive_clusters: ">=1"
-
-  # -----------------------------
-  # COBS 6 — COSTS & CHARGES (WHEN INVESTMENT ELEMENT)
-  # -----------------------------
-
-  - id: COBS6_COSTS_DISC
-    section: "COBS 6 — Costs & Charges"
-    title: "Costs and charges disclosed (with numerical detail)"
-    citation: "COBS 6.1ZA / COBS 6.1ZB"
-    source_url: "https://handbook.fca.org.uk/handbook/COBS/6/1ZA.html"
-    applies_when:
-      investment_element: [true]
-    evidence:
-      cost_clusters:
-        - ["cost", "costs", "charge", "charges", "fee", "fees"]
-        - ["ongoing charge", "ocf", "platform charge", "product charge", "fund charge"]
-        - ["initial charge", "adviser charge", "ongoing advice fee", "service fee"]
-      numeric_indicators:
-        - ["%", "per annum", "p.a.", "pa"]
-      cost_specific:
-        - ["fee", "fees", "charge", "charges", "ocf", "platform charge", "adviser charge", "service fee"]
-    decision_logic:
-      require_all:
-        cost_clusters: ">=2"
-        cost_specific: ">=1"
-        numeric_indicators: ">=1"
-
-  - id: COBS6_COSTS_TOTAL
-    section: "COBS 6 — Costs & Charges"
-    title: "Total / aggregated cost communicated"
-    citation: "COBS 6.1ZA / COBS 6.1ZB"
-    source_url: "https://handbook.fca.org.uk/handbook/COBS/6/1ZA.html"
-    applies_when:
-      investment_element: [true]
-    evidence:
-      positive_clusters:
-        - ["total ongoing charge", "total cost", "total charges", "overall cost", "in total"]
-        - ["therefore approximately", "overall will be", "combined charge"]
-    decision_logic:
-      require_all:
-        positive_clusters: ">=1"
-
-  # -----------------------------
-  # COBS 4 — FAIR, CLEAR, NOT MISLEADING (COMMS)
-  # -----------------------------
-
-  - id: COBS4_NO_GUAR_IMPLIED
-    section: "COBS 4 — Communications"
-    title: "No inappropriate certainty / guarantees implied"
-    citation: "COBS 4.2.1R"
-    source_url: "https://handbook.fca.org.uk/handbook/COBS/4/2.html"
-    applies_when:
-      investment_element: [true]
-    evidence:
-      prohibited_phrases:
-        - ["guaranteed return", "guaranteed growth", "risk-free", "risk free", "cannot lose", "certain return", "assured return"]
-      allowed_negations:
-        - ["not guaranteed", "no guarantee", "there is no guarantee", "returns are not guaranteed", "not assured"]
-    decision_logic:
-      require_none:
-        prohibited_phrases: "==0"
-      decision_logic:
-        require_none:
-          prohibited_phrases: "==0"
-
-  - id: COBS4_BALANCED
-    section: "COBS 4 — Communications"
-    title: "Benefits and risks presented in a balanced way"
-    citation: "COBS 4.2.1R"
-    source_url: "https://handbook.fca.org.uk/handbook/COBS/4/2.html"
-    applies_when:
-      investment_element: [true]
-    evidence:
-      benefit_clusters:
-        - ["benefits", "advantages", "pros", "potential benefit", "opportunity"]
-      risk_clusters:
-        - ["risks", "drawbacks", "downsides", "limitations", "volatility", "capital at risk"]
-    decision_logic:
-      require_all:
-        benefit_clusters: ">=1"
-        risk_clusters: ">=1"
-
-  - id: COBS4_PAST_PERF
-    section: "COBS 4 — Communications"
-    title: "Past performance not presented as a reliable indicator without warning"
-    citation: "COBS 4.2.1R"
-    source_url: "https://handbook.fca.org.uk/handbook/COBS/4/2.html"
-    applies_when:
-      investment_element: [true]
-    evidence:
-      trigger_clusters:
-        - ["past performance", "historic performance", "previous performance", "track record"]
-      warning_clusters:
-        - ["is not a reliable indicator", "not a guide to future returns", "not indicative of future performance"]
-    decision_logic:
-      require_all:
-        trigger_clusters: ">=1"
-        warning_clusters: ">=1"
-
-  # -----------------------------
-  # COBS 10 — APPROPRIATENESS (NON-ADVISED / EXECUTION-ONLY)
-  # -----------------------------
-
-  - id: COBS10_APP_NONADVISED
-    section: "COBS 10 — Appropriateness"
-    title: "Appropriateness assessment evidenced for non-advised"
-    citation: "COBS 10"
-    source_url: "https://handbook.fca.org.uk/handbook/COBS/10/"
-    applies_when:
-      advice_type: [nonadvised]
-    evidence:
-      assessment_clusters:
-        - ["appropriateness", "appropriateness assessment", "we assessed", "knowledge and experience"]
-        - ["you have confirmed your understanding", "you understand the risks", "you are aware of the risks"]
-      product_complexity:
-        - ["derivative", "structured product", "complex", "leverage", "cfd"]
-    decision_logic:
-      require_all:
-        assessment_clusters: ">=1"
-
-  - id: COBS10_WARN_EXEC_ONLY
-    section: "COBS 10 — Appropriateness"
-    title: "Execution-only includes appropriate warnings where no assessment"
-    citation: "COBS 10"
-    source_url: "https://handbook.fca.org.uk/handbook/COBS/10/"
-    applies_when:
-      advice_type: [execution_only]
-    evidence:
-      warning_clusters:
-        - ["we have not assessed", "no assessment has been made", "we have not provided advice", "execution-only", "execution only"]
-        - ["you may be exposed to risks", "you could lose money", "may not be appropriate", "you may get back less"]
-    decision_logic:
-      require_all:
-        warning_clusters: ">=1"
-
-  # -----------------------------
-  # GENERAL — DOCUMENT HYGIENE (SR QUALITY SIGNALS)
-  # -----------------------------
-
-  - id: SR_STRUCT_NEXT_STEPS
-    section: "SR — Structure"
-    title: "Next steps / implementation steps present"
-    citation: "Good practice (supports audit trail)"
-    source_url: null
-    applies_when:
-      advice_type: [advised, nonadvised, execution_only]
-    evidence:
-      positive_clusters:
-        - ["next steps", "subject to your agreement", "we will", "implement", "arrange transfer", "open", "submit", "complete forms"]
-    decision_logic:
-      require_all:
-        positive_clusters: ">=1"
-
-  - id: SR_STRUCT_CLIENT_DETAILS
-    section: "SR — Structure"
-    title: "Client and adviser details present"
-    citation: "Good practice (supports audit trail)"
-    source_url: null
-    applies_when:
-      advice_type: [advised, nonadvised, execution_only]
-    evidence:
-      positive_clusters:
-        - ["client:", "adviser:", "date:", "firm:", "report date", "prepared by"]
-    decision_logic:
-      require_all:
-        positive_clusters: ">=1"
-
-  # -----------------------------
-  # CONSUMER DUTY + SPECIALIST CHECKS
-  # -----------------------------
-
-  - id: CD_UNDERSTANDING_JARGON_BRIDGE
-    section: "Consumer Duty — Understanding (Outcome 3)"
-    title: "High-complexity terminology is explained in plain English"
-    citation: "Consumer Duty (Outcome 3)"
-    source_url: null
-    applies_when:
-      advice_type: [advised, nonadvised, execution_only]
-    evidence:
-      # Uses the executor’s prohibited_phrases vs allowed_negations override as a logic gate:
-      # if jargon appears AND no bridge appears => fail
-      prohibited_phrases:
-        - ["alpha", "beta", "idiosyncratic", "standard deviation", "ex-ante", "volatility clustering", "fiscal drag"]
-      allowed_negations:
-        - ["which means", "in simple terms", "essentially", "to put this in context", "this is a measure of"]
-    decision_logic:
-      require_none:
-        prohibited_phrases: "==0"
-
-  - id: CD_VULNERABILITY_SUPPORT_MEASURE
-    section: "Consumer Duty — Cross-Cutting (Vulnerability)"
-    title: "Vulnerability trigger recorded with a documented support measure"
-    citation: "Consumer Duty (Cross-cutting)"
-    source_url: null
-    applies_when:
-      advice_type: [advised, nonadvised, execution_only]
-    evidence:
-      # Logic gate:
-      # if trigger appears AND no support measure appears => fail
-      prohibited_phrases:
-        - ["bereavement", "divorce", "health", "illness", "memory", "digital exclusion", "caring responsibilities"]
-      allowed_negations:
-        - ["large print", "braille", "third party present", "longer meeting", "paused for questions", "translator"]
-    decision_logic:
-      require_none:
-        prohibited_phrases: "==0"
-
-  - id: PENSION_IHT_2027
-    section: "Pension — IHT (April 2027)"
-    title: "72+ pension advice addresses April 2027 IHT treatment of unused pensions"
-    citation: "April 2027 pension IHT change"
-    source_url: null
-    applies_when:
-      advice_type: [pension]
-      client_age_72_plus: [true]
-    evidence:
-      trigger_clusters:
-        - ["april 2027"]
-        - ["inheritance tax on pensions"]
-        - ["death benefits"]
-        - ["unused funds in estate", "unused pension funds in estate", "pension funds in estate"]
-    decision_logic:
-      require_all:
-        trigger_clusters: ">=1"
-
-  - id: CD_SLUDGE_FRICTION
-    section: "Consumer Duty — Support (Outcome 4)"
-    title: "No unreasonable friction / sludge language"
-    citation: "Consumer Duty (Outcome 4)"
-    source_url: null
-    applies_when:
-      advice_type: [advised, nonadvised, execution_only]
-    evidence:
-      prohibited_phrases:
-        - ["exit fee", "notice period", "penalty", "termination charge", "hard to cancel", "only via phone"]
-    decision_logic:
-      require_none:
-        prohibited_phrases: "==0"
+        prohibited_phrases: ==0
+- id: COBS4_BALANCED
+  section: COBS 4 — Communications
+  title: Benefits and risks presented in a balanced way
+  citation: COBS 4.2.1R
+  source_url: https://handbook.fca.org.uk/handbook/COBS/4/2.html
+  applies_when:
+    investment_element:
+    - true
+  evidence:
+    benefit_clusters:
+    - - benefits
+      - advantages
+      - pros
+      - potential benefit
+      - opportunity
+    risk_clusters:
+    - - risks
+      - drawbacks
+      - downsides
+      - limitations
+      - volatility
+      - capital at risk
+  decision_logic:
+    require_all:
+      benefit_clusters: '>=1'
+      risk_clusters: '>=1'
+- id: COBS4_PAST_PERF
+  section: COBS 4 — Communications
+  title: Past performance not presented as a reliable indicator without warning
+  citation: COBS 4.2.1R
+  source_url: https://handbook.fca.org.uk/handbook/COBS/4/2.html
+  applies_when:
+    investment_element:
+    - true
+  evidence:
+    trigger_clusters:
+    - - past performance
+      - historic performance
+      - previous performance
+      - track record
+    warning_clusters:
+    - - is not a reliable indicator
+      - not a guide to future returns
+      - not indicative of future performance
+  decision_logic:
+    require_all:
+      trigger_clusters: '>=1'
+      warning_clusters: '>=1'
+- id: COBS10_APP_NONADVISED
+  section: COBS 10 — Appropriateness
+  title: Appropriateness assessment evidenced for non-advised
+  citation: COBS 10
+  source_url: https://handbook.fca.org.uk/handbook/COBS/10/
+  applies_when:
+    advice_type:
+    - nonadvised
+  evidence:
+    assessment_clusters:
+    - - appropriateness
+      - appropriateness assessment
+      - we assessed
+      - knowledge and experience
+    - - you have confirmed your understanding
+      - you understand the risks
+      - you are aware of the risks
+    product_complexity:
+    - - derivative
+      - structured product
+      - complex
+      - leverage
+      - cfd
+  decision_logic:
+    require_all:
+      assessment_clusters: '>=1'
+- id: COBS10_WARN_EXEC_ONLY
+  section: COBS 10 — Appropriateness
+  title: Execution-only includes appropriate warnings where no assessment
+  citation: COBS 10
+  source_url: https://handbook.fca.org.uk/handbook/COBS/10/
+  applies_when:
+    advice_type:
+    - execution_only
+  evidence:
+    warning_clusters:
+    - - we have not assessed
+      - no assessment has been made
+      - we have not provided advice
+      - execution-only
+      - execution only
+    - - you may be exposed to risks
+      - you could lose money
+      - may not be appropriate
+      - you may get back less
+  decision_logic:
+    require_all:
+      warning_clusters: '>=1'
+- id: SR_STRUCT_NEXT_STEPS
+  section: SR — Structure
+  title: Next steps / implementation steps present
+  citation: Good practice (supports audit trail)
+  source_url: null
+  applies_when:
+    advice_type:
+    - advised
+    - nonadvised
+    - execution_only
+  evidence:
+    positive_clusters:
+    - - next steps
+      - subject to your agreement
+      - we will
+      - implement
+      - arrange transfer
+      - open
+      - submit
+      - complete forms
+  decision_logic:
+    require_all:
+      positive_clusters: '>=1'
+- id: SR_STRUCT_CLIENT_DETAILS
+  section: SR — Structure
+  title: Client and adviser details present
+  citation: Good practice (supports audit trail)
+  source_url: null
+  applies_when:
+    advice_type:
+    - advised
+    - nonadvised
+    - execution_only
+  evidence:
+    positive_clusters:
+    - - 'client:'
+      - 'adviser:'
+      - 'date:'
+      - 'firm:'
+      - report date
+      - prepared by
+  decision_logic:
+    require_all:
+      positive_clusters: '>=1'
+- id: CD_UNDERSTANDING_JARGON_BRIDGE
+  section: Consumer Duty — Understanding (Outcome 3)
+  title: High-complexity terminology is explained in plain English
+  citation: Consumer Duty (Outcome 3)
+  source_url: null
+  applies_when:
+    advice_type:
+    - advised
+    - nonadvised
+    - execution_only
+  evidence:
+    jargon_phrases:
+    - alpha
+    - beta
+    - idiosyncratic
+    - standard deviation
+    - ex-ante
+    - volatility clustering
+    - fiscal drag
+    explanation_bridges:
+    - which means
+    - in simple terms
+    - essentially
+    - to put this in context
+    - this is a measure of
+  decision_logic:
+    require_if_present:
+      jargon_phrases:
+        then_require:
+          explanation_bridges: '>=1'
+- id: CD_VULNERABILITY_SUPPORT_MEASURE
+  section: Consumer Duty — Cross-Cutting (Vulnerability)
+  title: Vulnerability trigger recorded with a documented support measure
+  citation: Consumer Duty (Cross-cutting)
+  source_url: null
+  applies_when:
+    advice_type:
+    - advised
+    - nonadvised
+    - execution_only
+  evidence:
+    vulnerability_triggers:
+    - bereavement
+    - divorce
+    - health
+    - illness
+    - memory
+    - digital exclusion
+    - caring responsibilities
+    support_measures:
+    - large print
+    - braille
+    - third party present
+    - longer meeting
+    - paused for questions
+    - translator
+  decision_logic:
+    require_if_present:
+      vulnerability_triggers:
+        then_require:
+          support_measures: '>=1'
+- id: PENSION_IHT_2027
+  section: Pension — IHT (April 2027)
+  title: 72+ pension advice addresses April 2027 IHT treatment of unused pensions
+  citation: April 2027 pension IHT change
+  source_url: null
+  applies_when:
+    product_type:
+    - pension
+    client_age_72_plus:
+    - true
+  evidence:
+    weighted_phrases:
+    - april 2027
+    - inheritance tax on pensions
+    - death benefits
+    - unused funds in estate
+    - unused pension funds in estate
+    - pension funds in estate
+  decision_logic:
+    require_all:
+      weighted_phrases: '>=1'
+- id: CD_SLUDGE_FRICTION
+  section: Consumer Duty — Support (Outcome 4)
+  title: No unreasonable friction / sludge language
+  citation: Consumer Duty (Outcome 4)
+  source_url: null
+  applies_when:
+    advice_type:
+    - advised
+    - nonadvised
+    - execution_only
+  evidence:
+    friction_phrases:
+    - exit fee
+    - notice period
+    - penalty
+    - termination charge
+    - hard to cancel
+    - only via phone
+  decision_logic:
+    require_none:
+      friction_phrases: ==0
