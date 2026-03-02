@@ -284,6 +284,62 @@ def _eval_require_block(
     return ok, missing, details
 
 
+
+def _eval_require_if_present(
+    counts: Dict[str, int],
+    block: Any,
+    *,
+    block_name: str = "require_if_present",
+) -> Tuple[bool, List[str], List[str]]:
+    """
+    Logic gate:
+      if counts[trigger_key] > 0, then evaluate the nested then_require thresholds.
+
+    YAML shape:
+      require_if_present:
+        trigger_key:
+          then_require:
+            other_bucket: ">=1"
+            another_bucket: ">=1"
+
+    Returns: ok, missing, details
+    """
+    if not block:
+        return True, [], [f"{block_name} empty (no conditional requirements)."]
+    if not isinstance(block, dict):
+        return False, ["Invalid conditional decision logic block shape"], [f"{block_name} must be a dict."]
+
+    ok = True
+    missing: List[str] = []
+    details: List[str] = []
+
+    for trigger_key, spec in block.items():
+        trigger_n = int(counts.get(trigger_key, 0))
+        if trigger_n <= 0:
+            details.append(f"{block_name} skipped: {trigger_key} not present (actual={trigger_n}).")
+            continue
+
+        if not isinstance(spec, dict):
+            ok = False
+            missing.append(f"{trigger_key} then_require (invalid spec)")
+            details.append(f"{block_name} invalid spec for {trigger_key}: must be dict with then_require.")
+            continue
+
+        then_req = spec.get("then_require")
+        ok_then, miss_then, det_then = _eval_require_block(
+            counts,
+            then_req,
+            block_name=f"{block_name}:{trigger_key}:then_require",
+        )
+        details.extend(det_then)
+        if not ok_then:
+            ok = False
+            # Make missing human-readable but keep bucket names consistent.
+            missing.extend([f"{trigger_key} -> {m}" for m in miss_then])
+
+    return ok, missing, details
+
+
 # ---------------------------------
 # HUMAN "WHAT TO FIX" + SUGGESTED WORDING
 # ---------------------------------
@@ -560,21 +616,26 @@ def evaluate_rule(rule: Dict[str, Any], text: str, context: Dict[str, Any]) -> D
     require_all = decision.get("require_all")
     require_none = decision.get("require_none")
     allow_if_present = decision.get("allow_if_present")
+    require_if_present = decision.get("require_if_present")
 
     ok_all, missing_all, details_all = _eval_require_block(counts, require_all, block_name="require_all")
     ok_none, missing_none, details_none = _eval_require_block(counts, require_none, block_name="require_none")
     _ok_allow, _missing_allow, details_allow = _eval_require_block(counts, allow_if_present, block_name="allow_if_present")
+    _ok_cond, missing_cond, details_cond = _eval_require_if_present(counts, require_if_present, block_name="require_if_present")
 
     details: List[str] = []
     details.extend(details_all)
     details.extend(details_none)
     details.extend(details_allow)
+    details.extend(details_cond)
 
     missing: List[str] = []
     if not ok_all:
         missing.extend(missing_all)
     if not ok_none:
         missing.extend(missing_none)
+    if not _ok_cond:
+        missing.extend(missing_cond)
 
     # Strict: if nothing matched at all, treat as missing evidence
     total_hits = sum(int(v) for v in counts.values())
@@ -589,7 +650,7 @@ def evaluate_rule(rule: Dict[str, Any], text: str, context: Dict[str, Any]) -> D
             details=[],
         )
 
-    status = "OK" if (ok_all and ok_none) else "POTENTIAL_ISSUE"
+    status = "OK" if (ok_all and ok_none and _ok_cond) else "POTENTIAL_ISSUE"
 
     # Must have evidence to be OK
     if status == "OK" and len(evidence_sentences) == 0:
