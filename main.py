@@ -34,18 +34,18 @@ from database import (
     DB_URL,
 )
 
-app = FastAPI(title="Assure Compliance Engine")
+app = FastAPI(title="RuleGrid Compliance Engine")
 templates = Jinja2Templates(directory="templates")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 RULES_PATH = os.environ.get("RULES_PATH", "rules/cobs-mvp-v2.yaml")
-SESSION_COOKIE = os.environ.get("ASSURE_SESSION_COOKIE", "assure_session")
-COOKIE_SECURE = os.environ.get("ASSURE_COOKIE_SECURE", "true").lower() == "true"
+SESSION_COOKIE = os.environ.get("RULEGRID_SESSION_COOKIE", "rulegrid_session")
+COOKIE_SECURE = os.environ.get("RULEGRID_COOKIE_SECURE", "true").lower() == "true"
 
-BOOTSTRAP_EMAIL = os.environ.get("ASSURE_BOOTSTRAP_EMAIL", "").strip().lower()
-BOOTSTRAP_PASSWORD = os.environ.get("ASSURE_BOOTSTRAP_PASSWORD", "")
-BOOTSTRAP_FIRM = os.environ.get("ASSURE_BOOTSTRAP_FIRM", "Demo Firm")
-APP_SECRET = os.environ.get("ASSURE_APP_SECRET", "")
+BOOTSTRAP_EMAIL = os.environ.get("RULEGRID_BOOTSTRAP_EMAIL", "").strip().lower()
+BOOTSTRAP_PASSWORD = os.environ.get("RULEGRID_BOOTSTRAP_PASSWORD", "")
+BOOTSTRAP_FIRM = os.environ.get("RULEGRID_BOOTSTRAP_FIRM", "Demo Firm")
+APP_SECRET = os.environ.get("RULEGRID_APP_SECRET", "")
 
 
 def get_db():
@@ -110,6 +110,68 @@ def extract_action_items(result: Dict[str, Any]) -> List[Dict[str, Any]]:
     sections = result.get("sections") or {}
     if not isinstance(sections, dict):
         return out
+
+def generate_ai_summary(
+    *,
+    summary: Dict[str, Any],
+    completeness_pct: int,
+    action_items: List[Dict[str, Any]],
+) -> str:
+    """
+    Deterministic "AI-style" narrative summary (no external LLM).
+    Rendered with a typewriter effect in the UI.
+    """
+    ok = int(summary.get("ok", 0) or 0)
+    pi = int(summary.get("potential_issue", 0) or 0)
+    na = int(summary.get("not_assessed", 0) or 0)
+    total_assessed = ok + pi
+
+    lines: List[str] = []
+
+    if total_assessed == 0:
+        return "I couldn’t assess any rules against this document. Check the context inputs and ruleset configuration, then rerun."
+
+    if pi == 0:
+        lines.append(f"This suitability report is in good shape. It evidences {ok} out of {total_assessed} assessed controls.")
+    else:
+        lines.append(f"This suitability report evidences {ok} out of {total_assessed} assessed controls ({completeness_pct}% completeness).")
+
+    # Call out the top 2–3 issues
+    if pi > 0:
+        top = action_items[:3]
+        if top:
+            lines.append("The main things to tighten up are:")
+            for item in top:
+                rid = (item.get("rule_id") or "").strip()
+                title = (item.get("title") or "").strip()
+                if rid:
+                    lines.append(f"- {rid}: {title}")
+                else:
+                    lines.append(f"- {title}")
+
+    # Consumer Duty nudges (based on rule IDs present in action_items)
+    ids = {str(i.get("rule_id") or "") for i in action_items}
+    duty_notes: List[str] = []
+    if "CD_UNDERSTANDING_JARGON_BRIDGE" in ids:
+        duty_notes.append("Be mindful of Consumer Duty ‘Understanding’: sophisticated language appears without clear plain-English explanation.")
+    if "CD_SLUDGE_FRICTION" in ids:
+        duty_notes.append("Be mindful of Consumer Duty ‘Support’: potential friction/‘sludge’ language appears and should be justified or clarified.")
+    if "CD_VULNERABILITY_SUPPORT_MEASURE" in ids:
+        duty_notes.append("A potential vulnerability indicator is present — make sure a specific support adjustment is documented.")
+
+    if duty_notes:
+        lines.append("")
+        lines.extend(duty_notes)
+
+    if na > 0:
+        lines.append("")
+        lines.append(f"Note: {na} controls were not assessed due to the context provided for this run.")
+
+    lines.append("")
+    lines.append("For more detail, see the results breakdown below.")
+
+    return "\n".join(lines)
+
 
     for section_name, rules in sections.items():
         if not isinstance(rules, list):
@@ -252,14 +314,14 @@ def _build_context(
 
 def ensure_bootstrap_admin(db) -> None:
     if not APP_SECRET:
-        raise RuntimeError("ASSURE_APP_SECRET must be set in environment.")
+        raise RuntimeError("RULEGRID_APP_SECRET must be set in environment.")
 
     existing = db.query(User).first()
     if existing:
         return
 
     if not BOOTSTRAP_EMAIL or not BOOTSTRAP_PASSWORD:
-        raise RuntimeError("No users exist yet. Set ASSURE_BOOTSTRAP_EMAIL and ASSURE_BOOTSTRAP_PASSWORD to create the first admin.")
+        raise RuntimeError("No users exist yet. Set RULEGRID_BOOTSTRAP_EMAIL and RULEGRID_BOOTSTRAP_PASSWORD to create the first admin.")
 
     firm = Firm(name=BOOTSTRAP_FIRM)
     db.add(firm)
@@ -320,6 +382,7 @@ async def check(payload: CheckRequest, request: Request, db=Depends(get_db)):
     result_out = dict(result)
     result_out["run_id"] = run_id
     result_out["completeness_pct"] = compute_completeness(result.get("summary", {}) or {})
+    result_out["ai_summary_text"] = generate_ai_summary(summary=result.get("summary", {}) or {}, completeness_pct=result_out["completeness_pct"], action_items=extract_action_items(result))
     return JSONResponse(result_out)
 
 
@@ -442,6 +505,7 @@ def demo_results_get(
     summary = result.get("summary") or {}
     completeness_pct = compute_completeness(summary)
     action_items = extract_action_items(result)
+    ai_summary_text = generate_ai_summary(summary=summary, completeness_pct=completeness_pct, action_items=action_items)
 
     return templates.TemplateResponse(
         "results.html",
@@ -452,6 +516,7 @@ def demo_results_get(
             "summary": summary,
             "completeness_pct": completeness_pct,
             "action_items": action_items,
+            "ai_summary_text": ai_summary_text,
         },
     )
 
@@ -479,7 +544,7 @@ def download_pdf(run_id: str, user: User = Depends(require_user_html), db=Depend
     h2 = styles["Heading2"]
     h3 = styles["Heading3"]
 
-    elements.append(Paragraph("Assure Compliance Report", h1))
+    elements.append(Paragraph("RuleGrid Compliance Report", h1))
     elements.append(Spacer(1, 0.3 * inch))
 
     summary = result.get("summary", {})
@@ -511,7 +576,7 @@ def download_pdf(run_id: str, user: User = Depends(require_user_html), db=Depend
     return StreamingResponse(
         buffer,
         media_type="application/pdf",
-        headers={"Content-Disposition": f"attachment; filename=assure-run-{run_id}.pdf"},
+        headers={"Content-Disposition": f"attachment; filename=rulegrid-run-{run_id}.pdf"},
     )
 
 
@@ -636,4 +701,4 @@ def health():
 
 @app.get("/", response_class=PlainTextResponse)
 def root():
-    return "Assure is running. Visit /login"
+    return "RuleGrid is running. Visit /login"
