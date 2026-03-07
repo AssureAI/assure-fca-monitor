@@ -128,7 +128,7 @@
 <div class="container">
   <div class="card">
     <h1>MI dashboard</h1>
-    <p class="sub">Backend view of saved checking activity for this firm.</p>
+    <p class="sub">Firm-level view of review outcomes, recurring control failures and Consumer Duty watchouts.</p>
   </div>
 
   <div class="grid">
@@ -148,8 +148,8 @@
     <div class="card">
       <div class="sub">Risk bands</div>
       <div style="margin-top:10px;">
-        <span class="pill green">Green: {{ band_counts.green }}</span>
-        <span class="pill amber">Amber: {{ band_counts.amber }}</span>
+        <span class="pill green">Green: {{ band_counts.Green }}</span>
+        <span class="pill amber">Amber: {{ band_counts.Amber }}</span>
         <span class="pill red">Red: {{ band_counts.red }}</span>
       </div>
     </div>
@@ -203,6 +203,83 @@
     </div>
   </div>
 
+  <div class="two-col">
+    <div class="card">
+      <h2>Highest-risk recurring themes</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Theme</th>
+            <th>Hits</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in top_themes %}
+          <tr>
+            <td>{{ row.theme }}</td>
+            <td>{{ row.count }}</td>
+          </tr>
+          {% endfor %}
+          {% if not top_themes %}
+          <tr><td colspan="2">No recurring themes yet.</td></tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h2>Consumer Duty watchlist</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Theme</th>
+            <th>Hits</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in cd_watch %}
+          <tr>
+            <td>{{ row.name }}</td>
+            <td>{{ row.count }}</td>
+          </tr>
+          {% endfor %}
+          {% if not cd_watch %}
+          <tr><td colspan="2">No Consumer Duty flags recorded yet.</td></tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Reports requiring escalation</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Run</th>
+          <th>Time</th>
+          <th>Score</th>
+          <th>Issues</th>
+          <th>Open</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in escalation_runs %}
+        <tr>
+          <td>{{ row.id }}</td>
+          <td>{{ row.created_at }}</td>
+          <td>{{ row.score }}%</td>
+          <td>{{ row.pi_count }}</td>
+          <td><a class="link" href="/admin/runs/{{ row.id }}">View run</a></td>
+        </tr>
+        {% endfor %}
+        {% if not escalation_runs %}
+        <tr><td colspan="5">No runs currently meet escalation thresholds.</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+  
   <div class="card">
     <h2>Runs over time</h2>
     <table>
