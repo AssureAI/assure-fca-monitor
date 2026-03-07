@@ -556,9 +556,10 @@ rules:
       - not a guide to future returns
       - not indicative of future performance
   decision_logic:
-    require_all:
-      trigger_clusters: '>=1'
-      warning_clusters: '>=1'
+    require_if_present:
+      trigger_clusters:
+        then_require:
+          warning_clusters: '>=1'
 - id: COBS10_APP_NONADVISED
   section: COBS 10 — Appropriateness
   title: Appropriateness assessment evidenced for non-advised
