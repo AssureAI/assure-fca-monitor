@@ -279,6 +279,35 @@
       </tbody>
     </table>
   </div>
+
+ <div class="card">
+  <h2>Risk by user</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>User</th>
+          <th>Runs</th>
+          <th>Review points</th>
+          <th>Average score</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in risk_by_user %}
+        <tr>
+          <td>{{ row.user_label }}</td>
+          <td>{{ row.runs }}</td>
+          <td>{{ row.issues }}</td>
+          <td>{{ row.avg_score }}%</td>
+          <td>{{ row.band }}</td>
+        </tr>
+        {% endfor %}
+        {% if not risk_by_user %}
+        <tr><td colspan="5">No user-level data available yet.</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
   
   <div class="card">
     <h2>Runs over time</h2>
