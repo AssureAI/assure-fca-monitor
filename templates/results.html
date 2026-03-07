@@ -237,6 +237,11 @@
       {% set review_class = "status-red" %}
     {% endif %}
 
+  <details style="margin-top:14px;">
+     <summary style="cursor:pointer;color:#94A3B8;">Raw JSON</summary>
+     <pre style="white-space:pre-wrap;background:#0B1220;border:1px solid #334155;border-radius:12px;padding:12px;margin-top:10px;color:#CBD5E1;">{{ result | tojson(indent=2) }}</pre>
+  </details>
+    
     <div class="status-badge {{ review_class }}">Review status: {{ review_status }}</div>
     {% if pi == 0 %}
       <h2 class="headline-ok">✔ Ready to send</h2>
