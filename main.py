@@ -14,6 +14,9 @@ from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, Plai
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 
+from pypdf import PdfReader
+from docx import Document
+
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, ListFlowable, ListItem
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import inch
