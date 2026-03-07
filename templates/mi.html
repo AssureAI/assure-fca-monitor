@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <title>RuleGrid – MI</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <style>
+    body{
+      margin:0;
+      background:#0F172A;
+      color:#E2E8F0;
+      font-family:Inter, ui-sans-serif, system-ui, sans-serif;
+    }
+    header{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      padding:18px 34px;
+      border-bottom:1px solid #1E293B;
+    }
+    .logo-row{display:flex;align-items:center;gap:14px}
+    .logo-row span{font-size:18px;color:#94A3B8}
+    .top-actions{display:flex;gap:14px;align-items:center}
+    .link{color:#94A3B8;text-decoration:none;font-size:14px}
+    .link:hover{text-decoration:underline}
+
+    .container{
+      max-width:1180px;
+      margin:30px auto;
+      padding:0 18px 50px 18px;
+    }
+
+    .grid{
+      display:grid;
+      grid-template-columns:repeat(4,1fr);
+      gap:12px;
+      margin-bottom:18px;
+    }
+    @media (max-width: 1000px){
+      .grid{grid-template-columns:repeat(2,1fr)}
+    }
+    @media (max-width: 640px){
+      .grid{grid-template-columns:1fr}
+    }
+
+    .card{
+      background:#111827;
+      border:1px solid #1F2937;
+      border-radius:16px;
+      padding:18px;
+      margin-bottom:16px;
+    }
+
+    .metric{
+      font-size:28px;
+      font-weight:900;
+      margin-top:6px;
+    }
+
+    .sub{color:#94A3B8;font-size:13px;margin:0}
+    h1{margin:0 0 6px 0;font-size:20px}
+    h2{margin:0 0 12px 0;font-size:16px}
+
+    table{
+      width:100%;
+      border-collapse:separate;
+      border-spacing:0;
+      border:1px solid #1F2937;
+      border-radius:12px;
+      overflow:hidden;
+      background:#0B1220;
+    }
+    th,td{
+      padding:12px;
+      font-size:13px;
+      border-bottom:1px solid #1F2937;
+      vertical-align:top;
+      text-align:left;
+    }
+    th{
+      color:#CBD5E1;
+      font-size:12px;
+      text-transform:uppercase;
+      letter-spacing:.02em;
+    }
+    tr:last-child td{border-bottom:none}
+
+    .pill{
+      display:inline-block;
+      padding:4px 10px;
+      border-radius:999px;
+      font-size:12px;
+      border:1px solid #334155;
+      background:#0F172A;
+      color:#CBD5E1;
+      margin-right:6px;
+      margin-bottom:6px;
+      white-space:nowrap;
+    }
+    .green{border-color:rgba(34,197,94,.35); color:#86EFAC}
+    .amber{border-color:rgba(245,158,11,.35); color:#FCD34D}
+    .red{border-color:rgba(239,68,68,.35); color:#FCA5A5}
+
+    .two-col{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:16px;
+    }
+    @media (max-width: 900px){
+      .two-col{grid-template-columns:1fr}
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo-row">
+    <img src="/static/logo-dark.svg" width="160" alt="RuleGrid"/>
+    <span>Management Information</span>
+  </div>
+  <div class="top-actions">
+    <a class="link" href="/demo">New check</a>
+    <a class="link" href="/admin/runs">Run history</a>
+    <a class="link" href="/logout">Logout</a>
+  </div>
+</header>
+
+<div class="container">
+  <div class="card">
+    <h1>MI dashboard</h1>
+    <p class="sub">Backend view of saved checking activity for this firm.</p>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <div class="sub">Total runs</div>
+      <div class="metric">{{ total_runs }}</div>
+    </div>
+    <div class="card">
+      <div class="sub">Average completeness</div>
+      <div class="metric">{{ average_score }}%</div>
+    </div>
+    <div class="card">
+      <div class="sub">Runs above 75%</div>
+      <div class="metric">{{ above_75 }}</div>
+      <div class="sub">{{ above_75_pct }}% of total runs</div>
+    </div>
+    <div class="card">
+      <div class="sub">Risk bands</div>
+      <div style="margin-top:10px;">
+        <span class="pill green">Green: {{ band_counts.green }}</span>
+        <span class="pill amber">Amber: {{ band_counts.amber }}</span>
+        <span class="pill red">Red: {{ band_counts.red }}</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="two-col">
+    <div class="card">
+      <h2>Most flagged rules</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Rule</th>
+            <th>Hits</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in top_rules %}
+          <tr>
+            <td><a class="link" href="/admin/mi?rule_id={{ row.rule_id }}">{{ row.rule_id }}</a></td>
+            <td>{{ row.count }}</td>
+          </tr>
+          {% endfor %}
+          {% if not top_rules %}
+          <tr><td colspan="2">No rule issues recorded yet.</td></tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h2>Most flagged sections</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Section</th>
+            <th>Hits</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in top_sections %}
+          <tr>
+            <td>{{ row.section }}</td>
+            <td>{{ row.count }}</td>
+          </tr>
+          {% endfor %}
+          {% if not top_sections %}
+          <tr><td colspan="2">No section issues recorded yet.</td></tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Runs over time</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Runs</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in trend %}
+        <tr>
+          <td>{{ row.day }}</td>
+          <td>{{ row.count }}</td>
+        </tr>
+        {% endfor %}
+        {% if not trend %}
+        <tr><td colspan="2">No saved runs yet.</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if selected_rule_id %}
+  <div class="card">
+    <h2>Runs impacted by {{ selected_rule_id }}</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Run</th>
+          <th>Time</th>
+          <th>Section</th>
+          <th>Score</th>
+          <th>Open</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in selected_rule_runs %}
+        <tr>
+          <td>{{ row.run_id }}</td>
+          <td>{{ row.created_at }}</td>
+          <td>{{ row.section }}</td>
+          <td>{{ row.completeness_pct }}%</td>
+          <td><a class="link" href="/admin/runs/{{ row.run_id }}">View run</a></td>
+        </tr>
+        {% endfor %}
+        {% if not selected_rule_runs %}
+        <tr><td colspan="5">No runs found for this rule.</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  <div class="card">
+    <h2>Recent runs</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Time</th>
+          <th>Ruleset</th>
+          <th>Score</th>
+          <th>Band</th>
+          <th>Open</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in recent_runs %}
+        <tr>
+          <td>{{ r.created_at }}</td>
+          <td>{{ r.ruleset_id }} v{{ r.ruleset_version }}</td>
+          <td>{{ r.completeness_pct }}%</td>
+          <td>{{ r.band }}</td>
+          <td><a class="link" href="/admin/runs/{{ r.id }}">View</a></td>
+        </tr>
+        {% endfor %}
+        {% if not recent_runs %}
+        <tr><td colspan="5">No runs saved yet.</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+</body>
+</html>
