@@ -642,12 +642,23 @@ def evaluate_rule(rule: Dict[str, Any], text: str, context: Dict[str, Any]) -> D
 
     status = "OK" if (ok_all and ok_none and _ok_cond) else "POTENTIAL_ISSUE"
 
-    # Must have evidence to be OK
-    if status == "OK" and len(evidence_sentences) == 0:
+    # Only require evidence sentences where the rule actually depends on
+    # positive documentary evidence being present.
+    conditional_trigger_present = False
+    if isinstance(require_if_present, dict):
+        for trigger_key in require_if_present.keys():
+            if int(counts.get(trigger_key, 0) or 0) > 0:
+                conditional_trigger_present = True
+                break
+    
+    requires_positive_evidence = bool(require_all) or conditional_trigger_present
+    
+    # Do not downgrade pure absence-based rules or skipped conditional rules
+    if status == "OK" and len(evidence_sentences) == 0 and requires_positive_evidence:
         status = "POTENTIAL_ISSUE"
         missing.append("No evidence sentences (cannot assert OK).")
         details.append("Downgraded: decision passed but evidence list empty.")
-
+    
     why = "OK" if status == "OK" else "Conditions not met."
 
     return _pack(
