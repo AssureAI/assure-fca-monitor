@@ -88,7 +88,7 @@
   <div class="card">
     <div class="logo">
       <img src="/static/logo-dark.svg" width="220" alt="RuleGrid"/>
-      <div class="sub">Demo login</div>
+      <div class="sub">{{ login_title or "Login" }}</div>
     </div>
 
     {% if error %}
@@ -96,6 +96,7 @@
     {% endif %}
 
     <form method="post" action="/login">
+      <input type="hidden" name="next_path" value="{{ next_path or '/demo' }}">
       <label>Email</label>
       <input type="email" name="email" autocomplete="username" required />
 
@@ -105,7 +106,7 @@
       <button type="submit">Sign in</button>
     </form>
 
-    <div class="muted">For paraplanners to sanity-check SR wording before sending.</div>
+    <div class="muted">{{ login_subtitle or "Sign in to continue." }}</div>
   </div>
 </body>
 </html>
