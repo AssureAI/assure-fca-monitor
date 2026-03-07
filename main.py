@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, Optional, List
 
 from collections import Counter
+from collections import Counter, defaultdict
 
 from fastapi import FastAPI, Request, Form, HTTPException, Depends, UploadFile, File
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, PlainTextResponse, StreamingResponse
@@ -679,6 +680,10 @@ def admin_mi(
     trend_counter: Counter = Counter()
     cd_counter: Counter = Counter()
 
+    user_issue_counter: Counter = Counter()
+    user_run_counter: Counter = Counter()
+    user_score_totals = defaultdict(int)
+
     escalation_runs = []
     selected_rule_runs = []
     recent_runs = []
@@ -698,6 +703,10 @@ def admin_mi(
         trend_counter[created_day] += 1
 
         pi_count = int(summary.get("potential_issue", 0) or 0)
+        user_key = str(rr.user_id or "unknown")
+        user_issue_counter[user_key] += pi_count
+        user_run_counter[user_key] += 1
+        user_score_totals[user_key] += score
 
         recent_runs.append(
             {
@@ -784,6 +793,36 @@ def admin_mi(
     top_themes = [{"theme": theme, "count": count} for theme, count in theme_counter.most_common(8)]
     cd_watch = [{"name": name, "count": count} for name, count in cd_counter.most_common(6)]
 
+    user_ids = [uid for uid in user_run_counter.keys() if uid != "unknown"]
+    user_lookup = {}
+    if user_ids:
+        users = db.query(User).filter(User.id.in_(user_ids)).all()
+        user_lookup = {str(u.id): (u.email or str(u.id)) for u in users}
+
+    risk_by_user = []
+    for uid, runs_count in user_run_counter.items():
+        avg_score = round(user_score_totals[uid] / runs_count, 1) if runs_count else 0.0
+        issue_count = int(user_issue_counter[uid] or 0)
+
+        if avg_score >= 85:
+            user_band = "Green"
+        elif avg_score >= 70:
+            user_band = "Amber"
+        else:
+            user_band = "Red"
+
+        risk_by_user.append(
+            {
+                "user_label": user_lookup.get(uid, uid),
+                "runs": runs_count,
+                "issues": issue_count,
+                "avg_score": avg_score,
+                "band": user_band,
+            }
+        )
+
+    risk_by_user.sort(key=lambda x: (-x["issues"], x["avg_score"]))
+
     return templates.TemplateResponse(
         "mi.html",
         {
@@ -803,6 +842,7 @@ def admin_mi(
             "selected_rule_runs": selected_rule_runs,
             "recent_runs": recent_runs[:20],
             "escalation_runs": escalation_runs[:20],
+            "risk_by_user": risk_by_user[:20],
         },
     )
     
