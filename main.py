@@ -9,6 +9,8 @@ import hashlib
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional, List
 
+from collections import Counter
+
 from fastapi import FastAPI, Request, Form, HTTPException, Depends, UploadFile, File
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, PlainTextResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
@@ -111,6 +113,13 @@ def compute_completeness(summary: Dict[str, Any]) -> int:
         return 0
     return int(round((ok / denom) * 100))
 
+def review_band(score: int) -> str:
+    if score >= 85:
+        return "Green"
+    if score >= 70:
+        return "Amber"
+    return "Red"
+    
 def summarise_issue(rule: Dict[str, Any]) -> str:
     why = (rule.get("why") or "").strip()
     if why == "No supporting wording found in the report.":
@@ -663,48 +672,53 @@ def admin_mi(
     score_total = 0
     above_75 = 0
 
-    band_counts = {"green": 0, "amber": 0, "red": 0}
+    band_counts = {"Green": 0, "Amber": 0, "Red": 0}
     rule_counter: Counter = Counter()
     section_counter: Counter = Counter()
+    theme_counter: Counter = Counter()
     trend_counter: Counter = Counter()
+    cd_counter: Counter = Counter()
 
-    rule_hits = {}
+    escalation_runs = []
+    selected_rule_runs = []
     recent_runs = []
 
     for rr in rows:
         summary = json.loads(rr.summary_json or "{}")
         sections = json.loads(rr.sections_json or "{}")
+        score = compute_completeness(summary)
+        band = review_band(score)
 
-        completeness = compute_completeness(summary)
-        score_total += completeness
-
-        if completeness >= 75:
+        score_total += score
+        if score >= 75:
             above_75 += 1
-
-        if completeness >= 85:
-            band_counts["green"] += 1
-            band = "Green"
-        elif completeness >= 70:
-            band_counts["amber"] += 1
-            band = "Amber"
-        else:
-            band_counts["red"] += 1
-            band = "Red"
+        band_counts[band] += 1
 
         created_day = rr.created_at.date().isoformat() if rr.created_at else "Unknown"
         trend_counter[created_day] += 1
+
+        pi_count = int(summary.get("potential_issue", 0) or 0)
 
         recent_runs.append(
             {
                 "id": rr.id,
                 "created_at": rr.created_at.isoformat() if rr.created_at else "",
-                "ruleset_id": rr.ruleset_id,
-                "ruleset_version": rr.ruleset_version,
-                "summary": summary,
-                "completeness_pct": completeness,
+                "score": score,
                 "band": band,
+                "pi_count": pi_count,
             }
         )
+
+        if score < 60 or pi_count >= 5:
+            escalation_runs.append(
+                {
+                    "id": rr.id,
+                    "created_at": rr.created_at.isoformat() if rr.created_at else "",
+                    "score": score,
+                    "pi_count": pi_count,
+                    "band": band,
+                }
+            )
 
         if isinstance(sections, dict):
             for section_name, rules in sections.items():
@@ -721,17 +735,39 @@ def admin_mi(
 
                     section_has_issue = True
                     rid = (rule.get("rule_id") or "").strip()
+                    title = (rule.get("title") or rid).strip()
+
                     if rid:
                         rule_counter[rid] += 1
-                        rule_hits.setdefault(rid, []).append(
-                            {
-                                "run_id": rr.id,
-                                "created_at": rr.created_at.isoformat() if rr.created_at else "",
-                                "title": rule.get("title") or rid,
-                                "section": section_name,
-                                "completeness_pct": completeness,
-                            }
-                        )
+                        if rule_id and rid == rule_id:
+                            selected_rule_runs.append(
+                                {
+                                    "run_id": rr.id,
+                                    "created_at": rr.created_at.isoformat() if rr.created_at else "",
+                                    "section": section_name,
+                                    "score": score,
+                                    "title": title,
+                                }
+                            )
+
+                    title_l = title.lower()
+                    section_l = section_name.lower()
+
+                    if "suitability" in title_l or "suitability" in section_l:
+                        theme_counter["Suitability rationale"] += 1
+                    elif "risk" in title_l or "risk" in section_l:
+                        theme_counter["Risk explanation"] += 1
+                    elif "cost" in title_l or "charge" in title_l:
+                        theme_counter["Charges and disclosures"] += 1
+                    elif rid.startswith("CD_UNDERSTANDING"):
+                        theme_counter["Consumer understanding"] += 1
+                        cd_counter["Consumer understanding"] += 1
+                    elif rid.startswith("CD_VULNERABILITY"):
+                        theme_counter["Vulnerability"] += 1
+                        cd_counter["Vulnerability"] += 1
+                    elif rid.startswith("CD_SLUDGE") or rid.startswith("CD_SUPPORT"):
+                        theme_counter["Support / friction"] += 1
+                        cd_counter["Support / friction"] += 1
 
                 if section_has_issue:
                     section_counter[section_name] += 1
@@ -739,15 +775,11 @@ def admin_mi(
     average_score = round(score_total / total_runs, 1) if total_runs else 0.0
     above_75_pct = round((above_75 / total_runs) * 100, 1) if total_runs else 0.0
 
-    trend = [
-        {"day": day, "count": trend_counter[day]}
-        for day in sorted(trend_counter.keys())
-    ]
-
+    trend = [{"day": day, "count": trend_counter[day]} for day in sorted(trend_counter.keys())]
     top_rules = [{"rule_id": rid, "count": count} for rid, count in rule_counter.most_common(10)]
     top_sections = [{"section": sec, "count": count} for sec, count in section_counter.most_common(10)]
-
-    selected_rule_runs = rule_hits.get(rule_id, []) if rule_id else []
+    top_themes = [{"theme": theme, "count": count} for theme, count in theme_counter.most_common(8)]
+    cd_watch = [{"name": name, "count": count} for name, count in cd_counter.most_common(6)]
 
     return templates.TemplateResponse(
         "mi.html",
@@ -761,10 +793,13 @@ def admin_mi(
             "band_counts": band_counts,
             "top_rules": top_rules,
             "top_sections": top_sections,
+            "top_themes": top_themes,
+            "cd_watch": cd_watch,
             "trend": trend,
             "selected_rule_id": rule_id,
             "selected_rule_runs": selected_rule_runs,
             "recent_runs": recent_runs[:20],
+            "escalation_runs": escalation_runs[:20],
         },
     )
     
