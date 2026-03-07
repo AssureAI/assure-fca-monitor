@@ -566,7 +566,7 @@ def download_pdf(run_id: str, user: User = Depends(require_user_html), db=Depend
         suggestions = item.get("suggestions") or []
         if suggestions:
             elements.append(Spacer(1, 0.1 * inch))
-            elements.append(Paragraph("Suggested wording:", styles["Heading3"]))
+            elements.append(Paragraph("Example wording per FCA guidance:", styles["Heading3"]))
             sug = [ListItem(Paragraph(s, normal)) for s in suggestions]
             elements.append(ListFlowable(sug, bulletType="bullet"))
 
