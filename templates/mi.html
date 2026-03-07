@@ -168,7 +168,7 @@
         <tbody>
           {% for row in top_rules %}
           <tr>
-            <td><a class="link" href="/admin/mi?rule_id={{ row.rule_id }}">{{ row.rule_id }}</a></td>
+            <td><a class="link" href="/admin/mi?rule_id={{ row.rule_id }}#rule-drilldown">{{ row.rule_id }}</a></td>
             <td>{{ row.count }}</td>
           </tr>
           {% endfor %}
@@ -304,7 +304,7 @@
   </div>
 
   {% if selected_rule_id %}
-  <div class="card">
+  <div class="card" id="rule-drilldown">
     <h2>Runs impacted by {{ selected_rule_id }}</h2>
     <table>
       <thead>
