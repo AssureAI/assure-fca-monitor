@@ -5,6 +5,31 @@
 <title>RuleGrid – Results</title>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <style>
+  .status-badge{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  padding:8px 12px;
+  border-radius:999px;
+  font-weight:800;
+  font-size:13px;
+  margin-bottom:12px;
+  }
+  .status-green{
+    background: rgba(34,197,94,.12);
+    border:1px solid rgba(34,197,94,.35);
+    color:#86EFAC;
+  }
+  .status-amber{
+    background: rgba(245,158,11,.12);
+    border:1px solid rgba(245,158,11,.35);
+    color:#FCD34D;
+  }
+  .status-red{
+    background: rgba(239,68,68,.12);
+    border:1px solid rgba(239,68,68,.35);
+    color:#FCA5A5;
+  }
   body {
     margin: 0;
     background: #0F172A;
@@ -201,6 +226,18 @@
     {% set pi = summary.get("potential_issue", 0) %}
     {% set na = summary.get("not_assessed", 0) %}
 
+    {% if completeness_pct >= 85 %}
+      {% set review_status = "Green" %}
+      {% set review_class = "status-green" %}
+    {% elif completeness_pct >= 70 %}
+      {% set review_status = "Amber" %}
+      {% set review_class = "status-amber" %}
+    {% else %}
+      {% set review_status = "Red" %}
+      {% set review_class = "status-red" %}
+    {% endif %}
+
+    <div class="status-badge {{ review_class }}">Review status: {{ review_status }}</div>
     {% if pi == 0 %}
       <h2 class="headline-ok">✔ Ready to send</h2>
       <div class="sub">No outstanding issues flagged by the checker.</div>
@@ -270,7 +307,7 @@
 
           <hr class="divider"/>
 
-          <div class="label">Suggested wording / next step</div>
+          <div class="label">Example wording per FCA guidance</div>
           <div class="suggestion">
             {% if item.suggestions and item.suggestions|length > 0 %}
               <ul>
