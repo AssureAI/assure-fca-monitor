@@ -1,5 +1,6 @@
 # main.py
 from __future__ import annotations
+from collections import Counter
 
 import os
 import json
@@ -584,6 +585,130 @@ def admin_runs(request: Request, user: User = Depends(require_user_html), db=Dep
 
     return templates.TemplateResponse("runs.html", {"request": request, "runs": runs, "user_email": user.email})
 
+@app.get("/admin/mi", response_class=HTMLResponse)
+def admin_mi(
+    request: Request,
+    rule_id: Optional[str] = None,
+    user: User = Depends(require_user_html),
+    db=Depends(get_db),
+):
+    rows = (
+        db.query(Run)
+        .filter(Run.firm_id == user.firm_id)
+        .order_by(Run.created_at.desc())
+        .limit(1000)
+        .all()
+    )
+
+    total_runs = len(rows)
+    score_total = 0
+    above_75 = 0
+
+    band_counts = {"green": 0, "amber": 0, "red": 0}
+    rule_counter: Counter = Counter()
+    section_counter: Counter = Counter()
+    trend_counter: Counter = Counter()
+
+    rule_hits = {}
+    recent_runs = []
+
+    for rr in rows:
+        summary = json.loads(rr.summary_json or "{}")
+        sections = json.loads(rr.sections_json or "{}")
+
+        completeness = compute_completeness(summary)
+        score_total += completeness
+
+        if completeness >= 75:
+            above_75 += 1
+
+        if completeness >= 85:
+            band_counts["green"] += 1
+            band = "Green"
+        elif completeness >= 70:
+            band_counts["amber"] += 1
+            band = "Amber"
+        else:
+            band_counts["red"] += 1
+            band = "Red"
+
+        created_day = rr.created_at.date().isoformat() if rr.created_at else "Unknown"
+        trend_counter[created_day] += 1
+
+        recent_runs.append(
+            {
+                "id": rr.id,
+                "created_at": rr.created_at.isoformat() if rr.created_at else "",
+                "ruleset_id": rr.ruleset_id,
+                "ruleset_version": rr.ruleset_version,
+                "summary": summary,
+                "completeness_pct": completeness,
+                "band": band,
+            }
+        )
+
+        if isinstance(sections, dict):
+            for section_name, rules in sections.items():
+                if not isinstance(rules, list):
+                    continue
+
+                section_has_issue = False
+
+                for rule in rules:
+                    if not isinstance(rule, dict):
+                        continue
+                    if rule.get("status") != "POTENTIAL_ISSUE":
+                        continue
+
+                    section_has_issue = True
+                    rid = (rule.get("rule_id") or "").strip()
+                    if rid:
+                        rule_counter[rid] += 1
+                        rule_hits.setdefault(rid, []).append(
+                            {
+                                "run_id": rr.id,
+                                "created_at": rr.created_at.isoformat() if rr.created_at else "",
+                                "title": rule.get("title") or rid,
+                                "section": section_name,
+                                "completeness_pct": completeness,
+                            }
+                        )
+
+                if section_has_issue:
+                    section_counter[section_name] += 1
+
+    average_score = round(score_total / total_runs, 1) if total_runs else 0.0
+    above_75_pct = round((above_75 / total_runs) * 100, 1) if total_runs else 0.0
+
+    trend = [
+        {"day": day, "count": trend_counter[day]}
+        for day in sorted(trend_counter.keys())
+    ]
+
+    top_rules = [{"rule_id": rid, "count": count} for rid, count in rule_counter.most_common(10)]
+    top_sections = [{"section": sec, "count": count} for sec, count in section_counter.most_common(10)]
+
+    selected_rule_runs = rule_hits.get(rule_id, []) if rule_id else []
+
+    return templates.TemplateResponse(
+        "mi.html",
+        {
+            "request": request,
+            "user_email": user.email,
+            "total_runs": total_runs,
+            "average_score": average_score,
+            "above_75": above_75,
+            "above_75_pct": above_75_pct,
+            "band_counts": band_counts,
+            "top_rules": top_rules,
+            "top_sections": top_sections,
+            "trend": trend,
+            "selected_rule_id": rule_id,
+            "selected_rule_runs": selected_rule_runs,
+            "recent_runs": recent_runs[:20],
+        },
+    )
+    
 @app.get("/admin/runs/{run_id}", response_class=HTMLResponse)
 def admin_run_detail(request: Request, run_id: str, user: User = Depends(require_user_html), db=Depends(get_db)):
     rr = db.query(Run).filter(Run.id == run_id, Run.firm_id == user.firm_id).first()
