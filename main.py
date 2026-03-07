@@ -212,57 +212,44 @@ def generate_exec_summary(
 ) -> str:
     ok = int(summary.get("ok", 0) or 0)
     pi = int(summary.get("potential_issue", 0) or 0)
+    assessed = ok + pi
 
-    sections = result.get("sections") or {}
-    sr_structure = sections.get("SR — Structure") or []
-    struct_ok = {r.get("rule_id") for r in sr_structure if r.get("status") == "OK"}
-
-    structured_signals: List[str] = []
-    if "SR_STRUCT_CLIENT_DETAILS" in struct_ok:
-        structured_signals.append("client/adviser details are clearly captured")
-    if "SR_STRUCT_NEXT_STEPS" in struct_ok:
-        structured_signals.append("next steps are explicit")
-
-    if structured_signals:
-        structure_line = "This suitability report is well structured — " + " and ".join(structured_signals) + "."
-    else:
-        structure_line = "This suitability report is reasonably structured, but there are a few documentation gaps worth tightening."
-
-    # Consumer Duty signals by rule id prefix
-    consumer_duty_flags = {((a.get("rule_id") or "").strip()) for a in action_items if (a.get("rule_id") or "").startswith("CD_")}
-
-    cd_lines: List[str] = []
-    if "CD_UNDERSTANDING_JARGON_BRIDGE" in consumer_duty_flags:
-        cd_lines.append("Be mindful of Consumer Duty ‘Consumer Understanding’: sophisticated terminology appears without enough plain-English bridging in places.")
-    if "CD_VULNERABILITY_SUPPORT_MEASURE" in consumer_duty_flags:
-        cd_lines.append("Consumer Duty vulnerability handling: vulnerability indicators appear, but the file doesn’t consistently document the specific support adjustments made.")
-    if "CD_SLUDGE_FRICTION" in consumer_duty_flags:
-        cd_lines.append("Consumer Duty ‘Support’: potential friction/‘sludge’ wording is present — this needs a quick manual check for fairness and balance.")
-
-    assessed = max(1, ok + pi)
     if completeness_pct >= 85:
-        score_line = f"It hits {ok} of {assessed} assessed checks, with a completeness score of {completeness_pct}%."
-    elif completeness_pct >= 65:
-        score_line = f"It hits {ok} of {assessed} assessed checks (completeness {completeness_pct}%). Solid base, but a few points need tightening."
+        status = "Green"
+        opening = "Overall status: Green. The file is broadly in good order."
+    elif completeness_pct >= 70:
+        status = "Amber"
+        opening = "Overall status: Amber. The file is workable, but there are a few points to tighten before issue."
     else:
-        score_line = f"It hits {ok} of {assessed} assessed checks (completeness {completeness_pct}%). This needs a cleanup pass before it’s audit-ready."
+        status = "Red"
+        opening = "Overall status: Red. The file is not ready for issue in its current form."
+
+    if assessed <= 0:
+        assessment = "No assessed controls were evidenced in this run."
+    else:
+        assessment = f"{ok} of {assessed} assessed checks were met (completeness {completeness_pct}%)."
 
     top = action_items[:3]
     if top:
-        bullets = "\n".join([f"- {t.get('title') or t.get('rule_id') or 'Issue'}" for t in top])
+        top_lines = "\n".join([f"- {t.get('title') or t.get('rule_id') or 'Issue'}" for t in top])
+        priorities = f"Priority review areas:\n{top_lines}"
     else:
-        bullets = "- No material issues detected by the ruleset."
+        priorities = "Priority review areas:\n- No material issues were flagged by the ruleset."
 
-    cd_block = ("\n\n" + "\n".join(cd_lines)) if cd_lines else ""
+    consumer_duty_flags = {((a.get("rule_id") or "").strip()) for a in action_items if (a.get("rule_id") or "").startswith("CD_")}
+    cd_lines: List[str] = []
+    if "CD_UNDERSTANDING_JARGON_BRIDGE" in consumer_duty_flags:
+        cd_lines.append("- Consumer Understanding: jargon or technical phrasing may need plainer explanation.")
+    if "CD_VULNERABILITY_SUPPORT_MEASURE" in consumer_duty_flags:
+        cd_lines.append("- Vulnerability: the file may need a clearer record of any support adjustments made.")
+    if "CD_SLUDGE_FRICTION" in consumer_duty_flags:
+        cd_lines.append("- Support: wording may need a fairness check for friction or unnecessary barriers.")
 
-    return (
-        f"{structure_line}\n\n"
-        f"{score_line}\n\n"
-        f"You might want to focus on:\n"
-        f"{bullets}\n\n"
-        f"For more detail, see the breakdown below."
-        f"{cd_block}"
-    )
+    cd_block = ""
+    if cd_lines:
+        cd_block = "\n\nConsumer Duty watchouts:\n" + "\n".join(cd_lines)
+
+    return f"{opening}\n\nAssessment:\n{assessment}\n\n{priorities}{cd_block}"
 
 # -----------------------------
 # BOOTSTRAP
