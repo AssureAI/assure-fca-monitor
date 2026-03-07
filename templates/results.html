@@ -220,8 +220,7 @@
 
     <div class="ai-summary">
       <div class="ai-summary__label">Summary</div>
-      <pre id="aiSummary" class="ai-summary__text" aria-live="polite"></pre>
-      <div id="aiSummarySource" style="display:none;">{{ exec_summary }}</div>
+        <pre id="aiSummary" class="ai-summary__text" aria-live="polite">{{ exec_summary }}</pre>
     </div>
 
 
@@ -297,43 +296,6 @@
   {% endif %}
 
 </div>
-
-<script>
-(function() {
-  const srcEl = document.getElementById("aiSummarySource");
-  const outEl = document.getElementById("aiSummary");
-  if (!srcEl || !outEl) return;
-
-  const text = (srcEl.textContent || "").trim();
-  if (!text) return;
-
-  let i = 0;
-  const min = 8;   // ms
-  const max = 28;  // ms
-  const pausePunct = 240;
-
-  function randDelay() {
-    return Math.floor(min + Math.random() * (max - min));
-  }
-
-  function tick() {
-    const ch = text[i];
-    outEl.textContent += ch;
-    i += 1;
-
-    if (i >= text.length) return;
-
-    // Slight pauses on punctuation/newlines to feel "written"
-    if (ch === "\n") return setTimeout(tick, 160);
-    if (".!?".includes(ch)) return setTimeout(tick, pausePunct);
-    if (",;:".includes(ch)) return setTimeout(tick, 120);
-
-    setTimeout(tick, randDelay());
-  }
-
-  tick();
-})();
-</script>
 
 </body>
 </html>
