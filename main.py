@@ -703,6 +703,9 @@ def admin_mi(
             {
                 "id": rr.id,
                 "created_at": rr.created_at.isoformat() if rr.created_at else "",
+                "ruleset_id": rr.ruleset_id or "",
+                "ruleset_version": rr.ruleset_version or "",
+                "completeness_pct": score,
                 "score": score,
                 "band": band,
                 "pi_count": pi_count,
