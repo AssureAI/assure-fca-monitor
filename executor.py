@@ -639,16 +639,6 @@ def evaluate_rule(rule: Dict[str, Any], text: str, context: Dict[str, Any]) -> D
 
     # Strict: if nothing matched at all, treat as missing evidence
     total_hits = sum(int(v) for v in counts.values())
-    if total_hits == 0:
-        return _pack(
-            status="POTENTIAL_ISSUE",
-            why="No supporting wording found in the report.",
-            counts=counts,
-            evidence=[],
-            evidence_by_key=evidence_by_key,
-            missing=["All required signals (none matched)"],
-            details=[],
-        )
 
     status = "OK" if (ok_all and ok_none and _ok_cond) else "POTENTIAL_ISSUE"
 
