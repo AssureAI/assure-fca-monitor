@@ -173,6 +173,31 @@ def _safe_split_first(s: str, sep: str = "@") -> str:
         return s.split(sep, 1)[-1]
     return s
 
+async def extract_uploaded_text(upload: Optional[UploadFile]) -> str:
+    if not upload or not upload.filename:
+        return ""
+
+    filename = (upload.filename or "").lower()
+    raw = await upload.read()
+    if not raw:
+        return ""
+
+    if filename.endswith(".txt"):
+        return raw.decode("utf-8", errors="ignore")
+
+    if filename.endswith(".pdf"):
+        reader = PdfReader(BytesIO(raw))
+        pages = []
+        for page in reader.pages:
+            pages.append(page.extract_text() or "")
+        return "\n".join(pages).strip()
+
+    if filename.endswith(".docx"):
+        doc = Document(BytesIO(raw))
+        return "\n".join([p.text for p in doc.paragraphs]).strip()
+
+    return ""
+    
 def persist_run(db, user: User, result: Dict[str, Any], context: Dict[str, Any], sr_text: str) -> str:
     run_id = str(uuid.uuid4())
     sr_hash = hashlib.sha256((sr_text or "").encode("utf-8")).hexdigest()
@@ -411,6 +436,7 @@ async def demo_run_post(
     investment_element: str = Form("true"),
     ongoing_service: str = Form("false"),
     sr_text: str = Form(""),
+    sr_file: Optional[UploadFile] = File(None),
     user: User = Depends(require_user_html),
     db=Depends(get_db),
 ):
@@ -420,9 +446,17 @@ async def demo_run_post(
         "ongoing_service": (ongoing_service or "").lower() == "true",
     }
 
+    uploaded_text = await extract_uploaded_text(sr_file)
+    final_sr_text = (sr_text or "").strip()
+
+    if uploaded_text and final_sr_text:
+        final_sr_text = uploaded_text + "\n\n" + final_sr_text
+    elif uploaded_text:
+        final_sr_text = uploaded_text
+
     try:
         result = run_rules_engine(
-            document_text=sr_text or "",
+            document_text=final_sr_text or "",
             context=ctx,
             rules_path=RULES_PATH,
         )
@@ -445,7 +479,7 @@ async def demo_run_post(
             status_code=500,
         )
 
-    run_id = persist_run(db, user, result, ctx, sr_text or "")
+    run_id = persist_run(db, user, result, ctx, final_sr_text or "")
     return RedirectResponse(url=f"/demo/results/{run_id}", status_code=303)
 
 @app.get("/demo/results/{run_id}", response_class=HTMLResponse)
