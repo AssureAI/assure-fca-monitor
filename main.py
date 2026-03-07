@@ -371,25 +371,60 @@ async def check(payload: CheckRequest, request: Request, db=Depends(get_db)):
 
 @app.get("/login", response_class=HTMLResponse)
 def login_get(request: Request):
-    return templates.TemplateResponse("login.html", {"request": request, "error": None})
+    return templates.TemplateResponse(
+        "login.html",
+        {
+            "request": request,
+            "error": None,
+            "next_path": "/demo",
+            "login_title": "Paraplanner login",
+            "login_subtitle": "For SR review and pre-issue checking.",
+        },
+    )
+
+@app.get("/oversight/login", response_class=HTMLResponse)
+def oversight_login_get(request: Request):
+    return templates.TemplateResponse(
+        "login.html",
+        {
+            "request": request,
+            "error": None,
+            "next_path": "/admin/mi",
+            "login_title": "Oversight / Risk login",
+            "login_subtitle": "For QA, oversight and management information.",
+        },
+    )
 
 @app.post("/login", response_class=HTMLResponse)
 def login_post(
     request: Request,
     email: str = Form(...),
     password: str = Form(...),
+    next_path: str = Form("/demo"),
     db=Depends(get_db),
 ):
     email_n = (email or "").strip().lower()
     user = db.query(User).filter(User.email == email_n).first()
     if not user or not user.is_active or not verify_password(password or "", user.password_hash):
         return templates.TemplateResponse("login.html", {"request": request, "error": "Invalid credentials"}, status_code=401)
-
+        return templates.TemplateResponse(
+            "login.html",
+            {
+                "request": request,
+                "error": "Invalid credentials",
+                "next_path": next_path or "/demo",
+                "login_title": "Login",
+                "login_subtitle": "",
+            },
+            status_code=401,
+        )
+        
     token = create_session(db, user.id)
     user.last_login_at = utc_now()
     db.commit()
 
-    resp = RedirectResponse(url="/demo", status_code=303)
+    safe_next = next_path if next_path in ["/demo", "/admin/mi"] else "/demo"
+    resp = RedirectResponse(url=safe_next, status_code=303)
     resp.set_cookie(
         key=SESSION_COOKIE,
         value=token,
