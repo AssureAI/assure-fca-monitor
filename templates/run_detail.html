@@ -200,9 +200,8 @@
   {% set ok = (run.summary.ok or 0) %}
   {% set pi = (run.summary.potential_issue or 0) %}
   {% set na = (run.summary.not_assessed or 0) %}
-  {% set total = ok + pi + na %}
   {% set assessed = ok + pi %}
-  {% set completeness = ( (assessed * 100) / total ) if total > 0 else 0 %}
+  {% set completeness = ((ok * 100) / assessed) if assessed > 0 else 0 %}
   {% set ready = (pi == 0) %}
 
   <div class="card">
