@@ -173,6 +173,12 @@ def persist_run(db, user: User, result: Dict[str, Any], context: Dict[str, Any],
     run_id = str(uuid.uuid4())
     sr_hash = hashlib.sha256((sr_text or "").encode("utf-8")).hexdigest()
 
+    summary = result.get("summary", {}) or {}
+    ok_count = int(summary.get("ok", 0) or 0)
+    pi_count = int(summary.get("potential_issue", 0) or 0)
+    na_count = int(summary.get("not_assessed", 0) or 0)
+    completeness_pct = compute_completeness(summary)
+
     r = Run(
         id=run_id,
         firm_id=user.firm_id,
@@ -185,7 +191,11 @@ def persist_run(db, user: User, result: Dict[str, Any], context: Dict[str, Any],
         ongoing_service="true" if bool(context.get("ongoing_service")) else "false",
         sr_hash=sr_hash,
         sr_len=len(sr_text or ""),
-        summary_json=json.dumps(result.get("summary", {}), ensure_ascii=False),
+        ok_count=ok_count,
+        pi_count=pi_count,
+        na_count=na_count,
+        completeness_pct=completeness_pct,
+        summary_json=json.dumps(summary, ensure_ascii=False),
         sections_json=json.dumps(result.get("sections", {}), ensure_ascii=False),
     )
     db.add(r)
