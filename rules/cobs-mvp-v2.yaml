@@ -543,6 +543,11 @@ rules:
       - there is no guarantee
       - returns are not guaranteed
       - not assured
+      - no guaranteed return
+      - no guaranteed returns
+      - cannot be guaranteed
+      - can't be guaranteed
+      - there is no certainty
   decision_logic:
     require_none:
       prohibited_phrases: ==0
