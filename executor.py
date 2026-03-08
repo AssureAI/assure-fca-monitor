@@ -761,8 +761,9 @@ def run_rules_engine(
 ) -> Dict[str, Any]:
     resolved_path = _resolve_rules_path(rules_path)
     try:
-     ruleset = _load_ruleset(resolved_path)
+        ruleset = _load_ruleset(resolved_path)
     except Exception as e:
+        print("RULESET LOAD ERROR:", repr(e))
         return {
             "ruleset_id": "load_failed",
             "ruleset_version": "0.0",
