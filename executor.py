@@ -771,7 +771,13 @@ def run_rules_engine(
 
     grouped: Dict[str, List[Dict[str, Any]]] = {}
 
-    for rule in rules:
+    for rule in sorted(
+    rules,
+    key=lambda r: (
+        str(r.get("section") or ""),
+        str(r.get("id") or ""),
+        ),
+    ):
         if not isinstance(rule, dict):
             continue
 
