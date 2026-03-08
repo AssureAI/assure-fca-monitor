@@ -283,7 +283,8 @@
           </p>
 
           <div class="label">What to fix</div>
-          {% if item.issue_summary %}
+
+          {% if item.issue_summary and not (item.fixes and item.fixes|length > 0) %}
             <div>{{ item.issue_summary }}</div>
           {% endif %}
 
@@ -293,6 +294,8 @@
                 <li>{{ f }}</li>
               {% endfor %}
             </ul>
+          {% elif item.issue_summary %}
+            <div>{{ item.issue_summary }}</div>
           {% else %}
             <div class="small">No specific fix guidance available for this control yet.</div>
           {% endif %}
@@ -308,20 +311,18 @@
             </div>
           {% endif %}
 
-          <hr class="divider"/>
-
-          <div class="label">Example wording per FCA guidance</div>
-          <div class="suggestion">
-            {% if item.suggestions and item.suggestions|length > 0 %}
+          {% if item.suggestions and item.suggestions|length > 0 %}
+            <hr class="divider"/>
+            <div class="label">Illustrative wording aligned to this control</div>
+            <div class="small">For internal drafting support only. This is not FCA-prescribed wording and should be tailored to the client file.</div>
+            <div class="suggestion">
               <ul>
                 {% for s in item.suggestions %}
                   <li>{{ s }}</li>
                 {% endfor %}
               </ul>
-            {% else %}
-              <div class="small">Update the report to clearly evidence this control, then rerun the check.</div>
-            {% endif %}
-          </div>
+            </div>
+          {% endif %}
 
           <div class="small">Rule ID: {{ item.rule_id }}</div>
         </div>
