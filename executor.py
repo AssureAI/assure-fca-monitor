@@ -768,6 +768,8 @@ def run_rules_engine(
     rules = ruleset.get("rules", [])
     if not isinstance(rules, list):
         rules = []
+    print("RULES PATH:", resolved_path)
+    print("RULE COUNT:", len(rules))
 
     grouped: Dict[str, List[Dict[str, Any]]] = {}
 
