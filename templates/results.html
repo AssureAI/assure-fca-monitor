@@ -299,7 +299,10 @@
       <span class="pill">Needs review: {{ pi }}</span>
       <span class="pill">Not assessed: {{ na }}</span>
     </div>
-
+    <div style="margin-top:16px;">
+      <a href="/demo/export/{{ run_id }}" class="btn">Download Compliance Review (PDF)</a>
+    </div>
+    
     <div class="ai-summary">
       <div class="ai-summary__label">Summary</div>
         <pre id="aiSummary" class="ai-summary__text" aria-live="polite">{{ exec_summary }}</pre>
