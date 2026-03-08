@@ -188,25 +188,43 @@ async def extract_uploaded_text(upload: Optional[UploadFile]) -> str:
         return ""
 
     filename = (upload.filename or "").lower()
-    raw = await upload.read()
-    if not raw:
+
+    try:
+        raw = await upload.read()
+        print("upload filename:", filename)
+        print("upload bytes:", len(raw) if raw else 0)
+
+        if not raw:
+            return ""
+
+        if filename.endswith(".txt"):
+            text = raw.decode("utf-8", errors="ignore").strip()
+            print("extracted txt length:", len(text))
+            return text
+
+        if filename.endswith(".pdf"):
+            reader = PdfReader(BytesIO(raw))
+            pages = []
+            for i, page in enumerate(reader.pages):
+                page_text = page.extract_text() or ""
+                pages.append(page_text)
+                print(f"pdf page {i+1} text length:", len(page_text))
+            text = "\n".join(pages).strip()
+            print("extracted pdf length:", len(text))
+            return text
+
+        if filename.endswith(".docx"):
+            doc = Document(BytesIO(raw))
+            text = "\n".join([p.text for p in doc.paragraphs]).strip()
+            print("extracted docx length:", len(text))
+            return text
+
+        print("unsupported upload type:", filename)
         return ""
 
-    if filename.endswith(".txt"):
-        return raw.decode("utf-8", errors="ignore")
-
-    if filename.endswith(".pdf"):
-        reader = PdfReader(BytesIO(raw))
-        pages = []
-        for page in reader.pages:
-            pages.append(page.extract_text() or "")
-        return "\n".join(pages).strip()
-
-    if filename.endswith(".docx"):
-        doc = Document(BytesIO(raw))
-        return "\n".join([p.text for p in doc.paragraphs]).strip()
-
-    return ""
+    except Exception as e:
+        print("extract_uploaded_text failed:", type(e).__name__, str(e))
+        return ""
     
 def persist_run(db, user: User, result: Dict[str, Any], context: Dict[str, Any], sr_text: str) -> str:
     run_id = str(uuid.uuid4())
@@ -491,13 +509,77 @@ async def demo_run_post(
         "ongoing_service": (ongoing_service or "").lower() == "true",
     }
 
+    print("sr_file present:", bool(sr_file))
+    print("sr_file name:", getattr(sr_file, "filename", None))
+    print("sr_text length:", len((sr_text or "").strip()))
+
     uploaded_text = await extract_uploaded_text(sr_file)
+    print("uploaded_text length:", len((uploaded_text or "").strip()))
+
     final_sr_text = (sr_text or "").strip()
 
     if uploaded_text and final_sr_text:
         final_sr_text = uploaded_text + "\n\n" + final_sr_text
     elif uploaded_text:
         final_sr_text = uploaded_text
+
+    if not (final_sr_text or "").strip():
+        return templates.TemplateResponse(
+            "results.html",
+            {
+                "request": request,
+                "run_id": "",
+                "result": {
+                    "sections": {
+                        "INPUT ERROR": [
+                            {
+                                "rule_id": "NO_INPUT",
+                                "title": "No report text received",
+                                "status": "POTENTIAL_ISSUE",
+                                "citation": "",
+                                "source_url": "",
+                                "why": "The uploaded file was not converted into usable text, and no pasted text was provided.",
+                                "fixes": [
+                                    "Paste the report text directly into the text box.",
+                                    "If uploading, use a supported file type that text extraction can actually read.",
+                                    "Check the upload parser for the selected file type."
+                                ],
+                                "suggested_wording": [],
+                                "counts": {},
+                                "missing": [],
+                                "details": [],
+                                "evidence": [],
+                                "evidence_by_key": {},
+                            }
+                        ]
+                    },
+                    "summary": {"ok": 0, "potential_issue": 1, "not_assessed": 0},
+                },
+                "summary": {"ok": 0, "potential_issue": 1, "not_assessed": 0},
+                "completeness_pct": 0,
+                "action_items": [
+                    {
+                        "section": "INPUT ERROR",
+                        "rule_id": "NO_INPUT",
+                        "title": "No report text received",
+                        "citation": "",
+                        "source_url": "",
+                        "issue_summary": "The server did not receive usable report text from the upload.",
+                        "fixes": [
+                            "Paste the report text directly into the text box.",
+                            "If uploading, use a supported file type that text extraction can actually read.",
+                            "Check the upload parser for the selected file type."
+                        ],
+                        "evidence": [],
+                        "suggested_wording": [],
+                    }
+                ],
+                "exec_summary": "No report text was received, so the check could not run.",
+                "engine_error": "",
+                "rules_path_used": RULES_PATH,
+            },
+            status_code=400,
+        )
 
     try:
         result = run_rules_engine(
