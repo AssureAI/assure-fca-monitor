@@ -82,6 +82,12 @@ def _flatten_phrases(phrases: Any) -> List[str]:
         flat.append(phrases)
     return flat
 
+def _looks_like_clusters(spec: Any) -> bool:
+    """
+    Treat any list containing one or more nested lists as cluster-based evidence.
+    This is safer than relying on key names like *_clusters.
+    """
+    return isinstance(spec, list) and any(isinstance(item, list) for item in spec)
 
 def phrase_hits(
     sentences: List[str],
