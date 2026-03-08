@@ -311,13 +311,13 @@
             </div>
           {% endif %}
 
-          {% if item.suggestions and item.suggestions|length > 0 %}
+          {% if item.suggested_wording and item.suggested_wording|length > 0 %}
             <hr class="divider"/>
             <div class="label">Illustrative wording aligned to this control</div>
             <div class="small">For internal drafting support only. This is not FCA-prescribed wording and should be tailored to the client file.</div>
             <div class="suggestion">
               <ul>
-                {% for s in item.suggestions %}
+                {% for s in item.suggested_wording %}
                   <li>{{ s }}</li>
                 {% endfor %}
               </ul>
