@@ -5,6 +5,35 @@
   <title>RuleGrid – Demo</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
+    input[type="number"],
+    input[type="file"] {
+      background: #0B1220;
+      border: 1px solid #334155;
+      border-radius: 10px;
+      padding: 10px 12px;
+      color: #E2E8F0;
+      outline: none;
+    }
+
+    input[type="number"]:focus,
+    input[type="file"]:focus {
+      border-color: #2563EB;
+      box-shadow: 0 0 0 3px rgba(37,99,235,0.22);
+    }
+
+    #sr_file {
+      width: 100%;
+      max-width: 420px;
+    }
+
+    #client_age {
+      width: 120px;
+    }
+
+    .row label {
+      min-width: 170px;
+      color: #CBD5E1;
+    }
     body {
       margin: 0;
       background: #0F172A;
@@ -185,13 +214,13 @@
           </select>
         </div>
 
-        <div class="row">
+        <div class="row" style="align-items:center;">
           <label for="client_age">Client age (optional)</label>
           <input type="number" name="client_age" id="client_age" min="0" max="120" value="{{ defaults.client_age if defaults and defaults.client_age is not none else '' }}">
         </div>
 
-        <div class="row">
-          <label for="sr_file">Upload suitability report (.txt, .docx, .pdf)</label>
+        <div class="row" style="align-items:center;">
+          <label for="sr_file">Upload suitability report</label>
           <input type="file" name="sr_file" id="sr_file" accept=".txt,.docx,.pdf">
         </div>
 
