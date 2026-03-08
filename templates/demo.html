@@ -260,131 +260,77 @@ textarea.disabled {
       </form>
     </div>
   </div>
-
   <script>
+
     const SAMPLES = {
       good: `SUITABILITY REPORT
-
 Client: Mr John Smith
 Date: 26 February 2026
 Adviser: David Clinton
-Firm: Consiglio Wealth
+Firm: Consiglio Wealth`,
 
-Your Circumstances
-You are 61, employed, and earning £82,000 per annum. You have reviewed your monthly expenditure and outgoings. You have no outstanding high-interest debt and maintain an emergency fund equivalent to six months’ expenditure. You plan to retire within the next 7 years and do not require withdrawals at this stage.
-
-Knowledge & Experience
-You confirmed you have previous investing experience and are familiar with equity funds, bond funds and diversified portfolios. You understand that investing involves risk and values can fluctuate.
-
-Your Investment Objectives (COBS 9.2.2R)
-Your objectives are long-term capital growth and preserving value as you approach retirement, aiming to grow your pension ahead of inflation while maintaining a balanced approach. Time horizon: 7 years.
-
-Attitude to Risk and Capacity for Loss (COBS 9.2.2R)
-Your risk profile is Balanced / Moderate. In a worst case scenario you could tolerate a fall of approximately 15–20% without materially impacting essential expenditure, acknowledging values can fall as well as rise.
-
-Recommendation (COBS 9.2.1R)
-We recommend consolidating existing pensions into a Transact SIPP and investing into a diversified portfolio:
-• 40% Global Equity Funds
-• 20% UK Equity Funds
-• 25% Strategic Bond Funds
-• 10% Global Infrastructure
-• 5% Cash
-
-Why This Recommendation Is Suitable (COBS 9.2.1R)
-This recommendation is suitable because it aligns with your objectives and time horizon and matches your assessed attitude to risk and capacity for loss. Because you have 7 years until retirement, the growth allocation supports capital growth; therefore the portfolio seeks long-term returns while moderating volatility through bonds and diversification. As a result, you retain exposure to growth assets while reducing concentration risk.
-
-Alternatives Considered
-We considered remaining with existing providers and moving to a lower-risk, higher-cash allocation. We decided against these because they are less aligned with your growth objectives and may reduce the likelihood of meeting your target outcome.
-
-Material Risks, Disadvantages and Drawbacks
-Your capital is at risk: values can fall and you may get back less than you invest. Risks include market movements, volatility, inflation risk and sequencing risk approaching retirement. There is no guarantee and returns are not guaranteed.
-
-Costs and Charges (COBS 6.1ZA / 6.1ZB)
-Platform: 0.35% p.a.  OCF: 0.60% p.a.  Total ongoing charge: approx. 0.95% p.a.
-There are no initial adviser charges for this recommendation. Any ongoing advice fee (if agreed) would be stated separately.
-
-Next Steps
-Subject to your agreement, we will transfer and consolidate pensions into the Transact SIPP and implement the recommended allocation. We can provide an annual review if you take ongoing service.`,
       bad: `SUITABILITY REPORT
+We recommend moving into our model portfolio. This portfolio offers guaranteed returns.`,
 
-We recommend moving into our model portfolio. This portfolio offers guaranteed returns and will protect your capital.
-It has delivered strong performance historically and should continue to do so.
-
-Recommendation
-Move all assets into the portfolio.
-
-Costs
-Fees apply.`,
       minimal: `SUITABILITY REPORT
-
 Recommendation
-We recommend a portfolio.
-
-Risks
-Investments can go down.`
+We recommend a portfolio.`
     };
+
 
     function loadSample(which) {
+
       const ta = document.getElementById("sr_text");
+      const srFileInput = document.getElementById("sr_file");
+      const uploadStatus = document.getElementById("uploadStatus");
+      const pasteHint = document.getElementById("pasteHint");
+
+      ta.disabled = false;
+      ta.classList.remove("disabled");
       ta.value = SAMPLES[which] || "";
       ta.focus();
-    }
-      const srFileInput = document.getElementById("sr_file");
-    const uploadStatus = document.getElementById("uploadStatus");
 
-    if (srFileInput && uploadStatus) {
-      srFileInput.addEventListener("change", function () {
-        if (srFileInput.files && srFileInput.files.length > 0) {
-          uploadStatus.textContent = "Uploaded: " + srFileInput.files[0].name;
-          uploadStatus.style.display = "block";
-        } else {
-          uploadStatus.textContent = "";
-          uploadStatus.style.display = "none";
-        }
-      });
-    }
-  const fileInput = document.getElementById("sr_file");
-const uploadStatus = document.getElementById("uploadStatus");
-const srTextbox = document.getElementById("sr_text");
-const pasteHint = document.getElementById("pasteHint");
-
-if (fileInput) {
-  fileInput.addEventListener("change", function () {
-
-    if (!fileInput.files.length) {
+      srFileInput.value = "";
       uploadStatus.style.display = "none";
-      srTextbox.disabled = false;
-      srTextbox.classList.remove("disabled");
       pasteHint.style.display = "block";
-      return;
     }
 
-    const file = fileInput.files[0];
 
-    const reader = new FileReader();
+    const srFileInput = document.getElementById("sr_file");
+    const uploadStatus = document.getElementById("uploadStatus");
+    const srTextbox = document.getElementById("sr_text");
+    const pasteHint = document.getElementById("pasteHint");
 
-    reader.onload = function(e) {
 
-      const textLength = (e.target.result || "").length;
+    if (srFileInput) {
 
-      uploadStatus.innerHTML =
-        "✓ Uploaded: <b>" +
-        file.name +
-        "</b> — " +
-        textLength.toLocaleString() +
-        " characters detected";
+      srFileInput.addEventListener("change", function () {
 
-      uploadStatus.style.display = "block";
+        if (!srFileInput.files.length) {
 
-      srTextbox.disabled = true;
-      srTextbox.classList.add("disabled");
+          uploadStatus.style.display = "none";
+          srTextbox.disabled = false;
+          srTextbox.classList.remove("disabled");
+          pasteHint.style.display = "block";
+          return;
+        }
 
-      pasteHint.style.display = "none";
-    };
+        const file = srFileInput.files[0];
 
-    reader.readAsText(file);
-  });
-}
+        uploadStatus.innerHTML =
+          "✓ Uploaded: <b>" + file.name + "</b><br>File will be analysed when you run the check.";
+
+        uploadStatus.style.display = "block";
+
+        srTextbox.disabled = true;
+        srTextbox.classList.add("disabled");
+        srTextbox.value = "";
+
+        pasteHint.style.display = "none";
+      });
+
+    }
+
   </script>
 </body>
 </html>
