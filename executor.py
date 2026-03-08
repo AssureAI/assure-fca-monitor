@@ -763,7 +763,22 @@ def run_rules_engine(
     rules_path: str = "cobs-mvp-v2.yaml",
 ) -> Dict[str, Any]:
     resolved_path = _resolve_rules_path(rules_path)
-    ruleset = _load_ruleset(resolved_path)
+    try:
+     ruleset = _load_ruleset(resolved_path)
+    except Exception as e:
+     return {
+        "ruleset_id": "load_failed",
+        "ruleset_version": "0.0",
+        "checked_at": datetime.utcnow().isoformat() + "Z",
+        "summary": {
+            "ok": 0,
+            "potential_issue": 0,
+            "not_assessed": 0,
+        },
+        "sections": {},
+        "rules_path_used": resolved_path,
+        "engine_error": str(e),
+    }
 
     rules = ruleset.get("rules", [])
     if not isinstance(rules, list):
