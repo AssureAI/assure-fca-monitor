@@ -495,62 +495,62 @@ rules:
   source_url: https://handbook.fca.org.uk/handbook/COBS/4/2.html
   applies_when:
     investment_element:
-    - true
+      - true
   evidence:
     prohibited_phrases:
-    - - guarantee
-      - guaranteed
-      - guaranteed return
-      - guaranteed returns
-      - guaranteed growth
-      - guaranteed income
-      - guarantee this investment
-      - guarantee you will
-      - will make you money
-      - will not lose money
-      - cannot lose
-      - can't lose
-      - no risk
-      - risk-free
-      - risk free
-      - safe return
-      - certain return
-      - assured return
-      - assured growth
-      - sure return
-      - sure profit
-      - certain profit
-      - fixed return
-      - secure return
-      - no downside
-      - no chance of loss
-      - no possibility of loss
-      - your capital is safe
-      - your money is safe
-      - your investment is safe
-      - this investment is safe
-      - this is a safe investment
-      - this investment will grow
-      - this will grow your money
-      - this will make money
-      - you will make money
-      - you will definitely
-      - you cannot lose money
-      - you can't lose money
-   allowed_negations:
-    - - not guaranteed
-      - no guarantee
-      - there is no guarantee
-      - returns are not guaranteed
-      - not assured
-      - no guaranteed return
-      - no guaranteed returns
-      - cannot be guaranteed
-      - can't be guaranteed
-      - there is no certainty
+      - - guarantee
+        - guaranteed
+        - guaranteed return
+        - guaranteed returns
+        - guaranteed growth
+        - guaranteed income
+        - guarantee this investment
+        - guarantee you will
+        - will make you money
+        - will not lose money
+        - cannot lose
+        - can't lose
+        - no risk
+        - risk-free
+        - risk free
+        - safe return
+        - certain return
+        - assured return
+        - assured growth
+        - sure return
+        - sure profit
+        - certain profit
+        - fixed return
+        - secure return
+        - no downside
+        - no chance of loss
+        - no possibility of loss
+        - your capital is safe
+        - your money is safe
+        - your investment is safe
+        - this investment is safe
+        - this is a safe investment
+        - this investment will grow
+        - this will grow your money
+        - this will make money
+        - you will make money
+        - you will definitely
+        - you cannot lose money
+        - you can't lose money
+    allowed_negations:
+      - - not guaranteed
+        - no guarantee
+        - there is no guarantee
+        - returns are not guaranteed
+        - not assured
+        - no guaranteed return
+        - no guaranteed returns
+        - cannot be guaranteed
+        - can't be guaranteed
+        - there is no certainty
   decision_logic:
     require_none:
-      prohibited_phrases: ==0
+      prohibited_phrases: "==0"
 - id: COBS4_BALANCED
   section: COBS 4 — Communications
   title: Benefits and risks presented in a balanced way
