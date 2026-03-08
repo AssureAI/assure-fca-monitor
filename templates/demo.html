@@ -29,7 +29,11 @@
     #client_age {
       width: 120px;
     }
-
+    .upload-status {
+      color: #86EFAC;
+      font-size: 12px;
+      margin-top: 6px;
+    }
     .row label {
       min-width: 170px;
       color: #CBD5E1;
@@ -219,9 +223,12 @@
           <input type="number" name="client_age" id="client_age" min="0" max="120" value="{{ defaults.client_age if defaults and defaults.client_age is not none else '' }}">
         </div>
 
-        <div class="row" style="align-items:center;">
-          <label for="sr_file">Upload suitability report</label>
-          <input type="file" name="sr_file" id="sr_file" accept=".txt,.docx,.pdf">
+        <div class="row">
+          <label for="sr_file" class="form-label">Upload suitability report</label>
+          <div class="form-control">
+            <input type="file" name="sr_file" id="sr_file" accept=".txt,.docx,.pdf">
+            <div id="uploadStatus" class="upload-status" style="display:none;"></div>
+          </div>
         </div>
 
         <textarea name="sr_text" id="sr_text" placeholder="Paste suitability report text here..."></textarea>
@@ -307,6 +314,20 @@ Investments can go down.`
       const ta = document.getElementById("sr_text");
       ta.value = SAMPLES[which] || "";
       ta.focus();
+    }
+      const srFileInput = document.getElementById("sr_file");
+    const uploadStatus = document.getElementById("uploadStatus");
+
+    if (srFileInput && uploadStatus) {
+      srFileInput.addEventListener("change", function () {
+        if (srFileInput.files && srFileInput.files.length > 0) {
+          uploadStatus.textContent = "Uploaded: " + srFileInput.files[0].name;
+          uploadStatus.style.display = "block";
+        } else {
+          uploadStatus.textContent = "";
+          uploadStatus.style.display = "none";
+        }
+      });
     }
   </script>
 </body>
