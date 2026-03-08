@@ -763,19 +763,37 @@ def run_rules_engine(
     try:
      ruleset = _load_ruleset(resolved_path)
     except Exception as e:
-     return {
-        "ruleset_id": "load_failed",
-        "ruleset_version": "0.0",
-        "checked_at": datetime.utcnow().isoformat() + "Z",
-        "summary": {
-            "ok": 0,
-            "potential_issue": 0,
-            "not_assessed": 0,
-        },
-        "sections": {},
-        "rules_path_used": resolved_path,
-        "engine_error": str(e),
-    }
+        return {
+            "ruleset_id": "load_failed",
+            "ruleset_version": "0.0",
+            "checked_at": datetime.utcnow().isoformat() + "Z",
+            "summary": {
+                "ok": 0,
+                "potential_issue": 1,
+                "not_assessed": 0,
+            },
+            "sections": {
+                "ENGINE ERROR": [
+                    {
+                        "rule_id": "ENGINE_LOAD_ERROR",
+                        "title": "Ruleset failed to load",
+                        "status": "POTENTIAL_ISSUE",
+                        "citation": "",
+                        "source_url": "",
+                        "why": str(e),
+                        "fixes": [str(e)],
+                        "suggested_wording": [],
+                        "counts": {},
+                        "missing": [],
+                        "details": [],
+                        "evidence": [],
+                        "evidence_by_key": {},
+                    }
+                ]
+            },
+            "engine_error": str(e),
+            "rules_path_used": resolved_path,
+        }
 
     rules = ruleset.get("rules", [])
     if not isinstance(rules, list):
