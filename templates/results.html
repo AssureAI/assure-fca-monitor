@@ -243,12 +243,15 @@
   </details>
     
     <div class="status-badge {{ review_class }}">Review status: {{ review_status }}</div>
-    {% if pi == 0 %}
+    {% if result.get("ruleset_id") == "load_failed" or result.get("engine_error") %}
+      <h2 class="headline-warn">⚠ Checker error</h2>
+      <div class="sub">The rules engine did not complete successfully. Review the error details below.</div>
+    {% elif pi == 0 %}
       <h2 class="headline-ok">✔ Ready to send</h2>
       <div class="sub">No outstanding issues flagged by the checker.</div>
     {% else %}
       <h2 class="headline-warn">⚠ {{ pi }} item{% if pi != 1 %}s{% endif %} to review</h2>
-      <div class="sub">Fix the items below, rerun, then save the clean output for your file.</div>
+      <div class="sub">Review the flagged items below, amend the report where needed, then rerun the check.</div>
     {% endif %}
 
     <div class="meta">
