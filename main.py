@@ -654,6 +654,73 @@ def demo_results_get(
         },
     )
 
+@app.get("/demo/export/{run_id}")
+async def export_compliance_review(
+    run_id: str,
+    user: User = Depends(require_user_html),
+    db=Depends(get_db),
+):
+
+    run = get_run(db, run_id)
+
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found")
+
+    result = run.result
+
+    buffer = BytesIO()
+
+    styles = getSampleStyleSheet()
+    story = []
+
+    story.append(Paragraph("RuleGrid Compliance Review", styles["Title"]))
+    story.append(Spacer(1, 12))
+
+    story.append(Paragraph(f"Run ID: {run_id}", styles["Normal"]))
+    story.append(Paragraph(f"Ruleset Version: {result.get('ruleset_version')}", styles["Normal"]))
+    story.append(Paragraph(f"Checked At: {result.get('checked_at')}", styles["Normal"]))
+    story.append(Spacer(1, 12))
+
+    summary = result.get("summary", {})
+
+    story.append(Paragraph("Summary", styles["Heading2"]))
+    story.append(Paragraph(f"OK: {summary.get('ok')}", styles["Normal"]))
+    story.append(Paragraph(f"Potential Issues: {summary.get('potential_issue')}", styles["Normal"]))
+    story.append(Paragraph(f"Not Assessed: {summary.get('not_assessed')}", styles["Normal"]))
+    story.append(Spacer(1, 20))
+
+    for section, rules in result.get("sections", {}).items():
+
+        story.append(Paragraph(section, styles["Heading2"]))
+        story.append(Spacer(1, 8))
+
+        for r in rules:
+
+            story.append(Paragraph(f"{r['rule_id']} — {r['title']}", styles["Heading3"]))
+            story.append(Paragraph(f"Status: {r['status']}", styles["Normal"]))
+            story.append(Paragraph(f"Citation: {r.get('citation','')}", styles["Normal"]))
+            story.append(Paragraph(f"Why: {r.get('why','')}", styles["Normal"]))
+
+            if r.get("suggested_wording"):
+                story.append(Paragraph("Suggested wording:", styles["Italic"]))
+                for s in r["suggested_wording"]:
+                    story.append(Paragraph(s, styles["Normal"]))
+
+            story.append(Spacer(1, 10))
+
+    doc = SimpleDocTemplate(buffer)
+    doc.build(story)
+
+    buffer.seek(0)
+
+    return StreamingResponse(
+        buffer,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f"attachment; filename=rulegrid-review-{run_id}.pdf"
+        },
+    )
+    
 @app.get("/demo/results/{run_id}/pdf")
 def download_pdf(run_id: str, user: User = Depends(require_user_html), db=Depends(get_db)):
     rr = db.query(Run).filter(Run.id == run_id, Run.firm_id == user.firm_id).first()
