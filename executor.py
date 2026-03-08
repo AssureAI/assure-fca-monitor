@@ -582,11 +582,11 @@ def evaluate_rule(rule: Dict[str, Any], text: str, context: Dict[str, Any]) -> D
             if key in ("negative_indicators", "prohibited_phrases", "must_not_contain"):
                 allow_if_negated = False
 
-            if key.endswith("_clusters"):
+            if _looks_like_clusters(spec):
                 satisfied_n, _phrases, ev, _by_cluster = cluster_hits(
                     sentences,
                     spec,
-                    allow_if_negated=True,
+                    allow_if_negated=allow_if_negated,
                     max_evidence=6,
                 )
                 counts[key] = satisfied_n
@@ -693,11 +693,64 @@ def _resolve_rules_path(default_path: str) -> str:
 
     raise FileNotFoundError(f"Rules file not found: {path} (and fallback missing: {fallback})")
 
+def _validate_ruleset(ruleset: Dict[str, Any]) -> None:
+    errors: List[str] = []
+
+    rules = ruleset.get("rules")
+    if not isinstance(rules, list):
+        raise ValueError("Ruleset must contain a top-level 'rules' list.")
+
+    seen_ids = set()
+
+    for idx, rule in enumerate(rules):
+        prefix = f"rules[{idx}]"
+
+        if not isinstance(rule, dict):
+            errors.append(f"{prefix}: rule must be a dict")
+            continue
+
+        rule_id = str(rule.get("id") or "").strip()
+        if not rule_id:
+            errors.append(f"{prefix}: missing rule id")
+        elif rule_id in seen_ids:
+            errors.append(f"{prefix}: duplicate rule id '{rule_id}'")
+        else:
+            seen_ids.add(rule_id)
+
+        decision_logic = rule.get("decision_logic")
+        if not isinstance(decision_logic, dict) or not decision_logic:
+            errors.append(f"{rule_id or prefix}: missing or invalid decision_logic")
+        elif "decision_logic" in decision_logic:
+            errors.append(f"{rule_id or prefix}: nested decision_logic block found inside decision_logic")
+
+        evidence = rule.get("evidence")
+        if evidence is not None and not isinstance(evidence, dict):
+            errors.append(f"{rule_id or prefix}: evidence must be a dict")
+        elif isinstance(evidence, dict):
+            for key, spec in evidence.items():
+                if not isinstance(spec, list):
+                    errors.append(f"{rule_id or prefix}: evidence[{key}] must be a list")
+                    continue
+
+                for item in spec:
+                    if isinstance(item, str):
+                        continue
+                    if isinstance(item, list) and all(isinstance(x, str) for x in item):
+                        continue
+                    errors.append(
+                        f"{rule_id or prefix}: evidence[{key}] must contain strings or list[str], got {type(item).__name__}"
+                    )
+
+    if errors:
+        raise ValueError("Invalid ruleset:\n- " + "\n- ".join(errors))
 
 def _load_ruleset(path: str) -> Dict[str, Any]:
     with open(path, "r", encoding="utf-8") as f:
         data = yaml.safe_load(f)
-    return data if isinstance(data, dict) else {}
+
+    data = data if isinstance(data, dict) else {}
+    _validate_ruleset(data)
+    return data
 
 
 # ---------------------------------
