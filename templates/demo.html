@@ -29,6 +29,11 @@
     #client_age {
       width: 120px;
     }
+    .subtle {
+      color:#94A3B8;
+      font-size:12px;
+      margin-top: 8px;
+    }
     .upload-status {
       color: #86EFAC;
       font-size: 12px;
@@ -78,7 +83,15 @@
       margin: 34px auto;
       padding: 0 18px;
     }
+    .upload-status {
+      margin-top:6px;
+      font-size:13px;
+      color:#86EFAC;
+    }
 
+textarea.disabled {
+  opacity:0.45;
+}
     .card {
       background: #111827;
       border: 1px solid #1F2937;
@@ -228,6 +241,7 @@
           <div class="form-control">
             <input type="file" name="sr_file" id="sr_file" accept=".txt,.docx,.pdf">
             <div id="uploadStatus" class="upload-status" style="display:none;"></div>
+            <div class="subtle" id="pasteHint">Tip: you can either upload a report above or paste the text below.</div>
           </div>
         </div>
 
@@ -329,6 +343,48 @@ Investments can go down.`
         }
       });
     }
+  const fileInput = document.getElementById("sr_file");
+const uploadStatus = document.getElementById("uploadStatus");
+const srTextbox = document.getElementById("sr_text");
+const pasteHint = document.getElementById("pasteHint");
+
+if (fileInput) {
+  fileInput.addEventListener("change", function () {
+
+    if (!fileInput.files.length) {
+      uploadStatus.style.display = "none";
+      srTextbox.disabled = false;
+      srTextbox.classList.remove("disabled");
+      pasteHint.style.display = "block";
+      return;
+    }
+
+    const file = fileInput.files[0];
+
+    const reader = new FileReader();
+
+    reader.onload = function(e) {
+
+      const textLength = (e.target.result || "").length;
+
+      uploadStatus.innerHTML =
+        "✓ Uploaded: <b>" +
+        file.name +
+        "</b> — " +
+        textLength.toLocaleString() +
+        " characters detected";
+
+      uploadStatus.style.display = "block";
+
+      srTextbox.disabled = true;
+      srTextbox.classList.add("disabled");
+
+      pasteHint.style.display = "none";
+    };
+
+    reader.readAsText(file);
+  });
+}
   </script>
 </body>
 </html>
