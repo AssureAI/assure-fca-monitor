@@ -512,8 +512,8 @@ rules:
       - returns are not guaranteed
       - not assured
     decision_logic:
-    require_none:
-      prohibited_phrases: ==0
+      require_none:
+        prohibited_phrases: ==0
 - id: COBS4_BALANCED
   section: COBS 4 — Communications
   title: Benefits and risks presented in a balanced way
