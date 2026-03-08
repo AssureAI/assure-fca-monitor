@@ -20,7 +20,11 @@
       border-color: #2563EB;
       box-shadow: 0 0 0 3px rgba(37,99,235,0.22);
     }
-
+    .btn:disabled {
+      background: #1E40AF;
+      cursor: wait;
+      opacity: 0.9;
+    }
     #sr_file {
       width: 100%;
       max-width: 420px;
@@ -197,7 +201,7 @@ textarea.disabled {
   </header>
 
   <div class="container">
-    <p class="hint">Paste a suitability report draft → run → fix the few items flagged → rerun.</p>
+    <p class="hint">Paste or upload a suitability report, run FCA checks, review any flagged issues, then rerun once amended.</p>
 
     <div class="card">
       <form method="post" action="/demo/run" id="runForm" enctype="multipart/form-data">
@@ -248,53 +252,13 @@ textarea.disabled {
         <textarea name="sr_text" id="sr_text" placeholder="Paste suitability report text here..."></textarea>
 
         <div class="btn-row">
-          <div style="display:flex;gap:10px;flex-wrap:wrap;">
-            <button type="button" class="btn-ghost" onclick="loadSample('good')">Load “Good SR”</button>
-            <button type="button" class="btn-ghost" onclick="loadSample('bad')">Load “Bad SR”</button>
-            <button type="button" class="btn-ghost" onclick="loadSample('minimal')">Load “Minimal SR”</button>
-          </div>
-          <button type="submit" class="btn">Run check</button>
+          <div class="small">Upload a draft suitability report (.docx, .pdf or .txt), or paste the text below.</div>
+          <button type="submit" class="btn" id="runCheckBtn">Run FCA checks</button>
         </div>
-
-        <div class="small">Tip: for the demo, run “Good SR” first (mostly green), then “Bad SR” (clear issues + suggested wording).</div>
       </form>
     </div>
   </div>
   <script>
-
-    const SAMPLES = {
-      good: `SUITABILITY REPORT
-Client: Mr John Smith
-Date: 26 February 2026
-Adviser: David Clinton
-Firm: Consiglio Wealth`,
-
-      bad: `SUITABILITY REPORT
-We recommend moving into our model portfolio. This portfolio offers guaranteed returns.`,
-
-      minimal: `SUITABILITY REPORT
-Recommendation
-We recommend a portfolio.`
-    };
-
-
-    function loadSample(which) {
-
-      const ta = document.getElementById("sr_text");
-      const srFileInput = document.getElementById("sr_file");
-      const uploadStatus = document.getElementById("uploadStatus");
-      const pasteHint = document.getElementById("pasteHint");
-
-      ta.disabled = false;
-      ta.classList.remove("disabled");
-      ta.value = SAMPLES[which] || "";
-      ta.focus();
-
-      srFileInput.value = "";
-      uploadStatus.style.display = "none";
-      pasteHint.style.display = "block";
-    }
-
 
     const srFileInput = document.getElementById("sr_file");
     const uploadStatus = document.getElementById("uploadStatus");
@@ -330,7 +294,15 @@ We recommend a portfolio.`
       });
 
     }
+    const runForm = document.getElementById("runForm");
+    const runCheckBtn = document.getElementById("runCheckBtn");
 
+    if (runForm && runCheckBtn) {
+      runForm.addEventListener("submit", function () {
+        runCheckBtn.textContent = "Running FCA checks...";
+        runCheckBtn.disabled = true;
+      });
+    }
   </script>
 </body>
 </html>
