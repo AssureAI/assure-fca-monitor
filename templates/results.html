@@ -243,7 +243,7 @@
   </details>
     
     <div class="status-badge {{ review_class }}">Review status: {{ review_status }}</div>
-    {% if result.get("ruleset_id") == "load_failed" or result.get("engine_error") %}
+    {% if result.get("engine_error") %}
       <h2 class="headline-warn">⚠ Checker error</h2>
       <div class="sub">The rules engine did not complete successfully. Review the error details below.</div>
     {% elif pi == 0 %}
@@ -269,7 +269,19 @@
 
     <div class="small">Completeness excludes “Not assessed” controls. It’s a rough guide, not a compliance guarantee.</div>
   </div>
-
+  
+  {% if result.get("engine_error") %}
+    <div class="issue">
+      <h3>Checker error</h3>
+      <p class="issue-meta">The rules engine did not complete successfully.</p>
+      <div class="label">Error details</div>
+      <div class="suggestion">{{ result.get("engine_error") }}</div>
+      {% if result.get("rules_path_used") %}
+        <div class="small">Rules path: {{ result.get("rules_path_used") }}</div>
+      {% endif %}
+    </div>
+  {% endif %}
+  
   {% if action_items and action_items|length > 0 %}
     <div class="grid">
       {% for item in action_items %}
