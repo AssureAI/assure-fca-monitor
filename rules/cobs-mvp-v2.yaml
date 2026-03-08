@@ -264,14 +264,20 @@ rules:
   applies_when:
     advice_type:
     - advised
-  evidence:
+    evidence:
     positive_clusters:
-    - - this is suitable because
-      - this meets your objectives
-      - this aligns with your objectives
-    - - given your objectives
+    - - suitable because
+      - this recommendation is suitable because
+      - this is suitable because
+    - - aligns with your objectives
+      - aligns with your objectives and time horizon
+      - meets your objectives
+      - supports your objectives
+    - - matches your assessed attitude to risk
+      - matches your risk profile
+      - is in line with your risk profile
+      - reflects your circumstances
       - in light of your circumstances
-      - reflecting your circumstances
     causal_language:
     - - because
       - therefore
@@ -505,12 +511,9 @@ rules:
       - there is no guarantee
       - returns are not guaranteed
       - not assured
-  decision_logic:
+    decision_logic:
     require_none:
       prohibited_phrases: ==0
-    decision_logic:
-      require_none:
-        prohibited_phrases: ==0
 - id: COBS4_BALANCED
   section: COBS 4 — Communications
   title: Benefits and risks presented in a balanced way
