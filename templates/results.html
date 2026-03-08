@@ -69,7 +69,51 @@
     margin:30px auto;
     padding:0 18px;
   }
+  .json-tools {
+    display:flex;
+    justify-content:flex-end;
+    margin-top:14px;
+  }
 
+  .copy-btn {
+    padding:10px 12px;
+    border-radius:10px;
+    border:1px solid #334155;
+    background: transparent;
+    color:#CBD5E1;
+    cursor:pointer;
+    font-weight:700;
+  }
+
+  .copy-btn:hover {
+    border-color:#475569;
+  }
+
+  .copy-status {
+    color:#94A3B8;
+    font-size:12px;
+    margin-left:10px;
+    align-self:center;
+  }
+
+  .debug-json {
+    margin-top: 28px;
+    background:#111827;
+    border:1px solid #1F2937;
+    padding:18px;
+    border-radius:14px;
+  }
+
+  .debug-json pre {
+    white-space:pre-wrap;
+    background:#0B1220;
+    border:1px solid #334155;
+    border-radius:12px;
+    padding:12px;
+    margin-top:10px;
+    color:#CBD5E1;
+    overflow:auto;
+  }
   .summary {
     background:#111827;
     border:1px solid #1F2937;
@@ -237,11 +281,6 @@
       {% set review_class = "status-red" %}
     {% endif %}
 
-  <details style="margin-top:14px;">
-     <summary style="cursor:pointer;color:#94A3B8;">Raw JSON</summary>
-     <pre style="white-space:pre-wrap;background:#0B1220;border:1px solid #334155;border-radius:12px;padding:12px;margin-top:10px;color:#CBD5E1;">{{ result | tojson(indent=2) }}</pre>
-  </details>
-    
     <div class="status-badge {{ review_class }}">Review status: {{ review_status }}</div>
     {% if result.get("engine_error") %}
       <h2 class="headline-warn">⚠ Checker error</h2>
@@ -351,7 +390,38 @@
     </div>
   {% endif %}
 
-</div>
+  <div class="debug-json">
+    <details>
+      <summary style="cursor:pointer;color:#94A3B8;">Raw JSON</summary>
 
+      <div class="json-tools">
+        <button type="button" class="copy-btn" onclick="copyRawJson()">Copy raw JSON</button>
+        <span id="copyStatus" class="copy-status"></span>
+      </div>
+
+      <pre id="rawJsonBlock">{{ result | tojson(indent=2) }}</pre>
+    </details>
+  </div>
+</div>
+<script>
+  async function copyRawJson() {
+    const el = document.getElementById("rawJsonBlock");
+    const status = document.getElementById("copyStatus");
+    if (!el) return;
+
+    try {
+      await navigator.clipboard.writeText(el.textContent || "");
+      if (status) status.textContent = "Copied";
+      setTimeout(() => {
+        if (status) status.textContent = "";
+      }, 1500);
+    } catch (e) {
+      if (status) status.textContent = "Copy failed";
+      setTimeout(() => {
+        if (status) status.textContent = "";
+      }, 1500);
+    }
+  }
+</script>
 </body>
 </html>
