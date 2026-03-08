@@ -687,7 +687,7 @@ def _resolve_rules_path(default_path: str) -> str:
     if os.path.exists(path):
         return path
 
-    fallback = "rules/cobs-suitability-v1.yaml"
+    fallback = "cobs-mvp-v2.yaml"
     if os.path.exists(fallback):
         return fallback
 
@@ -760,7 +760,7 @@ def _load_ruleset(path: str) -> Dict[str, Any]:
 def run_rules_engine(
     document_text: str,
     context: Dict[str, Any],
-    rules_path: str = "rules/cobs-suitability-v1.yaml",
+    rules_path: str = "cobs-mvp-v2.yaml",
 ) -> Dict[str, Any]:
     resolved_path = _resolve_rules_path(rules_path)
     ruleset = _load_ruleset(resolved_path)
