@@ -498,14 +498,46 @@ rules:
     - true
   evidence:
     prohibited_phrases:
-    - - guaranteed return
+    - - guarantee
+      - guaranteed
+      - guaranteed return
+      - guaranteed returns
       - guaranteed growth
+      - guaranteed income
+      - guarantee this investment
+      - guarantee you will
+      - will make you money
+      - will not lose money
+      - cannot lose
+      - can't lose
+      - no risk
       - risk-free
       - risk free
-      - cannot lose
+      - safe return
       - certain return
       - assured return
-    allowed_negations:
+      - assured growth
+      - sure return
+      - sure profit
+      - certain profit
+      - fixed return
+      - secure return
+      - no downside
+      - no chance of loss
+      - no possibility of loss
+      - your capital is safe
+      - your money is safe
+      - your investment is safe
+      - this investment is safe
+      - this is a safe investment
+      - this investment will grow
+      - this will grow your money
+      - this will make money
+      - you will make money
+      - you will definitely
+      - you cannot lose money
+      - you can't lose money
+   allowed_negations:
     - - not guaranteed
       - no guarantee
       - there is no guarantee
