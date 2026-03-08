@@ -748,10 +748,7 @@ def _load_ruleset(path: str) -> Dict[str, Any]:
     with open(path, "r", encoding="utf-8") as f:
         data = yaml.safe_load(f)
 
-    data = data if isinstance(data, dict) else {}
-    _validate_ruleset(data)
-    return data
-
+    return data if isinstance(data, dict) else {}
 
 # ---------------------------------
 # EXECUTOR ENTRY POINT
