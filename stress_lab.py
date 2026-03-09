@@ -297,7 +297,9 @@ Return valid JSON only.
     context.setdefault("advice_type", "advised")
     context.setdefault("investment_element", True)
     context.setdefault("ongoing_service", False)
-
+    
+    print(f"Generated case {scenario['name']}_{idx:03d} ({len(report_text)} chars)")
+    
     return {
         "case_id": f"{scenario['name']}_{idx:03d}",
         "scenario": scenario["name"],
@@ -327,8 +329,8 @@ def rule_status_map(result: Dict[str, Any]) -> Dict[str, str]:
         out[row.get("rule_id", "")] = row.get("status", "")
     return out
 
-
 def evaluate_case(case: Dict[str, Any]) -> Dict[str, Any]:
+    print(f"Running engine for case: {case['case_id']}")
     result = run_rules_engine(
         document_text=case["report_text"],
         context=case["context"],
@@ -585,12 +587,15 @@ def write_outputs(out_dir: Path, run_rows: List[Dict[str, Any]], agg: Dict[str, 
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--per-scenario", type=int, default=3)
-    parser.add_argument("--sleep", type=float, default=0.4)
+    parser.add_argument("--sleep", type=float, default=0.1)
     parser.add_argument("--out-dir", type=str, default="")
     args = parser.parse_args()
 
     if not OPENAI_API_KEY:
         raise RuntimeError("Set OPENAI_API_KEY before running")
+    
+    if not os.path.exists(RULES_PATH):
+        raise RuntimeError(f"RULES_PATH not found: {RULES_PATH}")
 
     timestamp = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
     out_dir = Path(args.out_dir) if args.out_dir else Path("stress_runs") / f"cycle1_{timestamp}"
