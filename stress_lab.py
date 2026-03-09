@@ -621,4 +621,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    print("Starting stress_lab.py")
     main()
