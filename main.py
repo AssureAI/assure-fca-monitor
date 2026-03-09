@@ -661,12 +661,17 @@ async def export_compliance_review(
     db=Depends(get_db),
 ):
 
-    run = get_run(db, run_id)
-
-    if not run:
+    rr = db.query(Run).filter(Run.id == run_id, Run.firm_id == user.firm_id).first()
+    if not rr:
         raise HTTPException(status_code=404, detail="Run not found")
-
-    result = run.result
+    
+    result = {
+        "ruleset_id": rr.ruleset_id,
+        "ruleset_version": rr.ruleset_version,
+        "checked_at": rr.checked_at,
+        "summary": json.loads(rr.summary_json or "{}"),
+        "sections": json.loads(rr.sections_json or "{}"),
+    }
 
     buffer = BytesIO()
 
@@ -678,7 +683,7 @@ async def export_compliance_review(
 
     story.append(Paragraph(f"Run ID: {run_id}", styles["Normal"]))
     story.append(Paragraph(f"Ruleset Version: {result.get('ruleset_version')}", styles["Normal"]))
-    story.append(Paragraph(f"Checked At: {result.get('checked_at')}", styles["Normal"]))
+    story.append(Paragraph(f"Checked At: {str(result.get('checked_at') or '')}", styles["Normal"]))
     story.append(Spacer(1, 12))
 
     summary = result.get("summary", {})
