@@ -1,0 +1,49 @@
+name: Stress Lab
+
+on:
+  workflow_dispatch:
+    inputs:
+      per_scenario:
+        description: "Reports per scenario"
+        required: true
+        default: "3"
+      sleep:
+        description: "Sleep between generations (seconds)"
+        required: true
+        default: "0.1"
+
+jobs:
+  run-stress-lab:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Upgrade pip
+        run: python -m pip install --upgrade pip
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+
+      - name: Run stress lab
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          STRESS_MODEL: gpt-4o-mini
+          RULES_PATH: rules/cobs-mvp-v2.yaml
+        run: |
+          python stress_lab.py \
+            --per-scenario "${{ github.event.inputs.per_scenario }}" \
+            --sleep "${{ github.event.inputs.sleep }}" \
+            --out-dir stress_runs/latest
+
+      - name: Upload stress lab outputs
+        uses: actions/upload-artifact@v4
+        with:
+          name: stress-lab-output
+          path: stress_runs/latest/
