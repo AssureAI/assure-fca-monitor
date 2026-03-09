@@ -584,7 +584,7 @@ def write_outputs(out_dir: Path, run_rows: List[Dict[str, Any]], agg: Dict[str, 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--per-scenario", type=int, default=50)
+    parser.add_argument("--per-scenario", type=int, default=3)
     parser.add_argument("--sleep", type=float, default=0.4)
     parser.add_argument("--out-dir", type=str, default="")
     args = parser.parse_args()
