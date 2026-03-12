@@ -190,7 +190,7 @@ rules:
       negative_indicators: ==0
 - id: COBS9_CFL
   section: COBS 9 — Capacity for Loss
-  title: Capacity for loss assessed with scenario framing
+  title: Capacity for loss assessed
   citation: COBS 9.2.2R
   source_url: https://handbook.fca.org.uk/handbook/COBS/9/2.html
   applies_when:
@@ -201,29 +201,34 @@ rules:
     - - capacity for loss
       - loss capacity
     - - afford to lose
-      - could tolerate a fall
-      - financially resilient
-      - absorb losses
-    - - would not impact lifestyle
-      - no material impact
-      - won't affect your lifestyle
-      - does not affect plans
+      - able to afford a loss
       - ability to absorb losses
+      - absorb losses
       - financially able to withstand
+      - financially resilient
+    - - would not affect lifestyle
+      - would not impact lifestyle
       - without affecting your lifestyle
       - without impacting your standard of living
+      - would not affect your retirement
       - would not affect your retirement plans
-      - could withstand a fall in value
+      - would not affect your plans
+      - not reliant on this money
+      - not dependent on this investment
+      - sufficient assets
+      - adequate reserves
+      - other assets available
+    - - could withstand a fall
+      - fall in value
+      - loss in value
+      - market fall
+      - market downturn
     contextual_indicators:
     - - worst case
-      - if markets fall
-      - market falls
       - scenario
-      - stress test
+      - if markets fall
       - in a downturn
-      - if the value fell
-      - in the event of a market fall
-      - market downturn
+      - severe fall
   decision_logic:
     require_all:
       positive_clusters: '>=1'
