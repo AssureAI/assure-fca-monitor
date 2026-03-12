@@ -380,19 +380,44 @@ rules:
   applies_when:
     advice_type:
     - advised
+
   evidence:
+
     positive_clusters:
-    - - alternative
-      - other options
-      - considered alternatives
-      - we considered
-    - - decided against
-      - discounted
-      - ruled out
-      - not selected because
+
+      - - keep existing
+        - retain existing
+        - remain invested
+        - stay in current
+        - do nothing
+        - no change
+
+      - - alternative
+        - another option
+        - other option
+        - different approach
+        - other provider
+        - different provider
+        - not transferring
+        - not recommended to transfer
+
+    causal_language:
+
+      - because
+      - however
+      - but this would
+      - this would not
+      - this would result in
+      - this would lead to
+      - not suitable because
+      - not appropriate because
+      - not in your best interests
+
   decision_logic:
+
     require_all:
-      positive_clusters: '>=1'
+      positive_clusters: ">=1"
+      causal_language: ">=1"
 - id: COBS9_CHANGES
   section: COBS 9 — Client Understanding
   title: Client understanding / confirmation recorded
