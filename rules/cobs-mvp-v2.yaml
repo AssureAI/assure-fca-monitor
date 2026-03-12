@@ -380,41 +380,37 @@ rules:
   applies_when:
     advice_type:
     - advised
-
   evidence:
-
     positive_clusters:
-
-      - - keep existing
-        - retain existing
-        - remain invested
-        - stay in current
-        - do nothing
-        - no change
-
-      - - alternative
-        - another option
-        - other option
-        - different approach
-        - other provider
-        - different provider
-        - not transferring
-        - not recommended to transfer
-
+    - - keep existing
+      - retain existing
+      - remain invested
+      - stay in current
+      - do nothing
+      - no change
+    - - alternative
+      - another option
+      - other option
+      - different approach
+      - other provider
+      - different provider
+      - not transferring
+      - not recommended to transfer
     causal_language:
-
-      - because
-      - however
-      - but this would
-      - this would not
-      - this would result in
-      - this would lead to
-      - not suitable because
-      - not appropriate because
-      - not in your best interests
-
+    - rather than
+    - instead of
+    - compared to
+    - compared with
+    - versus
+    - over
+    - preferred to
+    - better than
+    - less suitable
+    - more suitable
+    - not suitable
+    - rejected because
+    - discounted because
   decision_logic:
-
     require_all:
       positive_clusters: ">=1"
       causal_language: ">=1"
