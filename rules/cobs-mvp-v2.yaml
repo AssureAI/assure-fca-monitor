@@ -176,7 +176,9 @@ rules:
       - guaranteed return is
       - offer guaranteed return
       - offers guaranteed return
-      - risk-free
+      - is risk-free
+      - are risk-free
+      - offers risk-free
       - cannot lose
       - certain return
       - assured return
