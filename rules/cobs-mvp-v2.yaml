@@ -221,7 +221,7 @@ rules:
         - loss in value
         - reduction in value
         - fall of
-        - % fall
+        - "% fall"
         - percent fall
         - decline in value
 
