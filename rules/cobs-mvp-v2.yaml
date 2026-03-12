@@ -276,13 +276,17 @@ rules:
     - - suitable because
       - this recommendation is suitable because
       - this is suitable because
+      - suitably managed portfolio
+      - suitably diversified portfolio
     - - aligns with your objectives
       - aligns with your objectives and time horizon
       - meets your objectives
+      - meet your objectives
       - supports your objectives
     - - matches your assessed attitude to risk
       - matches your risk profile
       - is in line with your risk profile
+      - in line with your attitude to risk
       - reflects your circumstances
       - in light of your circumstances
     causal_language:
