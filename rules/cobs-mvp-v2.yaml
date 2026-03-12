@@ -702,6 +702,13 @@ rules:
       - 'firm:'
       - report date
       - prepared by
+      - prepared for
+      - report for
+      - adviser name
+      - client name
+      - issued to
+      - prepared on behalf of
+      - financial planner
   decision_logic:
     require_all:
       positive_clusters: '>=1'
