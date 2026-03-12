@@ -269,7 +269,7 @@ rules:
   applies_when:
     advice_type:
     - advised
-    evidence:
+  evidence:
     positive_clusters:
     - - suitable because
       - this recommendation is suitable because
