@@ -208,6 +208,12 @@ rules:
       - no material impact
       - won't affect your lifestyle
       - does not affect plans
+      - ability to absorb losses
+      - financially able to withstand
+      - without affecting your lifestyle
+      - without impacting your standard of living
+      - would not affect your retirement plans
+      - could withstand a fall in value
     contextual_indicators:
     - - worst case
       - if markets fall
@@ -215,6 +221,9 @@ rules:
       - scenario
       - stress test
       - in a downturn
+      - if the value fell
+      - in the event of a market fall
+      - market downturn
   decision_logic:
     require_all:
       positive_clusters: '>=1'
