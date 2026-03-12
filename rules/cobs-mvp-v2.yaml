@@ -170,7 +170,12 @@ rules:
       - matches
       - in line with
     negative_indicators:
-    - - guaranteed return
+    - - a guaranteed return
+      - the guaranteed return
+      - guaranteed return of
+      - guaranteed return is
+      - offer guaranteed return
+      - offers guaranteed return
       - risk-free
       - cannot lose
       - certain return
@@ -594,7 +599,9 @@ rules:
     warning_clusters:
     - - is not a reliable indicator
       - not a guide to future returns
+      - not a guide to future performance
       - not indicative of future performance
+      - may not be repeated
   decision_logic:
     require_if_present:
       trigger_clusters:
