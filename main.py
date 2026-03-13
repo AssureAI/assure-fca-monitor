@@ -32,6 +32,7 @@ from llm_guidance import (
     build_rule_guidance_prompt,
     sanitize_for_llm,
 )
+from llm_client import get_rule_guidance
 from database import (
     SessionLocal,
     init_db,
@@ -441,13 +442,10 @@ async def llm_rule_guidance(payload: RuleGuidanceRequest, request: Request, db=D
         "section": sanitize_for_llm(payload.section or ""),
     }
     prompt = build_rule_guidance_prompt(**safe)
-    # Stub: do not call real LLM yet
-    stub = (
-        "This rule checks that the suitability report contains the expected "
-        "information required by the FCA rule. The rule may have triggered "
-        "because the wording detected did not clearly evidence the requirement."
-    )
-    guidance = stub.strip() + "\n\n" + RULE_GUIDANCE_DISCLAIMER
+    text = get_rule_guidance(prompt)
+    if not text:
+        text = "Unable to generate guidance."
+    guidance = text.strip() + "\n\n" + RULE_GUIDANCE_DISCLAIMER
     return JSONResponse(RuleGuidanceResponse(guidance=guidance).model_dump())
 
 
