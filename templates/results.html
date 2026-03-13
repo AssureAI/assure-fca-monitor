@@ -379,6 +379,18 @@
           {% endif %}
 
           <div class="small">Rule ID: {{ item.rule_id }}</div>
+          <div class="guidance-row" style="margin-top:10px;">
+            <button type="button" class="copy-btn guidance-btn" aria-live="polite"
+              data-rule-id="{{ item.rule_id }}"
+              data-title="{{ item.title }}"
+              data-citation="{{ item.citation or '' }}"
+              data-decision-logic="{{ item.get('decision_logic', '') or '' }}"
+              data-section="{{ item.section or '' }}"
+              data-evidence='{{ (item.evidence or []) | tojson }}'
+              data-fixes='{{ (item.fixes or []) | tojson }}'
+              onclick="requestRuleGuidance(this)">Need more guidance on this rule?</button>
+            <div class="guidance-out small" style="display:none; margin-top:8px; padding:10px; background:#1E293B; border-radius:8px; white-space:pre-wrap;" role="status"></div>
+          </div>
         </div>
       {% endfor %}
     </div>
@@ -420,6 +432,41 @@
       setTimeout(() => {
         if (status) status.textContent = "";
       }, 1500);
+    }
+  }
+
+  async function requestRuleGuidance(btn) {
+    const out = btn.nextElementSibling;
+    if (!out) return;
+    try {
+      btn.disabled = true;
+      out.style.display = "block";
+      out.textContent = "Loading…";
+      const payload = {
+        rule_id: btn.getAttribute("data-rule-id") || "",
+        title: btn.getAttribute("data-title") || "",
+        citation: btn.getAttribute("data-citation") || "",
+        decision_logic: btn.dataset.decisionLogic || "",
+        section: btn.getAttribute("data-section") || "",
+        evidence: JSON.parse(btn.getAttribute("data-evidence") || "[]"),
+        fixes: JSON.parse(btn.getAttribute("data-fixes") || "[]"),
+      };
+      const r = await fetch("/llm/rule_guidance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify(payload),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (r.ok && data.guidance) {
+        out.textContent = data.guidance;
+      } else {
+        out.textContent = data.detail || "Guidance request failed.";
+      }
+    } catch (e) {
+      out.textContent = "Request failed. Try again.";
+    } finally {
+      btn.disabled = false;
     }
   }
 </script>

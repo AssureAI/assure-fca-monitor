@@ -1,0 +1,148 @@
+diff --git a/main.py b/main.py
+index 197f387..d8331fc 100644
+--- a/main.py
++++ b/main.py
+@@ -28,6 +28,10 @@ from io import BytesIO
+ from pydantic import BaseModel
+ 
+ from executor import run_rules_engine
++from llm_guidance import (
++    build_rule_guidance_prompt,
++    sanitize_for_llm,
++)
+ from database import (
+     SessionLocal,
+     init_db,
+@@ -358,6 +362,23 @@ class CheckRequest(BaseModel):
+     investment_element: Optional[bool] = True
+     ongoing_service: Optional[bool] = False
+ 
++
++class RuleGuidanceRequest(BaseModel):
++    rule_id: str
++    title: str
++    citation: str
++    decision_logic: str
++    evidence: List[str] = []
++    fixes: List[str] = []
++    section: str
++
++    model_config = {"extra": "forbid"}
++
++
++class RuleGuidanceResponse(BaseModel):
++    guidance: str
++
++
+ # -----------------------------
+ # CORE API (AUTHED)
+ # -----------------------------
+@@ -393,6 +414,43 @@ async def check(payload: CheckRequest, request: Request, db=Depends(get_db)):
+     result_out["completeness_pct"] = compute_completeness(result.get("summary", {}) or {})
+     return JSONResponse(result_out)
+ 
++
++# -----------------------------
++# LLM RULE GUIDANCE (STUB, NO REAL LLM)
++# -----------------------------
++
++RULE_GUIDANCE_DISCLAIMER = (
++    "This guidance is generated automatically to help interpret rule results. "
++    "It does not constitute compliance advice or regulatory guidance."
++)
++
++
++@app.post("/llm/rule_guidance")
++async def llm_rule_guidance(payload: RuleGuidanceRequest, request: Request, db=Depends(get_db)):
++    user = get_user_by_session_token(db, get_session_token_from_request(request))
++    if not user:
++        raise HTTPException(status_code=401, detail="Not authenticated")
++
++    safe = {
++        "rule_id": sanitize_for_llm(payload.rule_id or ""),
++        "title": sanitize_for_llm(payload.title or ""),
++        "citation": sanitize_for_llm(payload.citation or ""),
++        "decision_logic": sanitize_for_llm(payload.decision_logic or ""),
++        "evidence": [sanitize_for_llm(x) for x in (payload.evidence or [])],
++        "fixes": [sanitize_for_llm(x) for x in (payload.fixes or [])],
++        "section": sanitize_for_llm(payload.section or ""),
++    }
++    prompt = build_rule_guidance_prompt(**safe)
++    # Stub: do not call real LLM yet
++    stub = (
++        "This rule checks that the suitability report contains the expected "
++        "information required by the FCA rule. The rule may have triggered "
++        "because the wording detected did not clearly evidence the requirement."
++    )
++    guidance = stub.strip() + "\n\n" + RULE_GUIDANCE_DISCLAIMER
++    return JSONResponse(RuleGuidanceResponse(guidance=guidance).model_dump())
++
++
+ # -----------------------------
+ # LOGIN / LOGOUT (HTML)
+ # -----------------------------
+diff --git a/templates/results.html b/templates/results.html
+index 4cd3f11..b622689 100644
+--- a/templates/results.html
++++ b/templates/results.html
+@@ -379,6 +379,18 @@
+           {% endif %}
+ 
+           <div class="small">Rule ID: {{ item.rule_id }}</div>
++          <div class="guidance-row" style="margin-top:10px;">
++            <button type="button" class="copy-btn guidance-btn" aria-live="polite"
++              data-rule-id="{{ item.rule_id }}"
++              data-title="{{ item.title }}"
++              data-citation="{{ item.citation or '' }}"
++              data-decision-logic="{{ item.get('decision_logic', '') or '' }}"
++              data-section="{{ item.section or '' }}"
++              data-evidence='{{ (item.evidence or []) | tojson }}'
++              data-fixes='{{ (item.fixes or []) | tojson }}'
++              onclick="requestRuleGuidance(this)">Need more guidance on this rule?</button>
++            <div class="guidance-out small" style="display:none; margin-top:8px; padding:10px; background:#1E293B; border-radius:8px; white-space:pre-wrap;" role="status"></div>
++          </div>
+         </div>
+       {% endfor %}
+     </div>
+@@ -422,6 +434,41 @@
+       }, 1500);
+     }
+   }
++
++  async function requestRuleGuidance(btn) {
++    const out = btn.nextElementSibling;
++    if (!out) return;
++    try {
++      btn.disabled = true;
++      out.style.display = "block";
++      out.textContent = "Loading…";
++      const payload = {
++        rule_id: btn.getAttribute("data-rule-id") || "",
++        title: btn.getAttribute("data-title") || "",
++        citation: btn.getAttribute("data-citation") || "",
++        decision_logic: btn.dataset.decisionLogic || "",
++        section: btn.getAttribute("data-section") || "",
++        evidence: JSON.parse(btn.getAttribute("data-evidence") || "[]"),
++        fixes: JSON.parse(btn.getAttribute("data-fixes") || "[]"),
++      };
++      const r = await fetch("/llm/rule_guidance", {
++        method: "POST",
++        headers: { "Content-Type": "application/json" },
++        credentials: "same-origin",
++        body: JSON.stringify(payload),
++      });
++      const data = await r.json().catch(() => ({}));
++      if (r.ok && data.guidance) {
++        out.textContent = data.guidance;
++      } else {
++        out.textContent = data.detail || "Guidance request failed.";
++      }
++    } catch (e) {
++      out.textContent = "Request failed. Try again.";
++    } finally {
++      btn.disabled = false;
++    }
++  }
+ </script>
+ </body>
+ </html>

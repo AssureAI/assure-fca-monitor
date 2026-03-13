@@ -28,6 +28,10 @@ from io import BytesIO
 from pydantic import BaseModel
 
 from executor import run_rules_engine
+from llm_guidance import (
+    build_rule_guidance_prompt,
+    sanitize_for_llm,
+)
 from database import (
     SessionLocal,
     init_db,
@@ -358,6 +362,23 @@ class CheckRequest(BaseModel):
     investment_element: Optional[bool] = True
     ongoing_service: Optional[bool] = False
 
+
+class RuleGuidanceRequest(BaseModel):
+    rule_id: str
+    title: str
+    citation: str
+    decision_logic: str
+    evidence: List[str] = []
+    fixes: List[str] = []
+    section: str
+
+    model_config = {"extra": "forbid"}
+
+
+class RuleGuidanceResponse(BaseModel):
+    guidance: str
+
+
 # -----------------------------
 # CORE API (AUTHED)
 # -----------------------------
@@ -392,6 +413,43 @@ async def check(payload: CheckRequest, request: Request, db=Depends(get_db)):
     result_out["run_id"] = run_id
     result_out["completeness_pct"] = compute_completeness(result.get("summary", {}) or {})
     return JSONResponse(result_out)
+
+
+# -----------------------------
+# LLM RULE GUIDANCE (STUB, NO REAL LLM)
+# -----------------------------
+
+RULE_GUIDANCE_DISCLAIMER = (
+    "This guidance is generated automatically to help interpret rule results. "
+    "It does not constitute compliance advice or regulatory guidance."
+)
+
+
+@app.post("/llm/rule_guidance")
+async def llm_rule_guidance(payload: RuleGuidanceRequest, request: Request, db=Depends(get_db)):
+    user = get_user_by_session_token(db, get_session_token_from_request(request))
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    safe = {
+        "rule_id": sanitize_for_llm(payload.rule_id or ""),
+        "title": sanitize_for_llm(payload.title or ""),
+        "citation": sanitize_for_llm(payload.citation or ""),
+        "decision_logic": sanitize_for_llm(payload.decision_logic or ""),
+        "evidence": [sanitize_for_llm(x) for x in (payload.evidence or [])],
+        "fixes": [sanitize_for_llm(x) for x in (payload.fixes or [])],
+        "section": sanitize_for_llm(payload.section or ""),
+    }
+    prompt = build_rule_guidance_prompt(**safe)
+    # Stub: do not call real LLM yet
+    stub = (
+        "This rule checks that the suitability report contains the expected "
+        "information required by the FCA rule. The rule may have triggered "
+        "because the wording detected did not clearly evidence the requirement."
+    )
+    guidance = stub.strip() + "\n\n" + RULE_GUIDANCE_DISCLAIMER
+    return JSONResponse(RuleGuidanceResponse(guidance=guidance).model_dump())
+
 
 # -----------------------------
 # LOGIN / LOGOUT (HTML)
