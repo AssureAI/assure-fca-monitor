@@ -46,8 +46,22 @@ def build_rule_guidance_prompt(
     """
     Build a single prompt string from allowed fields. All text is sanitized.
     """
+    instructions = [
+        "Instructions. The response must:",
+        "- be explanatory only",
+        "- not ask questions",
+        "- not offer further help",
+        "- not suggest tailoring to a client",
+        "- not give advice",
+        "- not use conversational phrases like: \"would you like\", \"you should consider\", \"I recommend\", \"you may want to\", \"let me know\", \"for your client\"",
+        "",
+        "Tone must be: neutral, factual, regulatory explanation, not advisory.",
+        "",
+        "The model must never provide financial advice. The model must never provide suitability recommendations. The model must only explain the rule and why it may have triggered.",
+        "",
+    ]
     title = (title or "").strip() or (rule_id or "").strip() or "Rule"
-    parts = [f"Rule: {title}"]
+    parts = ["\n".join(instructions), f"Rule: {title}"]
     if rule_id:
         parts.append(f"Rule ID: {rule_id}")
     if section:
