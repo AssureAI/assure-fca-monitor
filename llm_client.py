@@ -25,10 +25,10 @@ def get_rule_guidance(prompt: str) -> str:
         )
 
         if not r.ok:
-            return "Unable to generate guidance."
+            return f"OpenAI error {r.status_code}: {r.text[:500]}"
 
         data = r.json()
         return (data.get("output_text") or "").strip() or "Unable to generate guidance."
 
-    except Exception:
-        return "Unable to generate guidance."
+    except Exception as e:
+        return f"LLM request failed: {str(e)[:500]}"
