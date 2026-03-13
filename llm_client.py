@@ -1,25 +1,34 @@
 import os
-from openai import OpenAI
+import requests
 
 MODEL = "gpt-4.1-mini"
 
 
 def get_rule_guidance(prompt: str) -> str:
-
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
         return "LLM not configured."
 
     try:
-        client = OpenAI(api_key=api_key)
-
-        r = client.responses.create(
-            model=MODEL,
-            input=prompt,
-            max_output_tokens=300,
+        r = requests.post(
+            "https://api.openai.com/v1/responses",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": MODEL,
+                "input": prompt,
+                "max_output_tokens": 300,
+            },
+            timeout=20,
         )
 
-        return r.output_text.strip()
+        if not r.ok:
+            return "Unable to generate guidance."
+
+        data = r.json()
+        return (data.get("output_text") or "").strip() or "Unable to generate guidance."
 
     except Exception:
         return "Unable to generate guidance."
