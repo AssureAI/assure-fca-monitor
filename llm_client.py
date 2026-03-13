@@ -28,7 +28,27 @@ def get_rule_guidance(prompt: str) -> str:
             return f"OpenAI error {r.status_code}: {r.text[:500]}"
 
         data = r.json()
-        return (data.get("output_text") or "").strip() or f"OpenAI success but no output_text: {str(data)[:500]}"
+
+        # Try convenience field first
+        text = (data.get("output_text") or "").strip()
+        if text:
+            return text
+
+        # Fallback: parse structured output
+        parts = []
+        for item in data.get("output", []):
+            if item.get("type") != "message":
+                continue
+            for content in item.get("content", []):
+                if content.get("type") == "output_text":
+                    t = (content.get("text") or "").strip()
+                    if t:
+                        parts.append(t)
+
+        if parts:
+            return "\n\n".join(parts)
+
+        return f"OpenAI success but no text content: {str(data)[:500]}"
 
     except Exception as e:
         return f"LLM request failed: {str(e)[:500]}"
