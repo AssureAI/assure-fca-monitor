@@ -208,13 +208,6 @@ rules:
         - afford to lose
         - financially able to withstand
 
-      - - fall in value
-        - loss in value
-        - reduction in value
-        - decline in value
-        - percent fall
-        - "% fall"
-
     scenario_indicators:
 
       - - scenario
