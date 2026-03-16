@@ -205,43 +205,49 @@ rules:
       - - capacity for loss
         - loss capacity
         - ability to absorb losses
-        - financially able to withstand
         - afford to lose
+        - financially able to withstand
 
-      - - without affecting your lifestyle
-        - without impacting your standard of living
-        - no material impact on lifestyle
-        - would not affect your retirement
-        - would not affect your retirement plans
-        - would not affect essential expenditure
-        - would not affect income needs
-
-      - - could withstand a fall
-        - fall in value
+      - - fall in value
         - loss in value
         - reduction in value
-        - fall of
-        - "% fall"
-        - percent fall
         - decline in value
+        - percent fall
+        - "% fall"
 
-    contextual_indicators:
+    scenario_indicators:
 
-      - - worst case
-        - scenario
+      - - scenario
+        - worst case
         - stress test
         - if markets fall
         - market downturn
         - in a downturn
-        - in the event of a fall
         - if the value fell
         - if markets dropped
-        - if the investment fell
+        - in the event of a fall
+
+    contextual_indicators:
+
+      - - without affecting your lifestyle
+        - without impacting your standard of living
+        - no material impact on lifestyle
+        - would not affect retirement
+        - would not affect retirement plans
+        - would not affect essential expenditure
+        - would not affect income needs
+        - essential spending
+        - living costs
+        - income requirements
 
   decision_logic:
     require_all:
       positive_clusters: ">=1"
-      contextual_indicators: ">=1"
+
+    require_if_present:
+      scenario_indicators:
+        then_require:
+          contextual_indicators: ">=1"
 - id: COBS9_TIME
   section: COBS 9 — Time Horizon
   title: Investment time horizon referenced
