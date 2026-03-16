@@ -913,171 +913,97 @@ def admin_runs(request: Request, user: User = Depends(require_user_html), db=Dep
 @app.get("/admin/mi", response_class=HTMLResponse)
 def admin_mi(
     request: Request,
-    rule_id: Optional[str] = None,
     user: User = Depends(require_user_html),
     db=Depends(get_db),
 ):
-    rows = (
+    firm_users = (
+        db.query(User)
+        .filter(User.firm_id == user.firm_id)
+        .order_by(User.email.asc())
+        .all()
+    )
+    firm_user_ids = [u.id for u in firm_users]
+    user_lookup = {u.id: (u.email or "") for u in firm_users}
+
+    total_users = len(firm_users)
+
+    total_runs = db.query(Run).filter(Run.firm_id == user.firm_id).count()
+
+    recent_run_rows = (
         db.query(Run)
         .filter(Run.firm_id == user.firm_id)
         .order_by(Run.created_at.desc())
-        .limit(1000)
+        .limit(50)
         .all()
     )
 
-    total_runs = len(rows)
-    score_total = 0
-    above_75 = 0
-
-    band_counts = {"Green": 0, "Amber": 0, "Red": 0}
-    rule_counter: Counter = Counter()
-    section_counter: Counter = Counter()
-    theme_counter: Counter = Counter()
-    trend_counter: Counter = Counter()
-    cd_counter: Counter = Counter()
-
-    user_issue_counter: Counter = Counter()
-    user_run_counter: Counter = Counter()
-    user_score_totals = defaultdict(int)
-
-    escalation_runs = []
-    selected_rule_runs = []
     recent_runs = []
+    for rr in recent_run_rows:
+        try:
+            summary = json.loads(rr.summary_json or "{}")
+        except Exception:
+            summary = {}
 
-    for rr in rows:
-        summary = json.loads(rr.summary_json or "{}")
-        sections = json.loads(rr.sections_json or "{}")
-        score = compute_completeness(summary)
-        band = review_band(score)
-
-        score_total += score
-        if score >= 75:
-            above_75 += 1
-        band_counts[band] += 1
-
-        created_day = rr.created_at.date().isoformat() if rr.created_at else "Unknown"
-        trend_counter[created_day] += 1
-
-        pi_count = int(summary.get("potential_issue", 0) or 0)
-        user_key = str(rr.user_id or "unknown")
-        user_issue_counter[user_key] += pi_count
-        user_run_counter[user_key] += 1
-        user_score_totals[user_key] += score
+        ok = rr.ok_count if rr.ok_count is not None else int(summary.get("ok", 0) or 0)
+        pi = rr.pi_count if rr.pi_count is not None else int(summary.get("potential_issue", 0) or 0)
+        na = rr.na_count if rr.na_count is not None else int(summary.get("not_assessed", 0) or 0)
+        completeness = rr.completeness_pct if rr.completeness_pct is not None else compute_completeness(summary)
 
         recent_runs.append(
             {
                 "id": rr.id,
                 "created_at": rr.created_at.isoformat() if rr.created_at else "",
+                "user_email": rr.user.email if rr.user else "-",
                 "ruleset_id": rr.ruleset_id or "",
                 "ruleset_version": rr.ruleset_version or "",
-                "completeness_pct": score,
-                "score": score,
-                "band": band,
-                "pi_count": pi_count,
+                "ok_count": ok,
+                "pi_count": pi,
+                "na_count": na,
+                "completeness_pct": completeness,
             }
         )
 
-        if score < 60 or pi_count >= 5:
-            escalation_runs.append(
-                {
-                    "id": rr.id,
-                    "created_at": rr.created_at.isoformat() if rr.created_at else "",
-                    "score": score,
-                    "pi_count": pi_count,
-                    "band": band,
-                }
+    guidance_rows = []
+    total_guidance_calls = 0
+    total_errors = 0
+    guidance_table_available = True
+
+    try:
+        if firm_user_ids:
+            guidance_base = db.query(LlmGuidanceLog).filter(LlmGuidanceLog.user_id.in_(firm_user_ids))
+            total_guidance_calls = guidance_base.count()
+            total_errors = guidance_base.filter(LlmGuidanceLog.status == "error").count()
+
+            guidance_log_rows = (
+                guidance_base
+                .order_by(LlmGuidanceLog.created_at.desc())
+                .limit(100)
+                .all()
             )
 
-        if isinstance(sections, dict):
-            for section_name, rules in sections.items():
-                if not isinstance(rules, list):
-                    continue
-
-                section_has_issue = False
-
-                for rule in rules:
-                    if not isinstance(rule, dict):
-                        continue
-                    if rule.get("status") != "POTENTIAL_ISSUE":
-                        continue
-
-                    section_has_issue = True
-                    rid = (rule.get("rule_id") or "").strip()
-                    title = (rule.get("title") or rid).strip()
-
-                    if rid:
-                        rule_counter[rid] += 1
-                        if rule_id and rid == rule_id:
-                            selected_rule_runs.append(
-                                {
-                                    "run_id": rr.id,
-                                    "created_at": rr.created_at.isoformat() if rr.created_at else "",
-                                    "section": section_name,
-                                    "score": score,
-                                    "title": title,
-                                }
-                            )
-
-                    title_l = title.lower()
-                    section_l = section_name.lower()
-
-                    if "suitability" in title_l or "suitability" in section_l:
-                        theme_counter["Suitability rationale"] += 1
-                    elif "risk" in title_l or "risk" in section_l:
-                        theme_counter["Risk explanation"] += 1
-                    elif "cost" in title_l or "charge" in title_l:
-                        theme_counter["Charges and disclosures"] += 1
-                    elif rid.startswith("CD_UNDERSTANDING"):
-                        theme_counter["Consumer understanding"] += 1
-                        cd_counter["Consumer understanding"] += 1
-                    elif rid.startswith("CD_VULNERABILITY"):
-                        theme_counter["Vulnerability"] += 1
-                        cd_counter["Vulnerability"] += 1
-                    elif rid.startswith("CD_SLUDGE") or rid.startswith("CD_SUPPORT"):
-                        theme_counter["Support / friction"] += 1
-                        cd_counter["Support / friction"] += 1
-
-                if section_has_issue:
-                    section_counter[section_name] += 1
-
-    average_score = round(score_total / total_runs, 1) if total_runs else 0.0
-    above_75_pct = round((above_75 / total_runs) * 100, 1) if total_runs else 0.0
-
-    trend = [{"day": day, "count": trend_counter[day]} for day in sorted(trend_counter.keys())]
-    top_rules = [{"rule_id": rid, "count": count} for rid, count in rule_counter.most_common(10)]
-    top_sections = [{"section": sec, "count": count} for sec, count in section_counter.most_common(10)]
-    top_themes = [{"theme": theme, "count": count} for theme, count in theme_counter.most_common(8)]
-    cd_watch = [{"name": name, "count": count} for name, count in cd_counter.most_common(6)]
-
-    user_ids = [uid for uid in user_run_counter.keys() if uid != "unknown"]
-    user_lookup = {}
-    if user_ids:
-        users = db.query(User).filter(User.id.in_(user_ids)).all()
-        user_lookup = {str(u.id): (u.email or str(u.id)) for u in users}
-
-    risk_by_user = []
-    for uid, runs_count in user_run_counter.items():
-        avg_score = round(user_score_totals[uid] / runs_count, 1) if runs_count else 0.0
-        issue_count = int(user_issue_counter[uid] or 0)
-
-        if avg_score >= 85:
-            user_band = "Green"
-        elif avg_score >= 70:
-            user_band = "Amber"
+            for row in guidance_log_rows:
+                guidance_rows.append(
+                    {
+                        "id": row.id,
+                        "created_at": row.created_at.isoformat() if row.created_at else "",
+                        "user_email": user_lookup.get(row.user_id, "-"),
+                        "rule_id": row.rule_id or "",
+                        "title": row.title or "",
+                        "section": row.section or "",
+                        "status": row.status or "",
+                        "model_name": row.model_name or "",
+                        "error_text": (row.error_text or "")[:200],
+                    }
+                )
         else:
-            user_band = "Red"
-
-        risk_by_user.append(
-            {
-                "user_label": user_lookup.get(uid, uid),
-                "runs": runs_count,
-                "issues": issue_count,
-                "avg_score": avg_score,
-                "band": user_band,
-            }
-        )
-
-    risk_by_user.sort(key=lambda x: (-x["issues"], x["avg_score"]))
+            total_guidance_calls = 0
+            total_errors = 0
+            guidance_rows = []
+    except Exception:
+        guidance_table_available = False
+        total_guidance_calls = 0
+        total_errors = 0
+        guidance_rows = []
 
     return templates.TemplateResponse(
         "mi.html",
@@ -1085,20 +1011,12 @@ def admin_mi(
             "request": request,
             "user_email": user.email,
             "total_runs": total_runs,
-            "average_score": average_score,
-            "above_75": above_75,
-            "above_75_pct": above_75_pct,
-            "band_counts": band_counts,
-            "top_rules": top_rules,
-            "top_sections": top_sections,
-            "top_themes": top_themes,
-            "cd_watch": cd_watch,
-            "trend": trend,
-            "selected_rule_id": rule_id,
-            "selected_rule_runs": selected_rule_runs,
-            "recent_runs": recent_runs[:20],
-            "escalation_runs": escalation_runs[:20],
-            "risk_by_user": risk_by_user[:20],
+            "total_guidance_calls": total_guidance_calls,
+            "total_errors": total_errors,
+            "total_users": total_users,
+            "recent_runs": recent_runs,
+            "guidance_rows": guidance_rows,
+            "guidance_table_available": guidance_table_available,
         },
     )
     

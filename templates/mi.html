@@ -85,22 +85,6 @@
     }
     tr:last-child td{border-bottom:none}
 
-    .pill{
-      display:inline-block;
-      padding:4px 10px;
-      border-radius:999px;
-      font-size:12px;
-      border:1px solid #334155;
-      background:#0F172A;
-      color:#CBD5E1;
-      margin-right:6px;
-      margin-bottom:6px;
-      white-space:nowrap;
-    }
-    .green{border-color:rgba(34,197,94,.35); color:#86EFAC}
-    .amber{border-color:rgba(245,158,11,.35); color:#FCD34D}
-    .red{border-color:rgba(239,68,68,.35); color:#FCA5A5}
-
     .two-col{
       display:grid;
       grid-template-columns:1fr 1fr;
@@ -126,10 +110,9 @@
 </header>
 
 <div class="container">
-  <div class="card">
-    <h1>MI dashboard</h1>
-    <p class="sub">Firm-level view of review outcomes, recurring control failures and Consumer Duty watchouts.</p>
-  </div>
+
+  <h1>Firm activity overview</h1>
+  <p class="sub">Simple demo-safe MI showing recent runs and any LLM guidance activity for this firm.</p>
 
   <div class="grid">
     <div class="card">
@@ -137,260 +120,99 @@
       <div class="metric">{{ total_runs }}</div>
     </div>
     <div class="card">
-      <div class="sub">Average completeness</div>
-      <div class="metric">{{ average_score }}%</div>
+      <div class="sub">Active users</div>
+      <div class="metric">{{ total_users }}</div>
     </div>
     <div class="card">
-      <div class="sub">Runs above 75%</div>
-      <div class="metric">{{ above_75 }}</div>
-      <div class="sub">{{ above_75_pct }}% of total runs</div>
+      <div class="sub">LLM guidance calls</div>
+      <div class="metric">{{ total_guidance_calls }}</div>
     </div>
     <div class="card">
-      <div class="sub">Risk bands</div>
-      <div style="margin-top:10px;">
-        <span class="pill green">Green: {{ band_counts.Green }}</span>
-        <span class="pill amber">Amber: {{ band_counts.Amber }}</span>
-        <span class="pill red">Red: {{ band_counts.red }}</span>
-      </div>
+      <div class="sub">Guidance errors</div>
+      <div class="metric">{{ total_errors }}</div>
     </div>
   </div>
 
   <div class="two-col">
+
     <div class="card">
-      <h2>Most flagged rules</h2>
+      <h2>Recent runs</h2>
       <table>
         <thead>
           <tr>
-            <th>Rule</th>
-            <th>Hits</th>
+            <th>Time</th>
+            <th>Run ID</th>
+            <th>User</th>
+            <th>Ruleset</th>
+            <th>OK</th>
+            <th>Potential issues</th>
+            <th>Not assessed</th>
+            <th>Completeness</th>
+            <th>Open</th>
           </tr>
         </thead>
         <tbody>
-          {% for row in top_rules %}
+          {% for r in recent_runs %}
           <tr>
-            <td><a class="link" href="/admin/mi?rule_id={{ row.rule_id }}#rule-drilldown">{{ row.rule_id }}</a></td>
-            <td>{{ row.count }}</td>
+            <td>{{ r.created_at }}</td>
+            <td>{{ r.id }}</td>
+            <td>{{ r.user_email }}</td>
+            <td>{{ r.ruleset_id }} v{{ r.ruleset_version }}</td>
+            <td>{{ r.ok_count }}</td>
+            <td>{{ r.pi_count }}</td>
+            <td>{{ r.na_count }}</td>
+            <td>{{ r.completeness_pct }}%</td>
+            <td><a class="link" href="/admin/runs/{{ r.id }}">View</a></td>
           </tr>
           {% endfor %}
-          {% if not top_rules %}
-          <tr><td colspan="2">No rule issues recorded yet.</td></tr>
+          {% if not recent_runs %}
+          <tr><td colspan="9">No runs saved yet.</td></tr>
           {% endif %}
         </tbody>
       </table>
     </div>
 
     <div class="card">
-      <h2>Most flagged sections</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>Section</th>
-            <th>Hits</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for row in top_sections %}
-          <tr>
-            <td>{{ row.section }}</td>
-            <td>{{ row.count }}</td>
-          </tr>
-          {% endfor %}
-          {% if not top_sections %}
-          <tr><td colspan="2">No section issues recorded yet.</td></tr>
-          {% endif %}
-        </tbody>
-      </table>
-    </div>
-  </div>
-
-  <div class="two-col">
-    <div class="card">
-      <h2>Highest-risk recurring themes</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>Theme</th>
-            <th>Hits</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for row in top_themes %}
-          <tr>
-            <td>{{ row.theme }}</td>
-            <td>{{ row.count }}</td>
-          </tr>
-          {% endfor %}
-          {% if not top_themes %}
-          <tr><td colspan="2">No recurring themes yet.</td></tr>
-          {% endif %}
-        </tbody>
-      </table>
+      <h2>LLM guidance log</h2>
+      {% if not guidance_table_available %}
+        <p class="sub">Guidance log table is not yet available. It will be created automatically after the next app restart.</p>
+      {% else %}
+        <table>
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>User</th>
+              <th>Rule</th>
+              <th>Title</th>
+              <th>Section</th>
+              <th>Status</th>
+              <th>Model</th>
+              <th>Error (preview)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for g in guidance_rows %}
+            <tr>
+              <td>{{ g.created_at }}</td>
+              <td>{{ g.user_email }}</td>
+              <td>{{ g.rule_id }}</td>
+              <td>{{ g.title }}</td>
+              <td>{{ g.section }}</td>
+              <td>{{ g.status }}</td>
+              <td>{{ g.model_name }}</td>
+              <td>{{ g.error_text }}</td>
+            </tr>
+            {% endfor %}
+            {% if not guidance_rows %}
+            <tr><td colspan="8">No LLM guidance calls have been recorded yet.</td></tr>
+            {% endif %}
+          </tbody>
+        </table>
+      {% endif %}
     </div>
 
-    <div class="card">
-      <h2>Consumer Duty watchlist</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>Theme</th>
-            <th>Hits</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for row in cd_watch %}
-          <tr>
-            <td>{{ row.name }}</td>
-            <td>{{ row.count }}</td>
-          </tr>
-          {% endfor %}
-          {% if not cd_watch %}
-          <tr><td colspan="2">No Consumer Duty flags recorded yet.</td></tr>
-          {% endif %}
-        </tbody>
-      </table>
-    </div>
   </div>
 
-  <div class="card">
-    <h2>Reports requiring escalation</h2>
-    <table>
-      <thead>
-        <tr>
-          <th>Run</th>
-          <th>Time</th>
-          <th>Score</th>
-          <th>Issues</th>
-          <th>Open</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for row in escalation_runs %}
-        <tr>
-          <td>{{ row.id }}</td>
-          <td>{{ row.created_at }}</td>
-          <td>{{ row.score }}%</td>
-          <td>{{ row.pi_count }}</td>
-          <td><a class="link" href="/admin/runs/{{ row.id }}">View run</a></td>
-        </tr>
-        {% endfor %}
-        {% if not escalation_runs %}
-        <tr><td colspan="5">No runs currently meet escalation thresholds.</td></tr>
-        {% endif %}
-      </tbody>
-    </table>
-  </div>
-
- <div class="card">
-  <h2>Risk by user</h2>
-    <table>
-      <thead>
-        <tr>
-          <th>User</th>
-          <th>Runs</th>
-          <th>Review points</th>
-          <th>Average score</th>
-          <th>Status</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for row in risk_by_user %}
-        <tr>
-          <td>{{ row.user_label }}</td>
-          <td>{{ row.runs }}</td>
-          <td>{{ row.issues }}</td>
-          <td>{{ row.avg_score }}%</td>
-          <td>{{ row.band }}</td>
-        </tr>
-        {% endfor %}
-        {% if not risk_by_user %}
-        <tr><td colspan="5">No user-level data available yet.</td></tr>
-        {% endif %}
-      </tbody>
-    </table>
-  </div>
-  
-  <div class="card">
-    <h2>Runs over time</h2>
-    <table>
-      <thead>
-        <tr>
-          <th>Date</th>
-          <th>Runs</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for row in trend %}
-        <tr>
-          <td>{{ row.day }}</td>
-          <td>{{ row.count }}</td>
-        </tr>
-        {% endfor %}
-        {% if not trend %}
-        <tr><td colspan="2">No saved runs yet.</td></tr>
-        {% endif %}
-      </tbody>
-    </table>
-  </div>
-
-  {% if selected_rule_id %}
-  <div class="card" id="rule-drilldown">
-    <h2>Runs impacted by {{ selected_rule_id }}</h2>
-    <table>
-      <thead>
-        <tr>
-          <th>Run</th>
-          <th>Time</th>
-          <th>Section</th>
-          <th>Score</th>
-          <th>Open</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for row in selected_rule_runs %}
-        <tr>
-          <td>{{ row.run_id }}</td>
-          <td>{{ row.created_at }}</td>
-          <td>{{ row.section }}</td>
-          <td>{{ row.completeness_pct }}%</td>
-          <td><a class="link" href="/admin/runs/{{ row.run_id }}">View run</a></td>
-        </tr>
-        {% endfor %}
-        {% if not selected_rule_runs %}
-        <tr><td colspan="5">No runs found for this rule.</td></tr>
-        {% endif %}
-      </tbody>
-    </table>
-  </div>
-  {% endif %}
-
-  <div class="card">
-    <h2>Recent runs</h2>
-    <table>
-      <thead>
-        <tr>
-          <th>Time</th>
-          <th>Ruleset</th>
-          <th>Score</th>
-          <th>Band</th>
-          <th>Open</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for r in recent_runs %}
-        <tr>
-          <td>{{ r.created_at }}</td>
-          <td>{{ r.ruleset_id }} v{{ r.ruleset_version }}</td>
-          <td>{{ r.completeness_pct }}%</td>
-          <td>{{ r.band }}</td>
-          <td><a class="link" href="/admin/runs/{{ r.id }}">View</a></td>
-        </tr>
-        {% endfor %}
-        {% if not recent_runs %}
-        <tr><td colspan="5">No runs saved yet.</td></tr>
-        {% endif %}
-      </tbody>
-    </table>
-  </div>
 </div>
 
 </body>
