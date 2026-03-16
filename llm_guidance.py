@@ -69,15 +69,24 @@ def build_rule_guidance_prompt(
     if citation:
         parts.append(f"Citation: {sanitize_for_llm(citation)}")
     if decision_logic:
-        parts.append(f"Decision logic: {sanitize_for_llm(decision_logic)}")
+        dl = sanitize_for_llm(decision_logic)
+        if len(dl) > 800:
+            dl = dl[:800]
+        parts.append(f"Decision logic: {dl}")
     if evidence:
         parts.append("Evidence:")
-        for e in evidence[:6]:
+        for e in evidence[:3]:
             if isinstance(e, str) and e.strip():
-                parts.append(f"- {sanitize_for_llm(e)}")
+                ev = sanitize_for_llm(e)
+                if len(ev) > 220:
+                    ev = ev[:220]
+                parts.append(f"- {ev}")
     if fixes:
         parts.append("Fixes:")
-        for f in fixes[:6]:
+        for f in fixes[:2]:
             if isinstance(f, str) and f.strip():
-                parts.append(f"- {sanitize_for_llm(f)}")
+                fx = sanitize_for_llm(f)
+                if len(fx) > 220:
+                    fx = fx[:220]
+                parts.append(f"- {fx}")
     return "\n".join(parts)
