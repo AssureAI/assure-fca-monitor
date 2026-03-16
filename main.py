@@ -32,13 +32,14 @@ from llm_guidance import (
     build_rule_guidance_prompt,
     sanitize_for_llm,
 )
-from llm_client import get_rule_guidance
+from llm_client import get_rule_guidance, MODEL as LLM_MODEL
 from database import (
     SessionLocal,
     init_db,
     Firm,
     User,
     Run,
+    LlmGuidanceLog,
     hash_password,
     verify_password,
     create_session,
@@ -426,6 +427,19 @@ RULE_GUIDANCE_DISCLAIMER = (
 )
 
 
+def _is_guidance_error(text: str) -> bool:
+    if not text or not text.strip():
+        return True
+    t = text.strip()
+    if t == "LLM not configured.":
+        return True
+    if t.startswith("OpenAI error ") or t.startswith("LLM request failed:"):
+        return True
+    if t.startswith("Unable to generate") or t.startswith("OpenAI success but no"):
+        return True
+    return False
+
+
 @app.post("/llm/rule_guidance")
 async def llm_rule_guidance(payload: RuleGuidanceRequest, request: Request, db=Depends(get_db)):
     user = get_user_by_session_token(db, get_session_token_from_request(request))
@@ -442,9 +456,41 @@ async def llm_rule_guidance(payload: RuleGuidanceRequest, request: Request, db=D
         "section": sanitize_for_llm(payload.section or ""),
     }
     prompt = build_rule_guidance_prompt(**safe)
-    text = get_rule_guidance(prompt)
-    if not text:
+    request_payload_sanitized = json.dumps(safe, ensure_ascii=False)
+
+    log_row = LlmGuidanceLog(
+        user_id=user.id,
+        rule_id=safe["rule_id"],
+        title=safe["title"],
+        citation=safe["citation"],
+        section=safe["section"],
+        request_payload_sanitized=request_payload_sanitized,
+        prompt_text=prompt,
+        llm_response_text=None,
+        status="pending",
+        error_text=None,
+        model_name=LLM_MODEL,
+    )
+    db.add(log_row)
+    db.flush()
+
+    try:
+        text = get_rule_guidance(prompt)
+        if not text:
+            text = "Unable to generate guidance."
+
+        if _is_guidance_error(text):
+            log_row.status = "error"
+            log_row.error_text = text[:5000]
+        else:
+            log_row.status = "success"
+            log_row.llm_response_text = text[:50000]
+    except Exception as e:
+        log_row.status = "error"
+        log_row.error_text = str(e)[:5000]
         text = "Unable to generate guidance."
+    db.commit()
+
     guidance = text.strip() + "\n\n" + RULE_GUIDANCE_DISCLAIMER
     return JSONResponse(RuleGuidanceResponse(guidance=guidance).model_dump())
 

@@ -209,6 +209,34 @@
     margin-top: 10px;
   }
 
+  .guidance-box {
+    margin-top: 12px;
+    padding: 14px 16px;
+    background: #1E293B;
+    border: 1px solid #334155;
+    border-radius: 10px;
+    color: #E2E8F0;
+  }
+  .guidance-box .guidance-heading {
+    font-size: 13px;
+    font-weight: 600;
+    color: #94A3B8;
+    margin: 0 0 10px 0;
+  }
+  .guidance-box .guidance-content {
+    font-size: 13px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .guidance-box .guidance-content.guidance-loading {
+    color: #94A3B8;
+    font-style: italic;
+  }
+  .guidance-box .guidance-content.guidance-error {
+    color: #FCA5A5;
+  }
+
   .divider {
     height:1px;
     background:#1F2937;
@@ -379,7 +407,7 @@
           {% endif %}
 
           <div class="small">Rule ID: {{ item.rule_id }}</div>
-          <div class="guidance-row" style="margin-top:10px;">
+          <div class="guidance-row">
             <button type="button" class="copy-btn guidance-btn" aria-live="polite"
               data-rule-id="{{ item.rule_id }}"
               data-title="{{ item.title }}"
@@ -389,7 +417,10 @@
               data-evidence='{{ (item.evidence or []) | tojson }}'
               data-fixes='{{ (item.fixes or []) | tojson }}'
               onclick="requestRuleGuidance(this)">Need more guidance on this rule?</button>
-            <div class="guidance-out small" style="display:none; margin-top:8px; padding:10px; background:#1E293B; border-radius:8px; white-space:pre-wrap;" role="status"></div>
+            <div class="guidance-box" style="display:none;" role="status" aria-live="polite">
+              <div class="guidance-heading">Rule guidance</div>
+              <div class="guidance-content"></div>
+            </div>
           </div>
         </div>
       {% endfor %}
@@ -435,15 +466,35 @@
     }
   }
 
+  const guidanceCache = {};
+  const LOADING_LABEL = "Loading guidance...";
+  const ERROR_FRIENDLY = "We couldn't load guidance for this rule. Please try again.";
+
   async function requestRuleGuidance(btn) {
-    const out = btn.nextElementSibling;
-    if (!out) return;
+    const box = btn.nextElementSibling;
+    const content = box && box.querySelector && box.querySelector(".guidance-content");
+    if (!box || !content) return;
+    const ruleId = btn.getAttribute("data-rule-id") || "";
+    const cacheKey = [
+      ruleId,
+      btn.getAttribute("data-section") || "",
+      btn.getAttribute("data-title") || "",
+    ].join("|");
+    if (guidanceCache[cacheKey] !== undefined) {
+      box.style.display = "block";
+      content.className = "guidance-content";
+      content.textContent = guidanceCache[cacheKey];
+      return;
+    }
+    const origLabel = btn.textContent;
+    btn.textContent = LOADING_LABEL;
+    btn.disabled = true;
+    box.style.display = "block";
+    content.className = "guidance-content guidance-loading";
+    content.textContent = LOADING_LABEL;
     try {
-      btn.disabled = true;
-      out.style.display = "block";
-      out.textContent = "Loading…";
       const payload = {
-        rule_id: btn.getAttribute("data-rule-id") || "",
+        rule_id: ruleId,
         title: btn.getAttribute("data-title") || "",
         citation: btn.getAttribute("data-citation") || "",
         decision_logic: btn.dataset.decisionLogic || "",
@@ -459,14 +510,19 @@
       });
       const data = await r.json().catch(() => ({}));
       if (r.ok && data.guidance) {
-        out.textContent = data.guidance;
+        guidanceCache[cacheKey] = data.guidance;
+        content.className = "guidance-content";
+        content.textContent = data.guidance;
       } else {
-        out.textContent = data.detail || "Guidance request failed.";
+        content.className = "guidance-content guidance-error";
+        content.textContent = ERROR_FRIENDLY;
       }
     } catch (e) {
-      out.textContent = "Request failed. Try again.";
+      content.className = "guidance-content guidance-error";
+      content.textContent = ERROR_FRIENDLY;
     } finally {
       btn.disabled = false;
+      btn.textContent = origLabel;
     }
   }
 </script>

@@ -188,6 +188,26 @@ Index("ix_runs_firm_user_created", Run.firm_id, Run.user_id, Run.created_at)
 Index("ix_runs_firm_user_completeness", Run.firm_id, Run.user_id, Run.completeness_pct)
 
 
+class LlmGuidanceLog(Base):
+    __tablename__ = "llm_guidance_log"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now, index=True)
+    user_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+
+    rule_id: Mapped[str] = mapped_column(String(200), nullable=False)
+    title: Mapped[str] = mapped_column(String(500), nullable=False)
+    citation: Mapped[str] = mapped_column(String(500), nullable=False)
+    section: Mapped[str] = mapped_column(String(200), nullable=False)
+
+    request_payload_sanitized: Mapped[str] = mapped_column(Text, nullable=False)
+    prompt_text: Mapped[str] = mapped_column(Text, nullable=False)
+    llm_response_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    error_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    model_name: Mapped[str] = mapped_column(String(64), nullable=False)
+
+
 _DEFAULT_SESSION_DAYS = int(os.environ.get("RULEGRID_SESSION_DAYS", "14"))
 
 
