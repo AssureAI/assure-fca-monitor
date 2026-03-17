@@ -1005,6 +1005,54 @@ def admin_mi(
         total_errors = 0
         guidance_rows = []
 
+    # Most failed rules: from sections_json, current firm only, POTENTIAL_ISSUE, top 10
+    run_rows_for_failed = (
+        db.query(Run)
+        .filter(Run.firm_id == user.firm_id)
+        .all()
+    )
+    rule_run_count: Dict[tuple, int] = defaultdict(int)
+    for rr in run_rows_for_failed:
+        try:
+            raw = (rr.sections_json or "").strip()
+            if not raw:
+                continue
+            sections = json.loads(raw)
+        except Exception:
+            continue
+        if not isinstance(sections, dict):
+            continue
+        failed_in_run: set = set()
+        for section_name, rule_list in sections.items():
+            if not isinstance(rule_list, list):
+                continue
+            for r in rule_list:
+                if not isinstance(r, dict):
+                    continue
+                if (r.get("status") or "") != "POTENTIAL_ISSUE":
+                    continue
+                rule_id = (r.get("rule_id") or "").strip() or ""
+                if not rule_id:
+                    continue
+                title = (r.get("title") or "").strip() or rule_id
+                key = (rule_id, title)
+                if key not in failed_in_run:
+                    failed_in_run.add(key)
+                    rule_run_count[key] += 1
+    total_runs_for_pct = total_runs or 1
+    top_failed_rules = [
+        {
+            "rule_id": r,
+            "title": t,
+            "fail_count": c,
+            "affected_run_pct": round(c / total_runs_for_pct * 100, 1),
+        }
+        for (r, t), c in sorted(
+            rule_run_count.items(),
+            key=lambda x: -x[1],
+        )[:10]
+    ]
+
     return templates.TemplateResponse(
         "mi.html",
         {
@@ -1017,6 +1065,7 @@ def admin_mi(
             "recent_runs": recent_runs,
             "guidance_rows": guidance_rows,
             "guidance_table_available": guidance_table_available,
+            "top_failed_rules": top_failed_rules,
         },
     )
     

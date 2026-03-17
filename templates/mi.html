@@ -194,6 +194,35 @@
   </div>
 
   <div class="card">
+    <h2>Most failed rules</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Rule</th>
+          <th>Title</th>
+          <th>Fails</th>
+          <th>% of runs</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in top_failed_rules %}
+        <tr>
+          <td>{{ row.rule_id }}</td>
+          <td>{{ row.title }}</td>
+          <td>{{ row.fail_count }}</td>
+          <td>{{ row.affected_run_pct }}</td>
+        </tr>
+        {% endfor %}
+        {% if not top_failed_rules %}
+        <tr>
+          <td colspan="4">No failed rules recorded yet.</td>
+        </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card">
     <h2>LLM guidance log</h2>
     <table>
       <thead>
