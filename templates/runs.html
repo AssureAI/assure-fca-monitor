@@ -115,9 +115,9 @@
 
   <div class="top-actions">
     <a class="link" href="/checker">New check</a>
-    {% if is_admin %}<a class="link" href="/admin/mi">MI</a>{% endif %}
+    {% if user_role == "admin" %}<a class="link" href="/admin/mi">MI</a>{% endif %}
     <a class="link" href="/admin/runs">Run history</a>
-    {% if is_admin %}<a class="link" href="/admin/users">Users</a>{% endif %}
+    {% if user_role == "admin" %}<a class="link" href="/admin/users">Users</a>{% endif %}
     <a class="link" href="/logout">Logout</a>
   </div>
 </header>

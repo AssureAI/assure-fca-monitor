@@ -603,7 +603,7 @@ def demo_get(request: Request, user: User = Depends(require_user_html)):
         {
             "request": request,
             "user_email": user.email,
-            "is_admin": user.role == "admin",
+            "user_role": user.role,
             "defaults": {"advice_type": "advised", "investment_element": "true", "ongoing_service": "false"},
         },
     )
@@ -769,7 +769,7 @@ def demo_results_get(
             "exec_summary": exec_summary,
             "engine_error": None,
             "rules_path_used": RULES_PATH,
-            "is_admin": user.role == "admin",
+            "user_role": user.role,
         },
     )
 
@@ -927,7 +927,7 @@ def admin_runs(request: Request, user: User = Depends(require_user_html), db=Dep
 
     return templates.TemplateResponse(
         "runs.html",
-        {"request": request, "runs": runs, "user_email": user.email, "is_admin": user.role == "admin"},
+        {"request": request, "runs": runs, "user_email": user.email, "user_role": user.role},
     )
 
 @app.get("/admin/mi", response_class=HTMLResponse)
@@ -1106,6 +1106,7 @@ def admin_mi(
         {
             "request": request,
             "user_email": user.email,
+            "user_role": user.role,
             "total_runs": total_runs,
             "total_guidance_calls": total_guidance_calls,
             "total_errors": total_errors,
@@ -1143,13 +1144,16 @@ def admin_run_detail(request: Request, run_id: str, user: User = Depends(require
 
     return templates.TemplateResponse(
         "run_detail.html",
-        {"request": request, "run": run, "user_email": user.email, "is_admin": user.role == "admin"},
+        {"request": request, "run": run, "user_email": user.email, "user_role": user.role},
     )
 
 @app.get("/admin/users", response_class=HTMLResponse)
 def manage_users(request: Request, user: User = Depends(require_admin_html), db=Depends(get_db)):
     users = db.query(User).filter(User.firm_id == user.firm_id).all()
-    return templates.TemplateResponse("users.html", {"request": request, "users": users})
+    return templates.TemplateResponse(
+        "users.html",
+        {"request": request, "users": users, "user_role": user.role},
+    )
 
 @app.post("/admin/users/create", response_class=HTMLResponse)
 def create_user(
@@ -1169,19 +1173,24 @@ def create_user(
     if not email_clean:
         return templates.TemplateResponse(
             "users.html",
-            {"request": request, "users": users, "error": "Email is required."},
+            {"request": request, "users": users, "user_role": user.role, "error": "Email is required."},
             status_code=400,
         )
     if not password_val:
         return templates.TemplateResponse(
             "users.html",
-            {"request": request, "users": users, "error": "Password is required."},
+            {"request": request, "users": users, "user_role": user.role, "error": "Password is required."},
             status_code=400,
         )
     if len(password_val) < 8:
         return templates.TemplateResponse(
             "users.html",
-            {"request": request, "users": users, "error": "Password must be at least 8 characters."},
+            {
+                "request": request,
+                "users": users,
+                "user_role": user.role,
+                "error": "Password must be at least 8 characters.",
+            },
             status_code=400,
         )
 
@@ -1194,7 +1203,12 @@ def create_user(
     if existing:
         return templates.TemplateResponse(
             "users.html",
-            {"request": request, "users": users, "error": "User with this email already exists"},
+            {
+                "request": request,
+                "users": users,
+                "user_role": user.role,
+                "error": "User with this email already exists",
+            },
             status_code=400,
         )
 
@@ -1212,7 +1226,7 @@ def create_user(
     users = db.query(User).filter(User.firm_id == user.firm_id).all()
     return templates.TemplateResponse(
         "users.html",
-        {"request": request, "users": users, "success": "User created successfully"},
+        {"request": request, "users": users, "user_role": user.role, "success": "User created successfully"},
     )
 
 # -----------------------------
