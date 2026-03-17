@@ -88,7 +88,7 @@
   <div class="card">
     <div class="logo">
       <img src="/static/logo-dark.svg" width="220" alt="Consiglo"/>
-      <div class="sub">{{ login_title or "Login" }}</div>
+      {% if login_title %}<div class="sub">{{ login_title }}</div>{% endif %}
     </div>
 
     {% if error %}
