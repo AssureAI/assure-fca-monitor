@@ -127,6 +127,27 @@
       border-color: #64748B;
       color: #E2E8F0;
     }
+
+    .progress {
+      width: 120px;
+      height: 6px;
+      background: #1F2937;
+      border-radius: 4px;
+      display: inline-block;
+      vertical-align: middle;
+      margin-right: 8px;
+      overflow: hidden;
+    }
+    .progress-fill {
+      height: 6px;
+      border-radius: 4px;
+      min-width: 0;
+      max-width: 100%;
+    }
+    .progress-green { background: #22C55E; }
+    .progress-amber { background: #F59E0B; }
+    .progress-red { background: #EF4444; }
+    .progress-cell { white-space: nowrap; }
   </style>
 </head>
 <body>
@@ -210,7 +231,13 @@
           <td>{{ row.ok_count }}</td>
           <td>{{ row.pi_count }}</td>
           <td>{{ row.na_count }}</td>
-          <td>{{ row.completeness_pct }}%</td>
+          <td class="progress-cell">
+            {% set pct = row.completeness_pct %}
+            <div class="progress">
+              <div class="progress-fill {% if pct >= 85 %}progress-green{% elif pct >= 70 %}progress-amber{% else %}progress-red{% endif %}" style="width: {{ [pct, 100]|min }}%"></div>
+            </div>
+            <span>{{ row.completeness_pct }}%</span>
+          </td>
           <td><a class="link" href="/admin/runs/{{ row.id }}">View</a></td>
         </tr>
         {% endfor %}
@@ -292,7 +319,13 @@
           <td>{{ row.runs }}</td>
           <td>{{ row.total_pi }}</td>
           <td>{{ row.avg_pi }}</td>
-          <td>{{ row.avg_score }}</td>
+          <td class="progress-cell">
+            {% set score = row.avg_score %}
+            <div class="progress">
+              <div class="progress-fill {% if score >= 85 %}progress-green{% elif score >= 70 %}progress-amber{% else %}progress-red{% endif %}" style="width: {{ [score, 100]|min }}%"></div>
+            </div>
+            <span>{{ row.avg_score }}</span>
+          </td>
         </tr>
         {% endfor %}
         {% if not user_rankings %}
