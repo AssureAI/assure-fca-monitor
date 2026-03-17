@@ -770,6 +770,7 @@ def demo_results_get(
             "exec_summary": exec_summary,
             "engine_error": None,
             "rules_path_used": RULES_PATH,
+            "user_email": user.email,
             "user_role": user.role,
         },
     )
@@ -1261,7 +1262,7 @@ def manage_users(request: Request, user: User = Depends(require_admin_html), db=
     users = db.query(User).filter(User.firm_id == user.firm_id).all()
     return templates.TemplateResponse(
         "users.html",
-        {"request": request, "users": users, "user_role": user.role},
+        {"request": request, "users": users, "user_email": user.email, "user_role": user.role},
     )
 
 @app.post("/admin/users/create", response_class=HTMLResponse)
@@ -1282,13 +1283,13 @@ def create_user(
     if not email_clean:
         return templates.TemplateResponse(
             "users.html",
-            {"request": request, "users": users, "user_role": user.role, "error": "Email is required."},
+            {"request": request, "users": users, "user_email": user.email, "user_role": user.role, "error": "Email is required."},
             status_code=400,
         )
     if not password_val:
         return templates.TemplateResponse(
             "users.html",
-            {"request": request, "users": users, "user_role": user.role, "error": "Password is required."},
+            {"request": request, "users": users, "user_email": user.email, "user_role": user.role, "error": "Password is required."},
             status_code=400,
         )
     if len(password_val) < 8:
@@ -1297,6 +1298,7 @@ def create_user(
             {
                 "request": request,
                 "users": users,
+                "user_email": user.email,
                 "user_role": user.role,
                 "error": "Password must be at least 8 characters.",
             },
@@ -1315,6 +1317,7 @@ def create_user(
             {
                 "request": request,
                 "users": users,
+                "user_email": user.email,
                 "user_role": user.role,
                 "error": "User with this email already exists",
             },
@@ -1335,7 +1338,7 @@ def create_user(
     users = db.query(User).filter(User.firm_id == user.firm_id).all()
     return templates.TemplateResponse(
         "users.html",
-        {"request": request, "users": users, "user_role": user.role, "success": "User created successfully"},
+        {"request": request, "users": users, "user_email": user.email, "user_role": user.role, "success": "User created successfully"},
     )
 
 # -----------------------------
