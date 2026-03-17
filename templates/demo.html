@@ -1,52 +1,10 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Consiglo – Demo</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta charset="UTF-8"/>
+  <title>Consiglo – Suitability report checker</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <style>
-    input[type="number"],
-    input[type="file"] {
-      background: #0B1220;
-      border: 1px solid #334155;
-      border-radius: 10px;
-      padding: 10px 12px;
-      color: #E2E8F0;
-      outline: none;
-    }
-
-    input[type="number"]:focus,
-    input[type="file"]:focus {
-      border-color: #2563EB;
-      box-shadow: 0 0 0 3px rgba(37,99,235,0.22);
-    }
-    .btn:disabled {
-      background: #1E40AF;
-      cursor: wait;
-      opacity: 0.9;
-    }
-    #sr_file {
-      width: 100%;
-      max-width: 420px;
-    }
-
-    #client_age {
-      width: 120px;
-    }
-    .subtle {
-      color:#94A3B8;
-      font-size:12px;
-      margin-top: 8px;
-    }
-    .upload-status {
-      color: #86EFAC;
-      font-size: 12px;
-      margin-top: 6px;
-    }
-    .row label {
-      min-width: 170px;
-      color: #CBD5E1;
-    }
     body {
       margin: 0;
       background: #0F172A;
@@ -60,140 +18,157 @@
       padding: 18px 34px;
       border-bottom: 1px solid #1E293B;
     }
-    .logo-row {
-      display: flex;
-      align-items: center;
-      gap: 14px;
-    }
-    .logo-row span {
-      font-weight: 500;
-      font-size: 18px;
-      color: #94A3B8;
-    }
+    .logo-row { display: flex; align-items: center; gap: 14px; }
+    .logo-row span { font-weight: 600; font-size: 18px; color: #E2E8F0; }
     .header-user { font-size: 12px; color: #64748B; margin: 0 6px; white-space: nowrap; }
-    .top-actions {
-      display:flex;
-      gap: 14px;
-      align-items:center;
-    }
-    .link {
-      color:#94A3B8;
-      text-decoration:none;
-      font-size: 14px;
-    }
+    .top-actions { display: flex; gap: 14px; align-items: center; }
+    .link { color: #94A3B8; text-decoration: none; font-size: 14px; }
     .link:hover { text-decoration: underline; }
 
-    .container {
-      max-width: 980px;
-      margin: 34px auto;
-      padding: 0 18px;
-    }
-    .upload-status {
-      margin-top:6px;
-      font-size:13px;
-      color:#86EFAC;
-    }
-
-textarea.disabled {
-  opacity:0.45;
-}
+    .container { max-width: 900px; margin: 36px auto 50px; padding: 0 22px; }
     .card {
       background: #111827;
       border: 1px solid #1F2937;
       border-radius: 16px;
-      padding: 18px;
+      padding: 24px 26px;
+      margin-bottom: 20px;
     }
+    .card-title { margin: 0 0 6px 0; font-size: 20px; font-weight: 600; color: #F1F5F9; }
+    .card-sub { color: #94A3B8; font-size: 14px; margin: 0; line-height: 1.45; }
 
-    .row {
+    .form-section-label {
+      font-size: 12px; font-weight: 600; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.04em;
+      margin-bottom: 12px; margin-top: 20px;
+    }
+    .form-section-label:first-child { margin-top: 0; }
+    .form-row {
       display: flex;
-      gap: 12px;
+      gap: 16px;
       flex-wrap: wrap;
-      margin-bottom: 14px;
+      align-items: center;
+      margin-bottom: 16px;
     }
-
+    .form-row:last-of-type { margin-bottom: 0; }
+    .form-row label {
+      min-width: 140px;
+      color: #CBD5E1;
+      font-size: 14px;
+    }
+    .form-row label.optional { color: #64748B; font-weight: 400; }
     select {
       background: #0B1220;
       border: 1px solid #334155;
       border-radius: 10px;
-      padding: 10px 12px;
+      padding: 10px 14px;
       color: #E2E8F0;
-      min-width: 220px;
+      font-size: 14px;
+      min-width: 200px;
       outline: none;
     }
     select:focus {
-      border-color: #2563EB;
-      box-shadow: 0 0 0 3px rgba(37,99,235,0.22);
+      border-color: #475569;
+      box-shadow: 0 0 0 2px rgba(71, 85, 105, 0.25);
     }
-
-    textarea {
-      width: 100%;
-      height: 360px;
+    select.optional { border-color: #1E293B; color: #94A3B8; }
+    input[type="number"] {
       background: #0B1220;
       border: 1px solid #334155;
-      border-radius: 14px;
-      padding: 14px;
+      border-radius: 10px;
+      padding: 10px 12px;
       color: #E2E8F0;
       font-size: 14px;
-      line-height: 1.4;
+      outline: none;
+    }
+    input[type="number"]:focus { border-color: #475569; }
+    input[type="number"].optional { border-color: #1E293B; color: #94A3B8; }
+    #client_age { width: 100px; }
+
+    .upload-zone {
+      border: 1px dashed #334155;
+      border-radius: 12px;
+      padding: 14px 16px;
+      background: #0B1220;
+      margin-bottom: 16px;
+    }
+    .upload-zone input[type="file"] {
+      background: transparent;
+      border: none;
+      color: #94A3B8;
+      font-size: 13px;
+      padding: 0;
+      width: 100%;
+      max-width: 100%;
+    }
+    .upload-zone input[type="file"]::file-selector-button {
+      padding: 8px 14px;
+      margin-right: 12px;
+      border-radius: 8px;
+      border: 1px solid #334155;
+      background: #1E293B;
+      color: #CBD5E1;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .upload-zone input[type="file"]::file-selector-button:hover { border-color: #475569; }
+    .upload-hint { color: #64748B; font-size: 12px; margin-top: 8px; }
+    .upload-status { color: #86EFAC; font-size: 12px; margin-top: 8px; }
+    textarea {
+      width: 100%;
+      min-height: 380px;
+      background: #0B1220;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      padding: 16px 18px;
+      color: #E2E8F0;
+      font-size: 14px;
+      line-height: 1.5;
       outline: none;
       resize: vertical;
+      box-sizing: border-box;
     }
     textarea:focus {
-      border-color: #2563EB;
-      box-shadow: 0 0 0 3px rgba(37,99,235,0.22);
+      border-color: #475569;
+      box-shadow: 0 0 0 2px rgba(71, 85, 105, 0.25);
     }
+    textarea.disabled { opacity: 0.5; pointer-events: none; }
+    textarea::placeholder { color: #64748B; }
 
-    .btn-row {
-      display:flex;
-      gap: 10px;
+    .cta-row {
+      display: flex;
       flex-wrap: wrap;
-      margin-top: 14px;
       align-items: center;
       justify-content: space-between;
+      gap: 14px;
+      margin-top: 22px;
+      padding-top: 20px;
+      border-top: 1px solid #1F2937;
     }
-
-    .btn {
-      padding: 12px 16px;
+    .cta-help { color: #64748B; font-size: 13px; }
+    .btn-primary {
+      padding: 14px 24px;
       border-radius: 10px;
       border: none;
       background: #2563EB;
-      color: white;
+      color: #fff;
+      font-size: 15px;
       font-weight: 700;
       cursor: pointer;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.2);
     }
-    .btn:hover { background:#1D4ED8; }
-
-    .btn-ghost {
-      padding: 10px 12px;
-      border-radius: 10px;
-      border: 1px solid #334155;
-      background: transparent;
-      color: #CBD5E1;
-      cursor: pointer;
-      font-weight: 700;
-    }
-    .btn-ghost:hover { border-color: #475569; }
-
-    .hint {
-      color:#94A3B8;
-      font-size: 13px;
-      margin: 0 0 14px 0;
-    }
-
-    .small {
-      color:#64748B;
-      font-size: 12px;
-      margin-top: 10px;
+    .btn-primary:hover { background: #1D4ED8; }
+    .btn-primary:disabled {
+      background: #1E40AF;
+      cursor: wait;
+      opacity: 0.95;
     }
   </style>
 </head>
 <body>
   <header>
     <div class="logo-row">
-      <div style="font-size:28px;font-weight:800;">Consiglo</div>
-      <span>Demo</span>
+      <div style="font-size:24px;font-weight:700;">Consiglo</div>
+      <span>Checker</span>
     </div>
-
     <div class="top-actions">
       <a class="link" href="/admin/runs">Run history</a>
       {% if user_role == "admin" %}<a class="link" href="/admin/mi">MI</a>{% endif %}
@@ -203,32 +178,33 @@ textarea.disabled {
   </header>
 
   <div class="container">
-    <p class="hint">Paste or upload a suitability report, run FCA checks, review any flagged issues, then rerun once amended.</p>
+    <div class="card">
+      <h1 class="card-title">Suitability report checker</h1>
+      <p class="card-sub">Upload or paste a suitability report, run the ruleset, and review flagged evidence points before issue.</p>
+    </div>
 
     <div class="card">
       <form method="post" action="/checker/run" id="runForm" enctype="multipart/form-data">
-        <div class="row">
+        <div class="form-section-label">Report context</div>
+        <div class="form-row">
           <select name="advice_type">
             <option value="advised" {% if defaults and defaults.advice_type == "advised" %}selected{% endif %}>Advised</option>
             <option value="nonadvised" {% if defaults and defaults.advice_type == "nonadvised" %}selected{% endif %}>Non-advised</option>
             <option value="execution_only" {% if defaults and defaults.advice_type == "execution_only" %}selected{% endif %}>Execution only</option>
           </select>
-
           <select name="investment_element">
             <option value="true" {% if defaults and defaults.investment_element == "true" %}selected{% endif %}>Investment element: Yes</option>
             <option value="false" {% if defaults and defaults.investment_element == "false" %}selected{% endif %}>Investment element: No</option>
           </select>
-
           <select name="ongoing_service">
             <option value="false" {% if defaults and defaults.ongoing_service == "false" %}selected{% endif %}>Ongoing service: No</option>
             <option value="true" {% if defaults and defaults.ongoing_service == "true" %}selected{% endif %}>Ongoing service: Yes</option>
           </select>
         </div>
 
-
-        <div class="row">
-          <label for="product_type">Product type (optional)</label>
-          <select name="product_type" id="product_type">
+        <div class="form-row">
+          <label for="product_type" class="optional">Product type (optional)</label>
+          <select name="product_type" id="product_type" class="optional">
             <option value="" {% if defaults and (defaults.product_type or "") == "" %}selected{% endif %}>Not specified</option>
             <option value="pension" {% if defaults and defaults.product_type == "pension" %}selected{% endif %}>Pension</option>
             <option value="isa" {% if defaults and defaults.product_type == "isa" %}selected{% endif %}>ISA</option>
@@ -236,69 +212,52 @@ textarea.disabled {
             <option value="other" {% if defaults and defaults.product_type == "other" %}selected{% endif %}>Other</option>
           </select>
         </div>
-
-        <div class="row" style="align-items:center;">
-          <label for="client_age">Client age (optional)</label>
-          <input type="number" name="client_age" id="client_age" min="0" max="120" value="{{ defaults.client_age if defaults and defaults.client_age is not none else '' }}">
+        <div class="form-row">
+          <label for="client_age" class="optional">Client age (optional)</label>
+          <input type="number" name="client_age" id="client_age" min="0" max="120" value="{{ defaults.client_age if defaults and defaults.client_age is not none else '' }}" class="optional">
         </div>
 
-        <div class="row">
-          <label for="sr_file" class="form-label">Upload suitability report</label>
-          <div class="form-control">
-            <input type="file" name="sr_file" id="sr_file" accept=".txt,.docx,.pdf">
-            <div id="uploadStatus" class="upload-status" style="display:none;"></div>
-            <div class="subtle" id="pasteHint">Tip: you can either upload a report above or paste the text below.</div>
-          </div>
+        <div class="form-section-label">Report input</div>
+        <div class="upload-zone">
+          <input type="file" name="sr_file" id="sr_file" accept=".txt,.docx,.pdf">
+          <div id="uploadStatus" class="upload-status" style="display:none;"></div>
+          <div class="upload-hint" id="pasteHint">Upload a file above or paste report text in the box below.</div>
         </div>
+        <textarea name="sr_text" id="sr_text" placeholder="Paste suitability report text here…"></textarea>
 
-        <textarea name="sr_text" id="sr_text" placeholder="Paste suitability report text here..."></textarea>
-
-        <div class="btn-row">
-          <div class="small">Upload a draft suitability report (.docx, .pdf or .txt), or paste the text below.</div>
-          <button type="submit" class="btn" id="runCheckBtn">Run FCA checks</button>
+        <div class="cta-row">
+          <span class="cta-help">Upload a draft report (.docx, .pdf or .txt) or paste text above, then run checks.</span>
+          <button type="submit" class="btn-primary" id="runCheckBtn">Run FCA checks</button>
         </div>
       </form>
     </div>
   </div>
   <script>
-
     const srFileInput = document.getElementById("sr_file");
     const uploadStatus = document.getElementById("uploadStatus");
     const srTextbox = document.getElementById("sr_text");
     const pasteHint = document.getElementById("pasteHint");
 
-
     if (srFileInput) {
-
       srFileInput.addEventListener("change", function () {
-
         if (!srFileInput.files.length) {
-
           uploadStatus.style.display = "none";
           srTextbox.disabled = false;
           srTextbox.classList.remove("disabled");
           pasteHint.style.display = "block";
           return;
         }
-
         const file = srFileInput.files[0];
-
-        uploadStatus.innerHTML =
-          "✓ Uploaded: <b>" + file.name + "</b><br>File will be analysed when you run the check.";
-
+        uploadStatus.innerHTML = "✓ Uploaded: <b>" + file.name + "</b><br>File will be analysed when you run the check.";
         uploadStatus.style.display = "block";
-
         srTextbox.disabled = true;
         srTextbox.classList.add("disabled");
         srTextbox.value = "";
-
         pasteHint.style.display = "none";
       });
-
     }
     const runForm = document.getElementById("runForm");
     const runCheckBtn = document.getElementById("runCheckBtn");
-
     if (runForm && runCheckBtn) {
       runForm.addEventListener("submit", function () {
         runCheckBtn.textContent = "Running FCA checks...";
