@@ -506,7 +506,7 @@ def login_get(request: Request):
         {
             "request": request,
             "error": None,
-            "next_path": "/demo",
+            "next_path": "",
             "login_title": "Paraplanner login",
             "login_subtitle": "For SR review and pre-issue checking.",
         },
@@ -530,30 +530,35 @@ def login_post(
     request: Request,
     email: str = Form(...),
     password: str = Form(...),
-    next_path: str = Form("/demo"),
+    next_path: str = Form(""),
     db=Depends(get_db),
 ):
     email_n = (email or "").strip().lower()
     user = db.query(User).filter(User.email == email_n).first()
     if not user or not user.is_active or not verify_password(password or "", user.password_hash):
-        return templates.TemplateResponse("login.html", {"request": request, "error": "Invalid credentials"}, status_code=401)
         return templates.TemplateResponse(
             "login.html",
             {
                 "request": request,
                 "error": "Invalid credentials",
-                "next_path": next_path or "/demo",
+                "next_path": next_path or "",
                 "login_title": "Login",
                 "login_subtitle": "",
             },
             status_code=401,
         )
-        
+
     token = create_session(db, user.id)
     user.last_login_at = utc_now()
     db.commit()
 
-    safe_next = next_path if next_path in ["/demo", "/admin/mi"] else "/demo"
+    # Determine safe next path: allow explicit checker/admin MI, otherwise role-based default
+    allowed_paths = ["/checker", "/admin/mi"]
+    next_clean = (next_path or "").strip()
+    if next_clean in allowed_paths:
+        safe_next = next_clean
+    else:
+        safe_next = "/admin/mi" if user.role == "admin" else "/checker"
     resp = RedirectResponse(url=safe_next, status_code=303)
     resp.set_cookie(
         key=SESSION_COOKIE,
@@ -583,7 +588,7 @@ def logout_post(request: Request, db=Depends(get_db)):
 # DEMO UI (AUTHED)
 # -----------------------------
 
-@app.get("/demo", response_class=HTMLResponse)
+@app.get("/checker", response_class=HTMLResponse)
 def demo_get(request: Request, user: User = Depends(require_user_html)):
     return templates.TemplateResponse(
         "demo.html",
@@ -594,7 +599,7 @@ def demo_get(request: Request, user: User = Depends(require_user_html)):
         },
     )
 
-@app.post("/demo/run", response_class=HTMLResponse)
+@app.post("/checker/run", response_class=HTMLResponse)
 async def demo_run_post(
     request: Request,
     advice_type: str = Form(...),
@@ -709,9 +714,9 @@ async def demo_run_post(
         )
 
     run_id = persist_run(db, user, result, ctx, final_sr_text or "")
-    return RedirectResponse(url=f"/demo/results/{run_id}", status_code=303)
+    return RedirectResponse(url=f"/checker/results/{run_id}", status_code=303)
 
-@app.get("/demo/results/{run_id}", response_class=HTMLResponse)
+@app.get("/checker/results/{run_id}", response_class=HTMLResponse)
 def demo_results_get(
     request: Request,
     run_id: str,
@@ -756,7 +761,7 @@ def demo_results_get(
         },
     )
 
-@app.get("/demo/export/{run_id}")
+@app.get("/checker/export/{run_id}")
 async def export_compliance_review(
     run_id: str,
     user: User = Depends(require_user_html),
@@ -828,7 +833,7 @@ async def export_compliance_review(
         },
     )
     
-@app.get("/demo/results/{run_id}/pdf")
+@app.get("/checker/results/{run_id}/pdf")
 def download_pdf(run_id: str, user: User = Depends(require_user_html), db=Depends(get_db)):
     rr = db.query(Run).filter(Run.id == run_id, Run.firm_id == user.firm_id).first()
     if not rr:

@@ -96,7 +96,7 @@
     {% endif %}
 
     <form method="post" action="/login">
-      <input type="hidden" name="next_path" value="{{ next_path or '/demo' }}">
+      <input type="hidden" name="next_path" value="{{ next_path or '' }}">
       <label>Email</label>
       <input type="email" name="email" autocomplete="username" required />
 

@@ -204,7 +204,7 @@ textarea.disabled {
     <p class="hint">Paste or upload a suitability report, run FCA checks, review any flagged issues, then rerun once amended.</p>
 
     <div class="card">
-      <form method="post" action="/demo/run" id="runForm" enctype="multipart/form-data">
+      <form method="post" action="/checker/run" id="runForm" enctype="multipart/form-data">
         <div class="row">
           <select name="advice_type">
             <option value="advised" {% if defaults and defaults.advice_type == "advised" %}selected{% endif %}>Advised</option>
