@@ -105,10 +105,18 @@ def require_user_html(request: Request, db=Depends(get_db)) -> User:
         raise HTTPException(status_code=401, detail="LOGIN_REQUIRED")
     return user
 
+def require_admin_html(request: Request, db=Depends(get_db)) -> User:
+    user = require_user_html(request, db)
+    if user.role != "admin":
+        raise HTTPException(status_code=403, detail="ADMIN_ONLY")
+    return user
+
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
     if exc.status_code == 401 and exc.detail == "LOGIN_REQUIRED":
         return RedirectResponse(url="/login", status_code=303)
+    if exc.status_code == 403 and exc.detail == "ADMIN_ONLY":
+        return RedirectResponse(url="/checker", status_code=303)
     return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
 
 def compute_completeness(summary: Dict[str, Any]) -> int:
@@ -891,7 +899,7 @@ def download_pdf(run_id: str, user: User = Depends(require_user_html), db=Depend
 # -----------------------------
 
 @app.get("/admin/runs", response_class=HTMLResponse)
-def admin_runs(request: Request, user: User = Depends(require_user_html), db=Depends(get_db)):
+def admin_runs(request: Request, user: User = Depends(require_admin_html), db=Depends(get_db)):
     rows = (
         db.query(Run)
         .filter(Run.firm_id == user.firm_id)
@@ -918,7 +926,7 @@ def admin_runs(request: Request, user: User = Depends(require_user_html), db=Dep
 @app.get("/admin/mi", response_class=HTMLResponse)
 def admin_mi(
     request: Request,
-    user: User = Depends(require_user_html),
+    user: User = Depends(require_admin_html),
     db=Depends(get_db),
 ):
     firm_users = (
@@ -1104,7 +1112,7 @@ def admin_mi(
     )
     
 @app.get("/admin/runs/{run_id}", response_class=HTMLResponse)
-def admin_run_detail(request: Request, run_id: str, user: User = Depends(require_user_html), db=Depends(get_db)):
+def admin_run_detail(request: Request, run_id: str, user: User = Depends(require_admin_html), db=Depends(get_db)):
     rr = db.query(Run).filter(Run.id == run_id, Run.firm_id == user.firm_id).first()
     if not rr:
         raise HTTPException(status_code=404, detail="Run not found")
@@ -1127,10 +1135,7 @@ def admin_run_detail(request: Request, run_id: str, user: User = Depends(require
     return templates.TemplateResponse("run_detail.html", {"request": request, "run": run, "user_email": user.email})
 
 @app.get("/admin/users", response_class=HTMLResponse)
-def manage_users(request: Request, user: User = Depends(require_user_html), db=Depends(get_db)):
-    if user.role != "admin":
-        raise HTTPException(status_code=403, detail="Admin only")
-
+def manage_users(request: Request, user: User = Depends(require_admin_html), db=Depends(get_db)):
     users = db.query(User).filter(User.firm_id == user.firm_id).all()
     return templates.TemplateResponse("users.html", {"request": request, "users": users})
 
@@ -1140,11 +1145,9 @@ def create_user(
     email: Optional[str] = Form(None),
     password: Optional[str] = Form(None),
     role: str = Form("member"),
-    user: User = Depends(require_user_html),
+    user: User = Depends(require_admin_html),
     db=Depends(get_db),
 ):
-    if user.role != "admin":
-        raise HTTPException(status_code=403, detail="Admin only")
 
     users = db.query(User).filter(User.firm_id == user.firm_id).all()
 
