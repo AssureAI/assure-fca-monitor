@@ -223,6 +223,37 @@
   </div>
 
   <div class="card">
+    <h2>User / adviser rankings</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>User</th>
+          <th>Runs</th>
+          <th>Total issues</th>
+          <th>Avg issues/run</th>
+          <th>Avg completeness</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in user_rankings %}
+        <tr>
+          <td>{{ row.user_email }}</td>
+          <td>{{ row.runs }}</td>
+          <td>{{ row.total_pi }}</td>
+          <td>{{ row.avg_pi }}</td>
+          <td>{{ row.avg_score }}</td>
+        </tr>
+        {% endfor %}
+        {% if not user_rankings %}
+        <tr>
+          <td colspan="5">No user data yet.</td>
+        </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card">
     <h2>LLM guidance log</h2>
     <table>
       <thead>

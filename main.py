@@ -1053,6 +1053,34 @@ def admin_mi(
         )[:10]
     ]
 
+    # User / adviser rankings: group runs by user_id, current firm only, top 10
+    user_agg: Dict[Optional[str], List[Dict[str, Any]]] = defaultdict(list)
+    for rr in run_rows_for_failed:
+        try:
+            summary = json.loads(rr.summary_json or "{}")
+        except Exception:
+            summary = {}
+        pi = rr.pi_count if rr.pi_count is not None else int(summary.get("potential_issue", 0) or 0)
+        completeness = rr.completeness_pct if rr.completeness_pct is not None else compute_completeness(summary)
+        user_agg[rr.user_id].append({"pi": pi, "completeness": completeness})
+    user_rankings = []
+    for uid, run_data in user_agg.items():
+        runs_count = len(run_data)
+        total_pi = sum(d["pi"] for d in run_data)
+        avg_pi = total_pi / runs_count if runs_count else 0.0
+        avg_score = sum(d["completeness"] for d in run_data) / runs_count if runs_count else 0.0
+        user_rankings.append(
+            {
+                "user_email": user_lookup.get(uid, "-"),
+                "runs": runs_count,
+                "total_pi": total_pi,
+                "avg_pi": round(avg_pi, 1),
+                "avg_score": round(avg_score, 1),
+            }
+        )
+    user_rankings.sort(key=lambda x: (-x["total_pi"], x["avg_score"]))
+    user_rankings = user_rankings[:10]
+
     return templates.TemplateResponse(
         "mi.html",
         {
@@ -1066,6 +1094,7 @@ def admin_mi(
             "guidance_rows": guidance_rows,
             "guidance_table_available": guidance_table_available,
             "top_failed_rules": top_failed_rules,
+            "user_rankings": user_rankings,
         },
     )
     
