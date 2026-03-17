@@ -603,6 +603,7 @@ def demo_get(request: Request, user: User = Depends(require_user_html)):
         {
             "request": request,
             "user_email": user.email,
+            "is_admin": user.role == "admin",
             "defaults": {"advice_type": "advised", "investment_element": "true", "ongoing_service": "false"},
         },
     )
@@ -733,7 +734,9 @@ def demo_results_get(
 ):
     rr = db.query(Run).filter(Run.id == run_id, Run.firm_id == user.firm_id).first()
     if not rr:
-        raise HTTPException(status_code=404, detail="Run not found")
+        return RedirectResponse(url="/checker", status_code=303)
+    if user.role != "admin" and rr.user_id != user.id:
+        return RedirectResponse(url="/checker", status_code=303)
 
     result = {
         "ruleset_id": rr.ruleset_id,
@@ -766,6 +769,7 @@ def demo_results_get(
             "exec_summary": exec_summary,
             "engine_error": None,
             "rules_path_used": RULES_PATH,
+            "is_admin": user.role == "admin",
         },
     )
 
@@ -775,10 +779,11 @@ async def export_compliance_review(
     user: User = Depends(require_user_html),
     db=Depends(get_db),
 ):
-
     rr = db.query(Run).filter(Run.id == run_id, Run.firm_id == user.firm_id).first()
     if not rr:
-        raise HTTPException(status_code=404, detail="Run not found")
+        return RedirectResponse(url="/checker", status_code=303)
+    if user.role != "admin" and rr.user_id != user.id:
+        return RedirectResponse(url="/checker", status_code=303)
     
     result = {
         "ruleset_id": rr.ruleset_id,
@@ -845,7 +850,9 @@ async def export_compliance_review(
 def download_pdf(run_id: str, user: User = Depends(require_user_html), db=Depends(get_db)):
     rr = db.query(Run).filter(Run.id == run_id, Run.firm_id == user.firm_id).first()
     if not rr:
-        raise HTTPException(status_code=404, detail="Run not found")
+        return RedirectResponse(url="/checker", status_code=303)
+    if user.role != "admin" and rr.user_id != user.id:
+        return RedirectResponse(url="/checker", status_code=303)
 
     result = {
         "summary": json.loads(rr.summary_json or "{}"),
@@ -899,14 +906,11 @@ def download_pdf(run_id: str, user: User = Depends(require_user_html), db=Depend
 # -----------------------------
 
 @app.get("/admin/runs", response_class=HTMLResponse)
-def admin_runs(request: Request, user: User = Depends(require_admin_html), db=Depends(get_db)):
-    rows = (
-        db.query(Run)
-        .filter(Run.firm_id == user.firm_id)
-        .order_by(Run.created_at.desc())
-        .limit(200)
-        .all()
-    )
+def admin_runs(request: Request, user: User = Depends(require_user_html), db=Depends(get_db)):
+    q = db.query(Run).filter(Run.firm_id == user.firm_id)
+    if user.role != "admin":
+        q = q.filter(Run.user_id == user.id)
+    rows = q.order_by(Run.created_at.desc()).limit(200).all()
 
     runs = []
     for rr in rows:
@@ -921,7 +925,10 @@ def admin_runs(request: Request, user: User = Depends(require_admin_html), db=De
             }
         )
 
-    return templates.TemplateResponse("runs.html", {"request": request, "runs": runs, "user_email": user.email})
+    return templates.TemplateResponse(
+        "runs.html",
+        {"request": request, "runs": runs, "user_email": user.email, "is_admin": user.role == "admin"},
+    )
 
 @app.get("/admin/mi", response_class=HTMLResponse)
 def admin_mi(
@@ -1112,10 +1119,12 @@ def admin_mi(
     )
     
 @app.get("/admin/runs/{run_id}", response_class=HTMLResponse)
-def admin_run_detail(request: Request, run_id: str, user: User = Depends(require_admin_html), db=Depends(get_db)):
+def admin_run_detail(request: Request, run_id: str, user: User = Depends(require_user_html), db=Depends(get_db)):
     rr = db.query(Run).filter(Run.id == run_id, Run.firm_id == user.firm_id).first()
     if not rr:
-        raise HTTPException(status_code=404, detail="Run not found")
+        return RedirectResponse(url="/checker", status_code=303)
+    if user.role != "admin" and rr.user_id != user.id:
+        return RedirectResponse(url="/checker", status_code=303)
 
     run = {
         "id": rr.id,
@@ -1132,7 +1141,10 @@ def admin_run_detail(request: Request, run_id: str, user: User = Depends(require
         "sr_len": rr.sr_len,
     }
 
-    return templates.TemplateResponse("run_detail.html", {"request": request, "run": run, "user_email": user.email})
+    return templates.TemplateResponse(
+        "run_detail.html",
+        {"request": request, "run": run, "user_email": user.email, "is_admin": user.role == "admin"},
+    )
 
 @app.get("/admin/users", response_class=HTMLResponse)
 def manage_users(request: Request, user: User = Depends(require_admin_html), db=Depends(get_db)):
