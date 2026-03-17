@@ -20,7 +20,8 @@
     }
     .logo-row{display:flex;align-items:center;gap:14px}
     .logo-row span{font-size:18px;color:#94A3B8}
-    .top-actions{display:flex;gap:14px;align-items:center}
+    .top-actions{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+    .header-user{font-size:12px;color:#64748B;margin:0 6px;white-space:nowrap}
     .link{color:#94A3B8;text-decoration:none;font-size:14px}
     .link:hover{text-decoration:underline}
 
@@ -118,6 +119,7 @@
     {% if user_role == "admin" %}<a class="link" href="/admin/mi">MI</a>{% endif %}
     <a class="link" href="/admin/runs">Run history</a>
     {% if user_role == "admin" %}<a class="link" href="/admin/users">Users</a>{% endif %}
+    {% if user_email %}<span class="header-user">{{ user_email }} · {{ user_role or 'member' }}</span>{% endif %}
     <a class="link" href="/logout">Logout</a>
   </div>
 </header>

@@ -70,6 +70,7 @@
       font-size: 18px;
       color: #94A3B8;
     }
+    .header-user { font-size: 12px; color: #64748B; margin: 0 6px; white-space: nowrap; }
     .top-actions {
       display:flex;
       gap: 14px;
@@ -196,6 +197,7 @@ textarea.disabled {
     <div class="top-actions">
       <a class="link" href="/admin/runs">Run history</a>
       {% if user_role == "admin" %}<a class="link" href="/admin/mi">MI</a>{% endif %}
+      {% if user_email %}<span class="header-user">{{ user_email }} · {{ user_role or 'member' }}</span>{% endif %}
       <a class="link" href="/logout">Logout</a>
     </div>
   </header>
