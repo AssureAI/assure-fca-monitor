@@ -225,6 +225,27 @@
   </div>
 
   <div class="card">
+    <h2>Common documentation gaps</h2>
+    {% if insight_rows %}
+      {% for item in insight_rows %}
+        <div style="margin-bottom:14px;padding:10px 0;border-bottom:1px solid #1F2937;">
+          <div style="font-weight:600;margin-bottom:4px;">{{ item.headline }}</div>
+          <div style="font-size:12px;color:#94A3B8;margin-bottom:4px;">
+            Rule: {{ item.rule_id }} · Fails: {{ item.fail_count }} · % of runs: {{ item.affected_run_pct }}
+          </div>
+          <div style="font-size:13px;color:#CBD5E1;">
+            {{ item.detail }}
+          </div>
+        </div>
+      {% endfor %}
+    {% else %}
+      <div style="font-size:13px;color:#94A3B8;">
+        No recurring documentation gaps identified yet.
+      </div>
+    {% endif %}
+  </div>
+
+  <div class="card">
     <h2>User / adviser rankings</h2>
     <table>
       <thead>

@@ -1073,6 +1073,31 @@ def admin_mi(
         )[:10]
     ]
 
+    # Common documentation gaps / insights from top failed rules (top 5)
+    insight_rows = []
+    for row in top_failed_rules[:5]:
+        rule_id = row.get("rule_id") or ""
+        title = row.get("title") or rule_id
+        fail_count = int(row.get("fail_count") or 0)
+        pct = float(row.get("affected_run_pct") or 0.0)
+        if not rule_id or fail_count <= 0:
+            continue
+        headline = f"Recurring gap: {title}"
+        detail = (
+            f"{pct}% of runs triggered this rule ({fail_count} runs). "
+            "Consider reviewing report templates, checker prompts, or QA guidance "
+            "to make this evidence point more consistently documented."
+        )
+        insight_rows.append(
+            {
+                "headline": headline,
+                "detail": detail,
+                "rule_id": rule_id,
+                "fail_count": fail_count,
+                "affected_run_pct": pct,
+            }
+        )
+
     # User / adviser rankings: group runs by user_id, current firm only, top 10
     user_agg: Dict[Optional[str], List[Dict[str, Any]]] = defaultdict(list)
     for rr in run_rows_for_failed:
@@ -1115,6 +1140,7 @@ def admin_mi(
             "guidance_rows": guidance_rows,
             "guidance_table_available": guidance_table_available,
             "top_failed_rules": top_failed_rules,
+            "insight_rows": insight_rows,
             "user_rankings": user_rankings,
         },
     )
