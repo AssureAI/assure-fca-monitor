@@ -107,6 +107,26 @@
       font-size: 13px;
       margin-bottom: 16px;
     }
+
+    .range-btn {
+      display: inline-block;
+      padding: 8px 14px;
+      margin-right: 8px;
+      border-radius: 10px;
+      border: 1px solid #334155;
+      background: #0F172A;
+      color: #94A3B8;
+      text-decoration: none;
+      font-size: 13px;
+    }
+    .range-btn:hover {
+      border-color: #475569;
+      color: #CBD5E1;
+    }
+    .range-btn-active {
+      border-color: #64748B;
+      color: #E2E8F0;
+    }
   </style>
 </head>
 <body>
@@ -136,6 +156,13 @@
     Guidance log table is not available yet. Restart the app once so startup can create the latest database tables.
   </div>
   {% endif %}
+
+  <div class="card" style="margin-bottom:16px;">
+    <span style="font-size:13px;color:#94A3B8;margin-right:10px;">Time range:</span>
+    <a href="/admin/mi?range=7d" class="range-btn{% if selected_range == '7d' %} range-btn-active{% endif %}">Last 7 days</a>
+    <a href="/admin/mi?range=30d" class="range-btn{% if selected_range == '30d' %} range-btn-active{% endif %}">Last 30 days</a>
+    <a href="/admin/mi?range=all" class="range-btn{% if selected_range == 'all' %} range-btn-active{% endif %}">All</a>
+  </div>
 
   <div class="grid">
     <div class="card">

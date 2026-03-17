@@ -6,7 +6,7 @@ import os
 import json
 import uuid
 import hashlib
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, Optional, List
 
 from collections import Counter
@@ -935,7 +935,17 @@ def admin_mi(
     request: Request,
     user: User = Depends(require_admin_html),
     db=Depends(get_db),
+    range: Optional[str] = None,
 ):
+    selected_range = range if range in ("7d", "30d", "all") else "all"
+    now = utc_now()
+    if selected_range == "7d":
+        date_from = now - timedelta(days=7)
+    elif selected_range == "30d":
+        date_from = now - timedelta(days=30)
+    else:
+        date_from = None
+
     firm_users = (
         db.query(User)
         .filter(User.firm_id == user.firm_id)
@@ -947,11 +957,16 @@ def admin_mi(
 
     total_users = len(firm_users)
 
-    total_runs = db.query(Run).filter(Run.firm_id == user.firm_id).count()
+    q_runs = db.query(Run).filter(Run.firm_id == user.firm_id)
+    if date_from is not None:
+        q_runs = q_runs.filter(Run.created_at >= date_from)
+    total_runs = q_runs.count()
 
+    q_recent = db.query(Run).filter(Run.firm_id == user.firm_id)
+    if date_from is not None:
+        q_recent = q_recent.filter(Run.created_at >= date_from)
     recent_run_rows = (
-        db.query(Run)
-        .filter(Run.firm_id == user.firm_id)
+        q_recent
         .order_by(Run.created_at.desc())
         .limit(50)
         .all()
@@ -991,6 +1006,8 @@ def admin_mi(
     try:
         if firm_user_ids:
             guidance_base = db.query(LlmGuidanceLog).filter(LlmGuidanceLog.user_id.in_(firm_user_ids))
+            if date_from is not None:
+                guidance_base = guidance_base.filter(LlmGuidanceLog.created_at >= date_from)
             total_guidance_calls = guidance_base.count()
             total_errors = guidance_base.filter(LlmGuidanceLog.status == "error").count()
 
@@ -1026,11 +1043,10 @@ def admin_mi(
         guidance_rows = []
 
     # Most failed rules: from sections_json, current firm only, POTENTIAL_ISSUE, top 10
-    run_rows_for_failed = (
-        db.query(Run)
-        .filter(Run.firm_id == user.firm_id)
-        .all()
-    )
+    q_failed = db.query(Run).filter(Run.firm_id == user.firm_id)
+    if date_from is not None:
+        q_failed = q_failed.filter(Run.created_at >= date_from)
+    run_rows_for_failed = q_failed.all()
     rule_run_count: Dict[tuple, int] = defaultdict(int)
     for rr in run_rows_for_failed:
         try:
@@ -1132,6 +1148,7 @@ def admin_mi(
             "request": request,
             "user_email": user.email,
             "user_role": user.role,
+            "selected_range": selected_range,
             "total_runs": total_runs,
             "total_guidance_calls": total_guidance_calls,
             "total_errors": total_errors,
