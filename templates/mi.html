@@ -15,27 +15,27 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 18px 34px;
+      padding: 22px 40px;
       border-bottom: 1px solid #1E293B;
     }
     .logo-row { display: flex; align-items: center; gap: 14px; }
-    .logo-row span { font-size: 18px; color: #94A3B8; }
+    .logo-row span { font-size: 20px; color: #E2E8F0; font-weight: 600; }
     .top-actions { display: flex; gap: 14px; align-items: center; }
     .link { color: #94A3B8; text-decoration: none; font-size: 14px; }
     .link:hover { text-decoration: underline; }
 
     .container {
       max-width: 1200px;
-      margin: 30px auto;
-      padding: 0 18px 50px 18px;
+      margin: 36px auto 40px auto;
+      padding: 0 22px 50px 22px;
     }
 
     .card {
       background: #111827;
       border: 1px solid #1F2937;
-      border-radius: 16px;
-      padding: 18px;
-      margin-bottom: 16px;
+      border-radius: 18px;
+      padding: 18px 20px;
+      margin-bottom: 18px;
     }
 
     .grid {
@@ -52,7 +52,7 @@
     }
 
     .sub { color: #94A3B8; font-size: 13px; margin: 0; }
-    .metric { font-size: 30px; font-weight: 800; margin-top: 8px; }
+    .metric { font-size: 26px; font-weight: 700; margin-top: 8px; }
     h1 { margin: 0 0 6px 0; font-size: 22px; }
     h2 { margin: 0 0 12px 0; font-size: 16px; }
 
@@ -75,8 +75,8 @@
     th {
       color: #CBD5E1;
       font-size: 12px;
-      text-transform: uppercase;
-      letter-spacing: .02em;
+      font-weight: 600;
+      letter-spacing: 0;
     }
     tr:last-child td { border-bottom: none; }
 
@@ -222,7 +222,7 @@
         </tr>
       </thead>
       <tbody>
-        {% for row in recent_runs %}
+        {% for row in recent_runs[:10] %}
         <tr>
           <td>{{ row.created_at }}</td>
           <td>{{ row.id }}</td>
