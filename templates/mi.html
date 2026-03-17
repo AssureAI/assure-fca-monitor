@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8"/>
-  <title>RuleGrid – Admin / MI</title>
+  <title>Consiglo – Admin / MI</title>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <style>
     body {
@@ -133,7 +133,7 @@
 
 <header>
   <div class="logo-row">
-    <img src="/static/logo-dark.svg" width="160" alt="RuleGrid"/>
+    <img src="/static/logo-dark.svg" width="160" alt="Consiglo"/>
     <span>Admin / MI</span>
   </div>
   <div class="top-actions">
@@ -162,6 +162,7 @@
     <a href="/admin/mi?range=7d" class="range-btn{% if selected_range == '7d' %} range-btn-active{% endif %}">Last 7 days</a>
     <a href="/admin/mi?range=30d" class="range-btn{% if selected_range == '30d' %} range-btn-active{% endif %}">Last 30 days</a>
     <a href="/admin/mi?range=all" class="range-btn{% if selected_range == 'all' %} range-btn-active{% endif %}">All</a>
+    <a href="/admin/mi/export?range={{ selected_range }}" class="range-btn" style="margin-left:12px;">Export CSV</a>
   </div>
 
   <div class="grid">

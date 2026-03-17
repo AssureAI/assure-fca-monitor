@@ -23,7 +23,8 @@ from docx import Document
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, ListFlowable, ListItem
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import inch
-from io import BytesIO
+from io import BytesIO, StringIO
+import csv
 
 from pydantic import BaseModel
 
@@ -1161,7 +1162,72 @@ def admin_mi(
             "user_rankings": user_rankings,
         },
     )
-    
+
+
+@app.get("/admin/mi/export")
+def admin_mi_export(
+    user: User = Depends(require_admin_html),
+    db=Depends(get_db),
+    range: Optional[str] = None,
+):
+    selected_range = range if range in ("7d", "30d", "all") else "all"
+    now = utc_now()
+    if selected_range == "7d":
+        date_from = now - timedelta(days=7)
+    elif selected_range == "30d":
+        date_from = now - timedelta(days=30)
+    else:
+        date_from = None
+
+    firm_users = (
+        db.query(User)
+        .filter(User.firm_id == user.firm_id)
+        .order_by(User.email.asc())
+        .all()
+    )
+    user_lookup = {u.id: (u.email or "") for u in firm_users}
+
+    q = db.query(Run).filter(Run.firm_id == user.firm_id)
+    if date_from is not None:
+        q = q.filter(Run.created_at >= date_from)
+    run_rows = q.order_by(Run.created_at.desc()).all()
+
+    buffer = StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow(
+        ["run_id", "created_at", "user_email", "ruleset_id", "ok_count", "pi_count", "na_count", "completeness_pct"]
+    )
+    for rr in run_rows:
+        try:
+            summary = json.loads(rr.summary_json or "{}")
+        except Exception:
+            summary = {}
+        ok = rr.ok_count if rr.ok_count is not None else int(summary.get("ok", 0) or 0)
+        pi = rr.pi_count if rr.pi_count is not None else int(summary.get("potential_issue", 0) or 0)
+        na = rr.na_count if rr.na_count is not None else int(summary.get("not_assessed", 0) or 0)
+        completeness = rr.completeness_pct if rr.completeness_pct is not None else compute_completeness(summary)
+        user_email = rr.user.email if rr.user else user_lookup.get(rr.user_id, "-")
+        writer.writerow(
+            [
+                rr.id,
+                rr.created_at.isoformat() if rr.created_at else "",
+                user_email or "-",
+                rr.ruleset_id or "",
+                ok,
+                pi,
+                na,
+                completeness,
+            ]
+        )
+
+    buffer.seek(0)
+    return StreamingResponse(
+        iter([buffer.getvalue().encode("utf-8")]),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=mi_export.csv"},
+    )
+
+
 @app.get("/admin/runs/{run_id}", response_class=HTMLResponse)
 def admin_run_detail(request: Request, run_id: str, user: User = Depends(require_user_html), db=Depends(get_db)):
     rr = db.query(Run).filter(Run.id == run_id, Run.firm_id == user.firm_id).first()

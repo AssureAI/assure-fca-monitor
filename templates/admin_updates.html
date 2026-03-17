@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>RuleGrid.ai – FCA COBS Updates</title>
+  <title>Consiglo – FCA COBS Updates</title>
   <style>
     body {
       font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -105,7 +105,7 @@
         <td>
           {% if not row.reviewed %}
             <form method="post" action="/admin/updates/{{ row.id }}/review">
-              <input type="hidden" name="reviewer" value="RuleGrid.ai" />
+              <input type="hidden" name="reviewer" value="Consiglo" />
               <button class="btn" type="submit">Mark reviewed</button>
             </form>
           {% else %}
