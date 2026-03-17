@@ -52,7 +52,16 @@
     }
 
     .sub { color: #94A3B8; font-size: 13px; margin: 0; }
-    .metric { font-size: 26px; font-weight: 700; margin-top: 8px; }
+    .metric { font-size: 26px; font-weight: 700; margin-top: 8px; color: #F1F5F9; }
+
+    .card-kpi-runs { border-top: 2px solid #0D9488; }
+    .card-kpi-guidance { border-top: 2px solid #2563EB; }
+    .card-kpi-errors { border-top: 2px solid #DC2626; }
+    .card-kpi-users { border-top: 2px solid #475569; }
+
+    .text-ok { color: #22C55E; }
+    .text-warn { color: #F59E0B; }
+    .text-muted-strong { color: #94A3B8; }
     h1 { margin: 0 0 6px 0; font-size: 22px; }
     h2 { margin: 0 0 12px 0; font-size: 16px; }
 
@@ -187,19 +196,19 @@
   </div>
 
   <div class="grid">
-    <div class="card">
+    <div class="card card-kpi-runs">
       <div class="sub">Runs</div>
       <div class="metric">{{ total_runs }}</div>
     </div>
-    <div class="card">
+    <div class="card card-kpi-guidance">
       <div class="sub">Guidance calls</div>
       <div class="metric">{{ total_guidance_calls }}</div>
     </div>
-    <div class="card">
+    <div class="card card-kpi-errors">
       <div class="sub">Errors</div>
       <div class="metric">{{ total_errors }}</div>
     </div>
-    <div class="card">
+    <div class="card card-kpi-users">
       <div class="sub">Users</div>
       <div class="metric">{{ total_users }}</div>
     </div>
@@ -228,9 +237,9 @@
           <td>{{ row.id }}</td>
           <td>{{ row.user_email }}</td>
           <td>{{ row.ruleset_id }} v{{ row.ruleset_version }}</td>
-          <td>{{ row.ok_count }}</td>
-          <td>{{ row.pi_count }}</td>
-          <td>{{ row.na_count }}</td>
+          <td class="text-ok">{{ row.ok_count }}</td>
+          <td class="text-warn">{{ row.pi_count }}</td>
+          <td class="text-muted-strong">{{ row.na_count }}</td>
           <td class="progress-cell">
             {% set pct = row.completeness_pct %}
             <div class="progress">
@@ -266,7 +275,7 @@
         <tr>
           <td>{{ row.rule_id }}</td>
           <td>{{ row.title }}</td>
-          <td>{{ row.fail_count }}</td>
+          <td class="text-warn">{{ row.fail_count }}</td>
           <td>{{ row.affected_run_pct }}</td>
         </tr>
         {% endfor %}
@@ -317,7 +326,7 @@
         <tr>
           <td>{{ row.user_email }}</td>
           <td>{{ row.runs }}</td>
-          <td>{{ row.total_pi }}</td>
+          <td class="text-warn">{{ row.total_pi }}</td>
           <td>{{ row.avg_pi }}</td>
           <td class="progress-cell">
             {% set score = row.avg_score %}
