@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Consiglo – Results</title>
+<title>Consiglo – results</title>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <style>
   .status-badge{
@@ -43,7 +43,7 @@
     padding:18px 34px;
     border-bottom:1px solid #1E293B;
   }
-  .logo-row {
+    .logo-row {
     display:flex;
     align-items:center;
     gap:14px;
@@ -68,8 +68,8 @@
 
   .container {
     max-width:1100px;
-    margin:30px auto;
-    padding:0 18px;
+    margin:0 auto;
+    padding:40px 22px 50px 22px;
   }
   .json-tools {
     display:flex;
@@ -117,12 +117,17 @@
     overflow:auto;
   }
   .summary {
-    background:#111827;
-    border:1px solid #1F2937;
-    padding:22px 24px 20px 24px;
+    background:#0B1220;
+    border:2px solid #334155;
+    padding:28px 28px 24px 28px;
     border-radius:16px;
-    margin-bottom:20px;
+    margin-bottom:24px;
   }
+  .summary .status-badge { margin-bottom: 16px; }
+  .summary .sub { margin-top: 10px; }
+  .summary .meta-row { margin-top: 22px; }
+  .summary .ai-summary { margin-top: 22px; }
+  .summary .small { margin-top: 16px; }
 
   .headline-ok { color:#22C55E; margin:0; }
   .headline-warn { color:#F59E0B; margin:0; }
@@ -134,16 +139,16 @@
   }
 
   .meta-row {
-    margin-top:16px;
+    margin-top:22px;
     display:flex;
     flex-wrap:wrap;
-    gap:10px;
+    gap:14px;
   }
   .metric-chip {
     background:#020617;
     border:1px solid #1F2937;
     border-radius:12px;
-    padding:8px 10px;
+    padding:12px 14px;
     min-width:120px;
   }
   .metric-chip-main {
@@ -153,25 +158,25 @@
     font-size:11px;
     text-transform:uppercase;
     letter-spacing:.06em;
-    color:#64748B;
-    margin-bottom:4px;
+    color:#94A3B8;
+    margin-bottom:6px;
   }
   .metric-value {
-    font-size:13px;
-    font-weight:600;
-    color:#E2E8F0;
+    font-size:15px;
+    font-weight:700;
+    color:#F1F5F9;
   }
 
   .grid {
     display:grid;
     grid-template-columns: 1fr;
-    gap: 14px;
+    gap: 20px;
   }
 
   .issue {
-    background:#111827;
-    border:1px solid #1F2937;
-    padding:18px 18px 16px 18px;
+    background:#0B1220;
+    border:1px solid #334155;
+    padding:22px 24px 20px 24px;
     border-radius:14px;
   }
 
@@ -226,9 +231,10 @@
 
   .guidance-box {
     margin-top: 12px;
-    padding: 14px 16px;
+    padding: 16px 18px;
     background: #1E293B;
     border: 1px solid #334155;
+    border-left: 3px solid #475569;
     border-radius: 10px;
     color: #E2E8F0;
   }
@@ -242,18 +248,21 @@
   .guidance-btn {
     width: 100%;
     justify-content: center;
+    padding: 12px 18px;
     background:#0F172A;
-    border-color:#334155;
+    border: 2px solid #475569;
     color:#E2E8F0;
   }
   .guidance-btn:hover {
-    border-color:#475569;
+    border-color:#64748B;
     background:#1E293B;
   }
 
   .source-link {
     text-decoration: underline;
+    color: #93C5FD;
   }
+  .source-link:hover { color: #BFDBFE; }
   .source-link::after {
     content: \"↗\";
     font-size: 10px;
@@ -267,7 +276,7 @@
   }
   .guidance-box .guidance-content {
     font-size: 13px;
-    line-height: 1.5;
+    line-height: 1.6;
     white-space: pre-wrap;
     word-break: break-word;
   }
