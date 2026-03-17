@@ -1132,8 +1132,8 @@ def manage_users(request: Request, user: User = Depends(require_user_html), db=D
 @app.post("/admin/users/create", response_class=HTMLResponse)
 def create_user(
     request: Request,
-    email: str = Form(...),
-    password: str = Form(...),
+    email: Optional[str] = Form(None),
+    password: Optional[str] = Form(None),
     role: str = Form("member"),
     user: User = Depends(require_user_html),
     db=Depends(get_db),
@@ -1141,15 +1141,35 @@ def create_user(
     if user.role != "admin":
         raise HTTPException(status_code=403, detail="Admin only")
 
+    users = db.query(User).filter(User.firm_id == user.firm_id).all()
+
     email_clean = (email or "").strip().lower()
+    password_val = (password or "").strip()
+
+    if not email_clean:
+        return templates.TemplateResponse(
+            "users.html",
+            {"request": request, "users": users, "error": "Email is required."},
+            status_code=400,
+        )
+    if not password_val:
+        return templates.TemplateResponse(
+            "users.html",
+            {"request": request, "users": users, "error": "Password is required."},
+            status_code=400,
+        )
+    if len(password_val) < 8:
+        return templates.TemplateResponse(
+            "users.html",
+            {"request": request, "users": users, "error": "Password must be at least 8 characters."},
+            status_code=400,
+        )
 
     existing = (
         db.query(User)
         .filter(User.email == email_clean, User.firm_id == user.firm_id)
         .first()
     )
-
-    users = db.query(User).filter(User.firm_id == user.firm_id).all()
 
     if existing:
         return templates.TemplateResponse(
@@ -1161,7 +1181,7 @@ def create_user(
     new_user = User(
         firm_id=user.firm_id,
         email=email_clean,
-        password_hash=hash_password(password),
+        password_hash=hash_password(password_val),
         role=role,
         is_active=1,
     )
