@@ -53,7 +53,7 @@ from database import (
 # APP
 # -----------------------------
 
-app = FastAPI(title="Rulegrid Compliance Engine")
+app = FastAPI(title="Nirio Compliance Engine")
 templates = Jinja2Templates(directory="templates")
 
 # Static assets
@@ -800,7 +800,7 @@ async def export_compliance_review(
     styles = getSampleStyleSheet()
     story = []
 
-    story.append(Paragraph("RuleGrid Compliance Review", styles["Title"]))
+    story.append(Paragraph("Nirio Compliance Review", styles["Title"]))
     story.append(Spacer(1, 12))
 
     story.append(Paragraph(f"Run ID: {run_id}", styles["Normal"]))
@@ -844,7 +844,7 @@ async def export_compliance_review(
         buffer,
         media_type="application/pdf",
         headers={
-            "Content-Disposition": f"attachment; filename=rulegrid-review-{run_id}.pdf"
+            "Content-Disposition": f"attachment; filename=nirio-review-{run_id}.pdf"
         },
     )
     
@@ -869,7 +869,7 @@ def download_pdf(run_id: str, user: User = Depends(require_user_html), db=Depend
     normal = styles["Normal"]
     heading = styles["Heading1"]
 
-    elements.append(Paragraph("Rulegrid Compliance Report", heading))
+    elements.append(Paragraph("Nirio Compliance Report", heading))
     elements.append(Spacer(1, 0.3 * inch))
 
     summary = result.get("summary", {})
@@ -900,7 +900,7 @@ def download_pdf(run_id: str, user: User = Depends(require_user_html), db=Depend
     return StreamingResponse(
         buffer,
         media_type="application/pdf",
-        headers={"Content-Disposition": f"attachment; filename=rulegrid-run-{run_id}.pdf"},
+        headers={"Content-Disposition": f"attachment; filename=nirio-run-{run_id}.pdf"},
     )
 
 # -----------------------------
@@ -1359,4 +1359,4 @@ def health():
 
 @app.get("/", response_class=PlainTextResponse)
 def root():
-    return "Rulegrid is running. Visit /login"
+    return "Nirio is running. Visit /login"
