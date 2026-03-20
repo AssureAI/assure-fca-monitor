@@ -1,7 +1,7 @@
-ruleset_id: rulegrid-cobs-mvp-sr-checker
+ruleset_id: nirio-cobs-mvp-sr-checker
 version: '1.0'
 status: active
-reviewed_by: RuleGrid
+reviewed_by: nirio
 reviewed_at: 2026-02-25
 global:
   interpretation:
